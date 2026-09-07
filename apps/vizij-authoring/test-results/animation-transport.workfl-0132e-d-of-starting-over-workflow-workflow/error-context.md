@@ -1,0 +1,249 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - img "Vizij Logo" [ref=e7]
+      - generic [ref=e8]: vizij
+    - button "File" [ref=e10] [cursor=pointer]
+    - button "Edit" [ref=e11] [cursor=pointer]
+    - button "Mode" [ref=e12] [cursor=pointer]
+    - button "View" [active] [ref=e13] [cursor=pointer]
+    - button "Settings" [ref=e14] [cursor=pointer]
+    - button "Save" [ref=e15] [cursor=pointer]
+    - button "Toggle theme" [ref=e16] [cursor=pointer]:
+      - img [ref=e17]
+  - generic [ref=e20]:
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - paragraph [ref=e31]: Input Controls
+          - img [ref=e33]
+        - generic [ref=e35]:
+          - button "Hide panel" [ref=e36] [cursor=pointer]:
+            - img [ref=e37]
+          - generic [ref=e40]: "206"
+      - generic [ref=e42]:
+        - tablist [ref=e43]:
+          - tab "Inputs (206)" [selected] [ref=e44] [cursor=pointer]:
+            - generic [ref=e45]: Inputs (206)
+        - tabpanel "Inputs (206)" [ref=e47]:
+          - generic [ref=e48]:
+            - generic [ref=e49]:
+              - button "Add Driver" [ref=e50] [cursor=pointer]:
+                - img [ref=e51]
+                - text: Add Driver
+              - button "Capture Current" [ref=e52] [cursor=pointer]:
+                - img [ref=e53]
+                - text: Capture Current
+            - generic [ref=e57]:
+              - generic:
+                - img
+              - searchbox "Search inputs..." [ref=e58]
+            - generic [ref=e59]:
+              - generic [ref=e60]: Animation
+              - generic [ref=e61]: Tracks 4/206
+              - generic [ref=e62]: Active tracks and available tracks are listed separately. Slider edits keyframe at the current animation time.
+            - generic [ref=e64]:
+              - generic [ref=e65]:
+                - generic [ref=e66]:
+                  - generic [ref=e67]: Active Tracks
+                  - generic [ref=e68]: "4"
+                - generic [ref=e69]:
+                  - button "Cross Remove Animation Track Animation playback is currently driving this input." [ref=e70]:
+                    - generic [ref=e71]:
+                      - img [ref=e72]
+                      - generic [ref=e73]: Cross
+                      - button "Remove Animation Track" [ref=e76] [cursor=pointer]:
+                        - img [ref=e77]
+                    - group [ref=e81]:
+                      - slider [disabled] [ref=e85]: "0"
+                    - paragraph [ref=e86]: Animation playback is currently driving this input.
+                  - button "Gaze Left Right Remove Animation Track Animation playback is currently driving this input." [ref=e87]:
+                    - generic [ref=e88]:
+                      - img [ref=e89]
+                      - generic [ref=e90]: Gaze Left Right
+                      - button "Remove Animation Track" [ref=e93] [cursor=pointer]:
+                        - img [ref=e94]
+                    - group [ref=e98]:
+                      - slider [disabled] [ref=e102]: "0"
+                    - paragraph [ref=e103]: Animation playback is currently driving this input.
+                  - button "Gaze Up Down Remove Animation Track Animation playback is currently driving this input." [ref=e104]:
+                    - generic [ref=e105]:
+                      - img [ref=e106]
+                      - generic [ref=e107]: Gaze Up Down
+                      - button "Remove Animation Track" [ref=e110] [cursor=pointer]:
+                        - img [ref=e111]
+                    - group [ref=e115]:
+                      - slider [disabled] [ref=e119]: "0"
+                    - paragraph [ref=e120]: Animation playback is currently driving this input.
+                  - button "Smile Remove Animation Track Animation playback is currently driving this input." [ref=e121]:
+                    - generic [ref=e122]:
+                      - img [ref=e123]
+                      - generic [ref=e124]: Smile
+                      - button "Remove Animation Track" [ref=e127] [cursor=pointer]:
+                        - img [ref=e128]
+                    - group [ref=e132]:
+                      - slider [disabled] [ref=e136]: "0"
+                    - paragraph [ref=e137]: Animation playback is currently driving this input.
+              - generic [ref=e138]:
+                - generic [ref=e139]:
+                  - generic [ref=e140]: Available Tracks
+                  - generic [ref=e141]: "202"
+                - generic [ref=e142]:
+                  - generic [ref=e144] [cursor=pointer]:
+                    - button [ref=e145]:
+                      - img [ref=e146]
+                    - img [ref=e149]
+                    - generic "brow" [ref=e152]
+                  - generic [ref=e154] [cursor=pointer]:
+                    - button [ref=e155]:
+                      - img [ref=e156]
+                    - img [ref=e159]
+                    - generic "lids" [ref=e162]
+                  - generic [ref=e164] [cursor=pointer]:
+                    - button [ref=e165]:
+                      - img [ref=e166]
+                    - img [ref=e169]
+                    - generic "mouth" [ref=e172]
+                  - generic [ref=e174] [cursor=pointer]:
+                    - button [ref=e175]:
+                      - img [ref=e176]
+                    - img [ref=e179]
+                    - generic "poses" [ref=e182]
+                  - generic [ref=e184] [cursor=pointer]:
+                    - button [ref=e185]:
+                      - img [ref=e186]
+                    - img [ref=e189]
+                    - generic "speech" [ref=e192]
+                  - generic [ref=e194] [cursor=pointer]:
+                    - button [ref=e195]:
+                      - img [ref=e196]
+                    - img [ref=e199]
+                    - generic "standard" [ref=e202]
+                  - generic [ref=e204] [cursor=pointer]:
+                    - button [ref=e205]:
+                      - img [ref=e206]
+                    - img [ref=e209]
+                    - generic "Face Element Properties" [ref=e212]
+    - separator [ref=e213]
+    - generic [ref=e216]:
+      - main [ref=e228]:
+        - generic [ref=e229]:
+          - generic [ref=e230]: "runtime: ready | rootId: 54504c66-6de2-4f6d-b0c6-8acff1750969 | graphs: 1 | outputs: 169"
+          - generic [ref=e231]:
+            - generic [ref=e233]: Ready
+            - generic [ref=e235]: "FPS: 14 fps"
+            - generic [ref=e236]:
+              - text: "Animation: Playing"
+              - button "Pause" [ref=e237]:
+                - img [ref=e238]
+            - button "Reset Main Inputs" [ref=e241] [cursor=pointer]
+            - button "Stop Animation" [ref=e242] [cursor=pointer]
+      - separator [ref=e247]
+      - generic [ref=e251]:
+        - generic [ref=e252]:
+          - generic [ref=e253]:
+            - paragraph [ref=e254]: Animation
+            - img [ref=e256]
+          - generic [ref=e258]:
+            - generic [ref=e259]:
+              - button "Delete Selected Track" [disabled]:
+                - img
+              - button "Add Track" [ref=e260] [cursor=pointer]:
+                - img [ref=e261]
+              - button "Hide panel" [ref=e262] [cursor=pointer]:
+                - img [ref=e263]
+            - generic [ref=e266]: 00:01:47
+        - generic [ref=e267]:
+          - generic [ref=e268]:
+            - generic [ref=e269]:
+              - button "Stop" [ref=e270] [cursor=pointer]:
+                - img [ref=e271]
+              - button "Step back one frame" [ref=e273] [cursor=pointer]:
+                - img [ref=e274]
+              - button "Pause" [ref=e276] [cursor=pointer]:
+                - img [ref=e277]
+              - button "Step forward one frame" [ref=e280] [cursor=pointer]:
+                - img [ref=e281]
+            - generic [ref=e285]:
+              - generic [ref=e286]: 00:01:47
+              - generic [ref=e287]: /
+              - generic [ref=e288]: 00:05:00
+            - button "Loop" [ref=e289] [cursor=pointer]
+            - combobox [ref=e290]:
+              - option "0.5x"
+              - option "1.0x" [selected]
+              - option "1.5x"
+              - option "2.0x"
+            - generic [ref=e291]:
+              - button "Seconds" [pressed] [ref=e292] [cursor=pointer]
+              - button "Frames" [ref=e293] [cursor=pointer]
+          - generic [ref=e294]:
+            - generic [ref=e295]:
+              - generic [ref=e296]:
+                - generic [ref=e297]: Time
+                - textbox "Current time" [ref=e298]: 1.474s
+              - button "Add Key" [disabled]:
+                - img
+                - text: Add Key
+              - button "Save Frame as Pose" [ref=e299] [cursor=pointer]:
+                - img [ref=e300]
+                - text: Save Frame as Pose
+            - generic [ref=e302]:
+              - generic [ref=e304]: Tracks
+              - generic [ref=e305]:
+                - generic [ref=e307]: 0s
+                - generic [ref=e309]: 1s
+                - generic [ref=e311]: 2s
+                - generic [ref=e313]: 3s
+                - generic [ref=e315]: 4s
+                - generic [ref=e317]: 5s
+            - generic [ref=e318]:
+              - generic [ref=e319] [cursor=pointer]:
+                - generic [ref=e322]:
+                  - generic [ref=e323]: gaze_left_right
+                  - generic [ref=e324]: linear · 4 keys
+                - generic [ref=e325]:
+                  - 'generic "Time: 0.000s Value: -0.04 Drag to move in time" [ref=e327]'
+                  - 'generic "Time: 1.258s Value: -0.43 Drag to move in time" [ref=e328]'
+                  - 'generic "Time: 2.562s Value: 0.71 Drag to move in time" [ref=e329]'
+                  - 'generic "Time: 4.548s Value: -1.00 Drag to move in time" [ref=e330]'
+              - generic [ref=e331] [cursor=pointer]:
+                - generic [ref=e334]:
+                  - generic [ref=e335]: gaze_left_right_copy
+                  - generic [ref=e336]: linear · 2 keys
+                - generic [ref=e337]:
+                  - 'generic "Time: 0.000s Value: 0.01 Drag to move in time" [ref=e339]'
+                  - 'generic "Time: 3.374s Value: 0.86 Drag to move in time" [ref=e340]'
+              - generic [ref=e341] [cursor=pointer]:
+                - generic [ref=e344]:
+                  - generic [ref=e345]: gaze_up_down
+                  - generic [ref=e346]: linear · 4 keys
+                - generic [ref=e347]:
+                  - 'generic "Time: 0.000s Value: 0.04 Drag to move in time" [ref=e349]'
+                  - 'generic "Time: 1.281s Value: 0.00 Drag to move in time" [ref=e350]'
+                  - 'generic "Time: 1.933s Value: 1.00 Drag to move in time" [ref=e351]'
+                  - 'generic "Time: 2.597s Value: 0.00 Drag to move in time" [ref=e352]'
+              - generic [ref=e353] [cursor=pointer]:
+                - generic [ref=e356]:
+                  - generic [ref=e357]: mouth_smile
+                  - generic [ref=e358]: linear · 3 keys
+                - generic [ref=e359]:
+                  - 'generic "Time: 0.000s Value: -0.02 Drag to move in time" [ref=e361]'
+                  - 'generic "Time: 1.258s Value: 0.00 Drag to move in time" [ref=e362]'
+                  - 'generic "Time: 3.374s Value: 1.00 Drag to move in time" [ref=e363]'
+    - separator [ref=e364]
+    - generic [ref=e373]:
+      - generic [ref=e374]:
+        - generic [ref=e375]:
+          - paragraph [ref=e376]: Inspector
+          - img [ref=e378]
+        - button "Hide panel" [ref=e381] [cursor=pointer]:
+          - img [ref=e382]
+      - generic [ref=e387]:
+        - img [ref=e389]
+        - heading "No selection" [level=3] [ref=e391]
+        - paragraph [ref=e392]: Select an object, pose, or rig to see its properties here.
+```
