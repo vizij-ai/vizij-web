@@ -164,7 +164,7 @@ passes without that change, so it is covered by unit tests rather than by it.
 **A duration edit reverted because a blank buffer was saved over it.** The
 store's own trace shows the whole sequence:
 
-```
+```text
 handleUpdateDuration  entry=clip.1 next=12.5
 updateClip            clip.1 duration 5 -> 12.5
 saveAnimationTarget   bufferDuration=12.5  entryDuration=12.5
