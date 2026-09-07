@@ -416,4 +416,3 @@ export function findCanonicalAuthoredTimelineConflict(
     ) ?? null
   );
 }
-

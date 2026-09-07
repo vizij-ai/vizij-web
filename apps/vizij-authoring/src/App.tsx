@@ -1001,9 +1001,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const pauseAnimationTransportState = useAnimationStore(
     (state) => state.pause,
   );
-  const playAnimationTransportState = useAnimationStore(
-    (state) => state.play,
-  );
+  const playAnimationTransportState = useAnimationStore((state) => state.play);
   const selectedAnimationTrackId = useAnimationStore(
     (state) => state.selectedTrackId,
   );

@@ -9,9 +9,7 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
 } from "../types/animationClipIr";
-import {
-  compileAnimationClipIr,
-} from "../utils/animationClipCompiler";
+import { compileAnimationClipIr } from "../utils/animationClipCompiler";
 import { sampleTrackAt } from "../utils/sampleAnimationTrack";
 import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
 import {
