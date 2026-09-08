@@ -12,6 +12,9 @@ This folder stores active reference docs that support implementation but are not
    Why a pose captured at a frame can render differently, and which candidate causes survive.
 4. `apps/vizij-authoring/docs/references/e2e-workflow-failures.md`
    What the six `workflow` e2e failures actually were, and the techniques that found them.
+5. `apps/vizij-authoring/docs/references/animation-blender-round-trip.d2`
+   How an animation moves between Blender, the .glb, and Vizij, and how an edit made
+   outside Vizij is reconciled on re-import. Rendered alongside as `.svg`.
 
 ## Usage rules
 

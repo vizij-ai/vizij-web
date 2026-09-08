@@ -1,0 +1,89 @@
+# Render: d2 --font-regular <Questrial-Regular.ttf> \
+#           docs/references/animation-blender-round-trip.d2 \
+#           docs/references/animation-blender-round-trip.svg
+
+vars: { d2-config: { theme-id: 0; pad: 24; sketch: false; layout-engine: dagre } }
+
+classes: {
+  primary:   { style: { fill: "#50C4B6"; stroke: "#2AA499"; font-color: "#FFFFFF"; border-radius: 8; stroke-width: 2 } }
+  secondary: { style: { fill: "#F56B29"; stroke: "#EC4D00"; font-color: "#FFFFFF"; border-radius: 8; stroke-width: 2 } }
+  highlight: { style: { fill: "#FF9E00"; stroke: "#F78600"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+  neutral:   { style: { fill: "#F7F8F8"; stroke: "#888888"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+  emphasis:  { style: { fill: "#48E2CE"; stroke: "#2AA499"; font-color: "#111111"; border-radius: 8; stroke-width: 2 } }
+  group:     { style: { fill: "#FFFFFF"; stroke: "#50C4B6"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+}
+
+title: "Animation round trip: Blender -> GLB -> Vizij" {
+  near: top-center
+  shape: text
+  style: { font-size: 32; bold: true; font-color: "#333333" }
+}
+
+blender: "Blender" {
+  class: group
+  direction: down
+  authored: "Animation authored here" { class: secondary }
+  edited: "Someone edits the\nbaked animation" { class: secondary }
+}
+
+glb: "The .glb file" {
+  class: group
+  direction: down
+
+  channels: "glTF animation channels\nwhat any tool can see and edit" { class: neutral }
+  bundle: "VIZIJ_bundle.animations\nlossless clips, only Vizij reads these" { class: emphasis }
+  records: "VIZIJ_bundle.bakedAnimations\nclipId + fingerprint per baked animation" { class: highlight }
+
+  note: "One save writes each clip twice:\nonce losslessly, once baked." {
+    shape: text
+    style: { font-size: 14; font-color: "#555555"; italic: true }
+  }
+}
+
+vizij: "Vizij" {
+  class: group
+  direction: down
+
+  clips: "Vizij clips\n(AnimationClipIR)" { class: primary }
+  timeline: "Timeline editor" { class: primary }
+
+  compare: "Per glTF animation on load:\nfingerprint vs the recorded one" {
+    class: highlight
+    shape: diamond
+  }
+
+  skip: "match -> skip-duplicate\nload the bundle clip once,\ndrop the baked copy" { class: primary }
+  both: "mismatch -> keep-both-edited\nkeep the lossless clip AND\nimport the edited one" { class: secondary }
+  fresh: "no record -> import-new\nnothing claims it, import normally" { class: neutral }
+
+  resolve: "Two clips side by side.\nOnly a person can say which was meant,\nso neither is discarded." { class: emphasis }
+
+  clips -> timeline
+  compare -> skip
+  compare -> both
+  compare -> fresh
+  both -> resolve
+  resolve -> timeline: "pick one, or keep both"
+}
+
+# Blender -> GLB
+blender.authored -> glb.channels: "export from Blender" { style.stroke: "#555555" }
+glb.channels -> blender.edited: "open in Blender" { style.stroke: "#555555" }
+blender.edited -> glb.channels: "re-export, channels changed" { style.stroke: "#555555" }
+
+# GLB -> Vizij
+glb.channels -> vizij.clips: "import" { style.stroke: "#555555" }
+glb.channels -> vizij.compare: "on re-import" { style.stroke: "#555555" }
+glb.records -> vizij.compare: "recorded fingerprint" { style.stroke: "#555555" }
+glb.bundle -> vizij.clips: "load lossless" { style.stroke: "#555555" }
+
+# Vizij -> GLB
+vizij.timeline -> glb.bundle: "save" { style.stroke: "#555555" }
+vizij.timeline -> glb.channels: "save (bake)" { style.stroke: "#555555" }
+glb.channels -> glb.records: "hash what was written" { style.stroke: "#555555" }
+
+note: "The fingerprint covers what a consumer could change: which node and property each curve\ndrives, its interpolation, and its sampled values -- rounded, because a GLB float round trip is\nnot bit-exact. It ignores animation name and curve order, so a reordering export is not an edit." {
+  near: bottom-center
+  shape: text
+  style: { font-size: 14; font-color: "#555555" }
+}
