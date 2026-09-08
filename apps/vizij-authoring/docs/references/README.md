@@ -13,9 +13,9 @@ This folder stores active reference docs that support implementation but are not
 4. `apps/vizij-authoring/docs/references/e2e-workflow-failures.md`
    What the six `workflow` e2e failures actually were, and the techniques that found them.
 5. `apps/vizij-authoring/docs/references/animation-blender-round-trip.md`
-   The Blender round trip as measured against Blender 5.2.1: what survives, what
-   Blender's exporter drops, which import path works, and what it would take to make
-   Blender keep the bundle. The diagram is the `.d2` alongside, rendered to `.svg`.
+   Why the baked glTF export is one way, measured against Blender 5.2.1, and the
+   decision not to build Blender-specific tooling to change that. The diagram is the
+   `.d2` alongside, rendered to `.svg`.
 
 ## Usage rules
 
