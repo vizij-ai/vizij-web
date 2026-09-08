@@ -1,6 +1,8 @@
 # Render: d2 --font-regular <Questrial-Regular.ttf> \
 #           docs/references/animation-blender-round-trip.d2 \
 #           docs/references/animation-blender-round-trip.svg
+#
+# Verified against Blender 5.2.1 on 2026-09-08. See the .md alongside.
 
 vars: { d2-config: { theme-id: 0; pad: 24; sketch: false; layout-engine: dagre } }
 
@@ -11,9 +13,10 @@ classes: {
   neutral:   { style: { fill: "#F7F8F8"; stroke: "#888888"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
   emphasis:  { style: { fill: "#48E2CE"; stroke: "#2AA499"; font-color: "#111111"; border-radius: 8; stroke-width: 2 } }
   group:     { style: { fill: "#FFFFFF"; stroke: "#50C4B6"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }
+  lost:      { style: { fill: "#FFFFFF"; stroke: "#EC4D00"; font-color: "#EC4D00"; border-radius: 8; stroke-width: 2; stroke-dash: 4 } }
 }
 
-title: "Animation round trip: Blender -> GLB -> Vizij" {
+title: "Animation round trip: Blender / GLB / Vizij" {
   near: top-center
   shape: text
   style: { font-size: 32; bold: true; font-color: "#333333" }
@@ -22,67 +25,79 @@ title: "Animation round trip: Blender -> GLB -> Vizij" {
 blender: "Blender" {
   class: group
   direction: down
+
   authored: "Animation authored here" { class: secondary }
-  edited: "Someone edits the\nbaked animation" { class: secondary }
+  edited: "Someone edits a\nbaked animation" { class: secondary }
+  reexport: "Blender's glTF export\nkeeps the channels,\nDROPS every extension" { class: lost }
+
+  edited -> reexport
 }
 
-glb: "The .glb file" {
+vizij_out: "The .glb Vizij writes" {
   class: group
   direction: down
 
-  channels: "glTF animation channels\nwhat any tool can see and edit" { class: neutral }
-  bundle: "VIZIJ_bundle.animations\nlossless clips, only Vizij reads these" { class: emphasis }
-  records: "VIZIJ_bundle.bakedAnimations\nclipId + fingerprint per baked animation" { class: highlight }
+  channels: "glTF animation channels\nany tool can see and edit" { class: neutral }
+  bundle: "VIZIJ_bundle.animations\nlossless clips" { class: emphasis }
+  records: "VIZIJ_bundle.bakedAnimations\nclipId + fingerprint" { class: highlight }
+  robot: "RobotData\nrig + baked rootBounds" { class: emphasis }
 
-  note: "One save writes each clip twice:\nonce losslessly, once baked." {
-    shape: text
-    style: { font-size: 14; font-color: "#555555"; italic: true }
-  }
+  channels -> records: "hash what was written"
+}
+
+blender_out: "The .glb Blender writes" {
+  class: group
+  direction: down
+
+  bchannels: "glTF animation channels\nthe edit is here, resampled\nonto whole frames" { class: neutral }
+  gone: "no VIZIJ_bundle\nno RobotData\nno fingerprint records" { class: lost }
 }
 
 vizij: "Vizij" {
   class: group
   direction: down
 
-  clips: "Vizij clips\n(AnimationClipIR)" { class: primary }
   timeline: "Timeline editor" { class: primary }
 
-  compare: "Per glTF animation on load:\nfingerprint vs the recorded one" {
+  compare: "Per glTF animation on load:\nis there a fingerprint record,\nand does it match?" {
     class: highlight
     shape: diamond
   }
 
   skip: "match -> skip-duplicate\nload the bundle clip once,\ndrop the baked copy" { class: primary }
-  both: "mismatch -> keep-both-edited\nkeep the lossless clip AND\nimport the edited one" { class: secondary }
-  fresh: "no record -> import-new\nnothing claims it, import normally" { class: neutral }
+  both: "mismatch -> keep-both-edited\nkeep the lossless clip AND\nthe edited one" { class: secondary }
+  fresh: "no record -> import-new\nimport as a new clip\nalongside what is already open" { class: neutral }
 
-  resolve: "Two clips side by side.\nOnly a person can say which was meant,\nso neither is discarded." { class: emphasis }
+  resolve: "Both versions sit side by side.\nOnly a person can say which was meant." { class: emphasis }
 
-  clips -> timeline
   compare -> skip
   compare -> both
   compare -> fresh
   both -> resolve
+  fresh -> resolve
   resolve -> timeline: "pick one, or keep both"
 }
 
-# Blender -> GLB
-blender.authored -> glb.channels: "export from Blender" { style.stroke: "#555555" }
-glb.channels -> blender.edited: "open in Blender" { style.stroke: "#555555" }
-blender.edited -> glb.channels: "re-export, channels changed" { style.stroke: "#555555" }
+# --- outbound ----------------------------------------------------------------
+blender.authored -> vizij_out.channels: "first import into Vizij" { style.stroke: "#555555" }
+vizij.timeline -> vizij_out.bundle: "save" { style.stroke: "#555555" }
+vizij.timeline -> vizij_out.channels: "save (bake)" { style.stroke: "#555555" }
+vizij_out.channels -> blender.edited: "open in Blender" { style.stroke: "#555555" }
 
-# GLB -> Vizij
-glb.channels -> vizij.clips: "import" { style.stroke: "#555555" }
-glb.channels -> vizij.compare: "on re-import" { style.stroke: "#555555" }
-glb.records -> vizij.compare: "recorded fingerprint" { style.stroke: "#555555" }
-glb.bundle -> vizij.clips: "load lossless" { style.stroke: "#555555" }
+# --- the return trip ---------------------------------------------------------
+blender.reexport -> blender_out.bchannels { style.stroke: "#555555" }
+blender.reexport -> blender_out.gone { style.stroke: "#EC4D00" }
 
-# Vizij -> GLB
-vizij.timeline -> glb.bundle: "save" { style.stroke: "#555555" }
-vizij.timeline -> glb.channels: "save (bake)" { style.stroke: "#555555" }
-glb.channels -> glb.records: "hash what was written" { style.stroke: "#555555" }
+blender_out.bchannels -> vizij.compare: "import ANIMATIONS ONLY\n(app-import-glb-animations-input)" { style.stroke: "#555555" }
 
-note: "The fingerprint covers what a consumer could change: which node and property each curve\ndrives, its interpolation, and its sampled values -- rounded, because a GLB float round trip is\nnot bit-exact. It ignores animation name and curve order, so a reordering export is not an edit." {
+reload: "Reloading it as a FACE would\nlose the graphs, poses, profiles,\nskills and rootBounds too." { class: lost }
+blender_out.gone -> reload { style.stroke: "#EC4D00" }
+
+# Reopening a file Vizij itself wrote is the only route that still has records.
+vizij_out.records -> vizij.compare: "reopening a Vizij-written file:\nrecords still present" { style.stroke: "#555555" }
+vizij_out.bundle -> vizij.timeline: "load lossless" { style.stroke: "#555555" }
+
+note: "Measured against Blender 5.2.1. A Vizij save writes each clip twice -- losslessly into VIZIJ_bundle and baked into glTF channels -- and\nfingerprints what it wrote. Blender reads and edits the channels but its exporter drops unknown extensions, so the file it writes back has no\nrecords: every animation then reads as import-new. keep-both-edited is only reachable when the records survive, which a Blender re-export\ndoes not allow. Preserving them needs a companion Blender add-on using gather_import_gltf_before_hook and gather_gltf_extensions_hook." {
   near: bottom-center
   shape: text
   style: { font-size: 14; font-color: "#555555" }
