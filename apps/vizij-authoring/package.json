@@ -24,7 +24,7 @@
     "clean": "rm -rf dist .vite coverage tsconfig.tsbuildinfo storybook-static",
     "reset": "rm -rf node_modules",
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock",
-    "graph:components": "node scripts/component-graph.mjs layers > docs/references/component-graph-layers.d2 && node scripts/component-graph.mjs detail > docs/references/component-graph-detail.d2"
+    "graph:components": "node scripts/component-graph.mjs layers --into docs/references/component-graph.md && node scripts/component-graph.mjs detail --into docs/references/component-graph.md"
   },
   "dependencies": {
     "@deepgram/sdk": "^5.0.0",

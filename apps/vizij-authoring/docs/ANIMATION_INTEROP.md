@@ -5,8 +5,7 @@ Audience: engineers and riggers moving animation between Vizij and other tools
 (Blender first and foremost)
 
 This is the reference for how animation enters and leaves Vizij. For the
-delivery plan and open work see
-[`plans/GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md`](plans/GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md).
+behaviour playback is held to, see [`ANIMATION_PLAYBACK.md`](ANIMATION_PLAYBACK.md).
 
 ## The one thing to know
 
