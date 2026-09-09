@@ -7,8 +7,66 @@ Vizij supports, and we are not building Blender-specific tooling to make it
 one.
 
 This is the reasoning and the measurements behind that, so it does not get
-relitigated from first principles. The diagram is
-`animation-blender-round-trip.d2`, rendered alongside as `.svg`.
+relitigated from first principles.
+
+```mermaid
+flowchart TB
+  subgraph blender["Blender, and any other glTF tool"]
+    authored["Animation authored<br/>in Blender"]
+    views["Opens the .glb and<br/>plays the baked motion"]
+  end
+
+  subgraph glb["The .glb Vizij writes"]
+    channels["glTF animation channels<br/>baked, so any tool can play it"]
+    bundle["VIZIJ_bundle.animations<br/>lossless clips, the source of truth"]
+    records["VIZIJ_bundle.bakedAnimations<br/>clipId + fingerprint"]
+    robot["RobotData<br/>rig + baked rootBounds"]
+    channels -->|"hash what was written"| records
+  end
+
+  subgraph vizij["Vizij"]
+    timeline["Timeline editor"]
+    compare{"Reopening a Vizij-written .glb:<br/>is there a fingerprint record?"}
+    skip["match → skip-duplicate<br/>the bundle clip loads once,<br/>the baked copy is dropped"]
+    fresh["no record → import-new<br/>import as a new clip alongside<br/>whatever is already open"]
+    both["mismatch → keep-both-edited<br/>reachable only if the bundle<br/>survived the edit"]
+    compare --> skip
+    compare --> fresh
+    compare --> both
+  end
+
+  authored -->|"import a .glb, or import<br/>its animations on their own"| timeline
+  timeline -->|"save"| bundle
+  timeline -->|"save (bake)"| channels
+  channels -->|"one way: to be seen, not brought back"| views
+  records --> compare
+  bundle -->|"load lossless"| timeline
+
+  back["Editing the baked animation in Blender and re-exporting<br/>is NOT a supported route. Blender's exporter drops every<br/>extension, so its output has no bundle, no records and<br/>no RobotData. Preserving them would need a<br/>Blender-specific add-on, which we have chosen not to build."]
+  views -.-> back
+
+  classDef primary fill:#50C4B6,stroke:#2AA499,color:#FFFFFF,stroke-width:2px
+  classDef secondary fill:#F56B29,stroke:#EC4D00,color:#FFFFFF,stroke-width:2px
+  classDef highlight fill:#FF9E00,stroke:#F78600,color:#333333,stroke-width:2px
+  classDef neutral fill:#F7F8F8,stroke:#888888,color:#333333,stroke-width:2px
+  classDef emphasis fill:#48E2CE,stroke:#2AA499,color:#111111,stroke-width:2px
+  classDef declined fill:#FFFFFF,stroke:#EC4D00,color:#EC4D00,stroke-width:2px,stroke-dasharray:4 4
+  class authored,views secondary
+  class channels neutral
+  class bundle,robot emphasis
+  class records highlight
+  class timeline,skip primary
+  class compare highlight
+  class fresh neutral
+  class both,back declined
+```
+
+A save writes each clip twice: losslessly into `VIZIJ_bundle`, which is the
+source of truth, and baked into glTF channels so other tools can play the
+motion. The bake is one way by design. The animation-only import still works
+for any glTF animation from any tool — it lands as `import-new`, a new clip
+beside the existing ones — it just is not a round trip Vizij designs for.
+Measured against Blender 5.2.1.
 
 ## What a save writes
 
