@@ -24,6 +24,7 @@ export interface GlbExportDirtySnapshotOptions {
   animatables: Record<string, AnimatableValue>;
   animatableComponents: AnimatableComponent[];
   featureLabelOverrides: Record<string, string>;
+  rootBounds: unknown;
   standardInputs: StandardRigInput[];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
@@ -52,6 +53,7 @@ export function buildGlbExportDirtySnapshot(
     animatables: options.animatables,
     animatableComponents: options.animatableComponents,
     featureLabelOverrides: options.featureLabelOverrides,
+    rootBounds: options.rootBounds ?? null,
   };
 
   if (!options.includeVizijBundle) {

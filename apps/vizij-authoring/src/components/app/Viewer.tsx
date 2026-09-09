@@ -11,7 +11,12 @@ import {
   useRef,
 } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import { useVizijStore, useVizijStoreSetter } from "@vizij/render";
+import {
+  deriveRootBounds,
+  useVizijStore,
+  useVizijStoreGetter,
+  useVizijStoreSetter,
+} from "@vizij/render";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
 import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
@@ -28,6 +33,7 @@ import {
   useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { useAnimationStore } from "../../state/animationStore";
+import { useWorkspaceStore } from "../../state/workspaceStore";
 import { AnimationRuntimeBridge } from "../../hooks/useAnimationTransport";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 import {
@@ -227,6 +233,88 @@ function RuntimeInputBridge() {
     },
     [graphRuntimeStore],
   );
+
+  return null;
+}
+
+type FaceBounds = {
+  center: { x: number; y: number };
+  size: { x: number; y: number };
+};
+
+function faceBoundsEqual(a: FaceBounds, b: FaceBounds): boolean {
+  return (
+    a.center.x === b.center.x &&
+    a.center.y === b.center.y &&
+    a.size.x === b.size.x &&
+    a.size.y === b.size.y
+  );
+}
+
+function FaceBoundsRuntimeBridge() {
+  const { rootId } = useVizijRuntime();
+  const getVizijState = useVizijStoreGetter();
+  const setRuntimeStoreState = useVizijStoreSetter();
+  const graphRuntimeStore = useGraphRuntimeStoreApi();
+  const authoredBounds = useGraphRuntime((state) => {
+    if (!rootId) {
+      return undefined;
+    }
+    const entry = state.world[rootId] as
+      | { type?: string; rootBounds?: FaceBounds }
+      | undefined;
+    return entry?.type === "group" ? entry.rootBounds : undefined;
+  });
+
+  // Lets the inspector's "Fit to Geometry" measure the rendered face.
+  useEffect(() => {
+    graphRuntimeStore.setState({
+      measureFaceGeometryBounds: rootId
+        ? () => {
+            const state = getVizijState();
+            const refs = Object.values(state.world[rootId]?.refs ?? {});
+            const target = refs.find((ref) => ref?.current)?.current ?? null;
+            return target
+              ? deriveRootBounds(
+                  target as Parameters<typeof deriveRootBounds>[0],
+                )
+              : null;
+          }
+        : undefined,
+    });
+  }, [getVizijState, graphRuntimeStore, rootId]);
+
+  useEffect(
+    () => () => {
+      graphRuntimeStore.setState({ measureFaceGeometryBounds: undefined });
+    },
+    [graphRuntimeStore],
+  );
+
+  // The runtime view renders from its own isolated store, so authored bounds
+  // edits are pushed into it here for the camera and safe-area overlay.
+  useEffect(() => {
+    if (!rootId || !authoredBounds) {
+      return;
+    }
+    setRuntimeStoreState((state) => {
+      const entry = state.world[rootId];
+      if (!entry || entry.type !== "group") {
+        return state;
+      }
+      const current = (entry as { rootBounds?: FaceBounds }).rootBounds;
+      if (current && faceBoundsEqual(current, authoredBounds)) {
+        return state;
+      }
+      return {
+        ...state,
+        world: {
+          ...state.world,
+          [rootId]: { ...entry, root: true, rootBounds: authoredBounds },
+        },
+      };
+    });
+  }, [authoredBounds, rootId, setRuntimeStoreState]);
 
   return null;
 }
@@ -567,6 +655,9 @@ export function Viewer({
   onRuntimeExportBodiesChange,
 }: ViewerProps) {
   const graphRuntimeStore = useGraphRuntimeStoreApi();
+  const faceBoundsOverlayVisible = useWorkspaceStore(
+    (state) => state.faceBoundsOverlayVisible,
+  );
   const runtimeWarning = useGraphRuntime((state) => state.graphWarning);
   const runtimeError = useGraphRuntime((state) => state.graphError);
   const plotActive = useEditorStore((state) => state.plotActive);
@@ -706,6 +797,7 @@ export function Viewer({
               />
             ) : null}
             <RuntimeInputBridge />
+            <FaceBoundsRuntimeBridge />
             <RuntimeGraphBridge />
             <AnimationRuntimeBridge
               active={animationSourceActive}
@@ -737,7 +829,7 @@ export function Viewer({
             <div data-testid="main-runtime-view" className="h-full w-full">
               <VizijRuntimeFace
                 className="h-full w-full"
-                showSafeArea={false}
+                showSafeArea={faceBoundsOverlayVisible}
                 showSelectionGlow={showSelectionGlow}
                 onPointerMissed={() => {
                   onClearSelection();
