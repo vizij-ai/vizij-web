@@ -5,7 +5,10 @@ import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 import { Button, Switch } from "../ui";
-import { CommitOnBlurNumberInput, ScrubbableLabel } from "./RiggingPropertyRow";
+import {
+  CommitOnBlurNumberInput,
+  ScrubbableLabel,
+} from "../editor/molecules/PropertyRow";
 
 type FaceBounds = NonNullable<VizijGroup["rootBounds"]>;
 
