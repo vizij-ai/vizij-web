@@ -40,6 +40,11 @@ function BoundsField({
   onCommit,
 }: BoundsFieldProps) {
   const scrubStartRef = useRef(0);
+  // Captured at gesture start alongside the value. `step` is derived from the
+  // live bounds, so reading it per-event made a drag change its own
+  // sensitivity: growing W enlarged the step, which accelerated the drag and
+  // made the same mouse travel mean different things in each direction.
+  const scrubStepRef = useRef(step);
   return (
     <div
       data-testid={testId}
@@ -50,9 +55,10 @@ function BoundsField({
         className="text-[9px] font-bold px-1 text-text-secondary"
         onScrubStart={() => {
           scrubStartRef.current = value;
+          scrubStepRef.current = step;
         }}
         onScrub={(_, totalDelta) => {
-          onCommit(scrubStartRef.current + totalDelta * step);
+          onCommit(scrubStartRef.current + totalDelta * scrubStepRef.current);
         }}
       />
       <CommitOnBlurNumberInput
