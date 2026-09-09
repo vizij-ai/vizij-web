@@ -32,7 +32,7 @@ function catalog(inputs: ManagedStandardInput[]) {
     resolveManagedSource: () => "custom",
     poseGroups: [],
     blendStages: [],
-    poseGroupBlendModeFallback: "add",
+    poseGroupBlendModeFallback: "average",
     poseCountByGroupId: new Map(),
     poseGroupLabelById: new Map(),
   } as Parameters<typeof buildVisibleInputCatalog>[0]);
