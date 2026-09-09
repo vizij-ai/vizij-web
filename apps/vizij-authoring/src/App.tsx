@@ -3410,6 +3410,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         animatableComponents,
         featureLabelOverrides,
         rootBounds: rootBoundsForExport,
+        toneMapping,
         standardInputs,
         bindings,
         inputBindings,
@@ -3444,6 +3445,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       poseRig.poseGraphSpec,
       poseRig.poseIrDraft,
       rootBoundsForExport,
+      toneMapping,
       standardInputs,
     ],
   );

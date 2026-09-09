@@ -72,6 +72,7 @@ function createSnapshotOptions(
     poseConfigDraft: null,
     poseIrDraft: null,
     blendMode: "average",
+    toneMapping: undefined,
     crossGroupBlendMode: "additive",
     authoredAnimationClips: [],
     authoredMotionGraphs: [],
@@ -141,6 +142,16 @@ describe("buildGlbExportDirtySnapshot", () => {
         },
       },
     });
+
+    expect(first).not.toEqual(second);
+  });
+
+  it("tracks tone mapping changes even when bundle export is disabled", () => {
+    // Tone mapping travels in the GLB, so changing it changes what the next
+    // export writes — the dirty indicator has to notice.
+    const base = createSnapshotOptions({ includeVizijBundle: false });
+    const first = buildGlbExportDirtySnapshot(base);
+    const second = buildGlbExportDirtySnapshot({ ...base, toneMapping: "agx" });
 
     expect(first).not.toEqual(second);
   });

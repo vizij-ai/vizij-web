@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BindingMap, InputBindingMap } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph";
+import type { ToneMappingMode } from "@vizij/render";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -25,6 +26,7 @@ export interface GlbExportDirtySnapshotOptions {
   animatableComponents: AnimatableComponent[];
   featureLabelOverrides: Record<string, string>;
   rootBounds: unknown;
+  toneMapping: ToneMappingMode | undefined;
   standardInputs: StandardRigInput[];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
@@ -54,6 +56,7 @@ export function buildGlbExportDirtySnapshot(
     animatableComponents: options.animatableComponents,
     featureLabelOverrides: options.featureLabelOverrides,
     rootBounds: options.rootBounds ?? null,
+    toneMapping: options.toneMapping ?? null,
   };
 
   if (!options.includeVizijBundle) {
