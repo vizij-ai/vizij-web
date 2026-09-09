@@ -1,8 +1,8 @@
 import type { StandardRigInput } from "@vizij/utils";
 import type { PoseDefinition } from "../../poseRig/types";
 import type { ReferencePoseDefinition } from "../../referenceFace/types";
-import type { InputCatalogRow } from "./inputCatalog";
 import type { StarredRef } from "../../state/starredStore";
+import type { InputCatalogRow } from "./inputCatalog";
 
 // ----------------------------------------------------------------------------
 // Tree node model shared by VariablesPanel (which builds the trees) and

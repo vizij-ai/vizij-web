@@ -17,7 +17,6 @@ import {
   Users,
   X,
   Camera,
-  Star,
 } from "lucide-react";
 import {
   addBindingSlot,

@@ -17,6 +17,7 @@ import { ControlRow } from "../editor/molecules/ControlRow";
 import { RowCheckbox } from "../editor/atoms/RowCheckbox";
 import { buildRigInputPath } from "../../poseRig/utils";
 import { cn } from "../../utils/cn";
+import { starredRefKey } from "../../state/starredStore";
 import type { InputCatalogRow } from "./inputCatalog";
 import {
   collectFolderReferencePoseSelectionIds,
@@ -34,7 +35,6 @@ import {
   starredRefForNode,
   type TreeNode,
 } from "./variablesTreeModel";
-import { starredRefKey } from "../../state/starredStore";
 
 function OwnershipScopeIcon({
   Icon,
