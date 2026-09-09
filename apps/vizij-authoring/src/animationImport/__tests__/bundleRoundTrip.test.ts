@@ -67,8 +67,7 @@ const available = FILES.every((file) => existsSync(assetPath(file)));
  * storage form, and the path an exported GLB actually carries animation in.
  *
  * Note this does NOT cover baking to native glTF animation channels: that
- * requires graph sampling and is not implemented yet
- * (see plans/GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md phase 3).
+ * requires graph sampling and is not implemented yet.
  */
 describe.runIf(available)("import -> bundle -> import round trip", () => {
   it.each(FILES)("%s survives a bundle round trip unchanged", (file) => {

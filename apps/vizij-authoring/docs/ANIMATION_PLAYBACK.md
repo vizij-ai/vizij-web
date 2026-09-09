@@ -1,17 +1,18 @@
 # Animation Playback: Expected Behavior
 
-Date: 2026-09-03
-Status: draft — written to be compared against actual behavior
+Last updated: 2026-09-09
+Status: contract
 Audience: engineers debugging or changing animation playback
 
-Animation playback is currently broken on `main`: a clip reports as playing,
-the transport advances, and nothing moves. Diagnosis has been slow because
-there is no written statement of what the system is supposed to do, so every
-observation had to be re-derived from code.
+This is the behavioural contract for animation playback: what the system is
+supposed to do, stated without reference to any particular implementation so
+that observed behaviour can be compared against it rather than conflated with
+it.
 
-This document states the intended contract first. It is deliberately written
-without reference to the current implementation, so the two can be compared
-rather than conflated.
+It was written during the playback investigation that produced the round trip
+in this PR, when the absence of any such statement meant every observation had
+to be re-derived from code. It is kept as a contract, not as a record of that
+investigation.
 
 ## Scope
 

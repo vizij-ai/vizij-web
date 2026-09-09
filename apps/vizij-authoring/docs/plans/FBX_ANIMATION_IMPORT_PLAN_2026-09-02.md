@@ -5,10 +5,10 @@ Owner: TBD
 Status: **deferred** — FBX is out of scope as of 2026-09-02
 Scope: `apps/vizij-authoring`, `packages/@vizij/render`
 
-> **Deferred.** Active work is
-> [GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md](./GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md),
-> which covers native glTF animation import **and** baking Vizij clips back
-> into GLB. Retain this document for the `SourceMotionDocument` shape, the
+> **Deferred.** The GLB half of this — native glTF animation import **and**
+> baking Vizij clips back into GLB — has shipped; see
+> [`../ANIMATION_INTEROP.md`](../ANIMATION_INTEROP.md). FBX itself is not
+> started. Retain this document for the `SourceMotionDocument` shape, the
 > quaternion-unwrap rules, the tiered name-matching table, and the keyframe
 > decimation approach — all of which carry over if FBX is revived.
 
