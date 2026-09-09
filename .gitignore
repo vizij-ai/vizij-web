@@ -19,6 +19,7 @@
 .vscode/
 .eslintcache
 .claude/settings.local.json
+.claude/launch.json
 .worktrees/
 
 # Rust / Cargo build output (nested crates, incl. Tauri src-tauri and arora-* packages)
