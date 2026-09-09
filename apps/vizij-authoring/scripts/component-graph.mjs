@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Generate d2 component-import diagrams by static analysis of `src/components`.
+ * Generate mermaid component-import diagrams by static analysis of `src/components`.
  *
- *   node scripts/component-graph.mjs layers > docs/references/component-graph-layers.d2
- *   node scripts/component-graph.mjs detail > docs/references/component-graph-detail.d2
+ *   node scripts/component-graph.mjs layers --into docs/references/component-graph.md
+ *   node scripts/component-graph.mjs detail --into docs/references/component-graph.md
+ *
+ * `--into` rewrites the marked region of that markdown file in place. Without it
+ * the diagram goes to stdout.
  *
  * Reads relative `import` / `export … from` specifiers, resolves them to files on
  * disk, and emits one of two views:
@@ -23,7 +26,7 @@
  * Deliberately excludes `*.stories.tsx` and `*.test.tsx`: they import downward by
  * definition and would imply dependencies that do not exist at runtime.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..", "src");
@@ -340,56 +343,21 @@ for (const file of FILES) {
 }
 
 const lines = [];
-lines.push("# GENERATED — do not edit by hand.");
-lines.push(
-  `# Regenerate: node scripts/component-graph.mjs ${MODE} > docs/references/component-graph-${MODE}.d2`,
-);
-lines.push(
-  "# Render:     d2 --font-regular <Questrial-Regular.ttf> <in>.d2 <out>.svg",
-);
-lines.push("");
-// Brand classes are inlined rather than imported so the diagram renders anywhere
-// in the repo without a path to the Semio brand settings. Values are the Semio
-// palette: teal #50C4B6 / orange #F56B29 / yellow #FF9E00, #333333 text,
-// #555555 connectors, white canvas, 8px radius. Font: Questrial (brand-approved
-// free stand-in for the commercial Gilroy/Univia Pro).
-lines.push(
-  "vars: { d2-config: { theme-id: 0; pad: 24; sketch: false; layout-engine: dagre } }",
-);
-// `detail` runs left-to-right so the 27 ui/ primitives stack vertically instead of
-// filling one dagre rank — top-down put them on a single 11,800px-wide row. elk
-// handles wide graphs better in principle but does not terminate on this one.
-if (MODE === "detail") lines.push("direction: right");
-lines.push("");
-lines.push("classes: {");
-lines.push(
-  '  primary:   { style: { fill: "#50C4B6"; stroke: "#2AA499"; font-color: "#FFFFFF"; border-radius: 8; stroke-width: 2 } }',
-);
-lines.push(
-  '  secondary: { style: { fill: "#F56B29"; stroke: "#EC4D00"; font-color: "#FFFFFF"; border-radius: 8; stroke-width: 2 } }',
-);
-lines.push(
-  '  highlight: { style: { fill: "#FF9E00"; stroke: "#F78600"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }',
-);
-lines.push(
-  '  neutral:   { style: { fill: "#F7F8F8"; stroke: "#888888"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }',
-);
-lines.push(
-  '  emphasis:  { style: { fill: "#48E2CE"; stroke: "#2AA499"; font-color: "#111111"; border-radius: 8; stroke-width: 2 } }',
-);
-lines.push(
-  '  group:     { style: { fill: "#FFFFFF"; stroke: "#50C4B6"; font-color: "#333333"; border-radius: 8; stroke-width: 2 } }',
-);
-lines.push("}");
-lines.push("");
-// Plain title, not `|md #  … |`: d2's markdown renderer swallows part of a heading
-// containing an em dash and drops the trailing word onto its own line.
-lines.push(
-  MODE === "detail"
-    ? 'title: "vizij-authoring — portable component imports (ui/ · editor/ · common/)" { near: top-center; shape: text; style: { font-size: 32; bold: true; font-color: "#333333" } }'
-    : 'title: "vizij-authoring — component import layers" { near: top-center; shape: text; style: { font-size: 32; bold: true; font-color: "#333333" } }',
-);
-lines.push("");
+
+// Brand palette is inlined rather than imported so the diagram renders anywhere
+// in the repo without a path to the Semio brand settings: teal #50C4B6 /
+// orange #F56B29 / yellow #FF9E00, #333333 text, #555555 connectors.
+const CLASS_DEFS = [
+  "classDef primary fill:#50C4B6,stroke:#2AA499,color:#FFFFFF,stroke-width:2px",
+  "classDef secondary fill:#F56B29,stroke:#EC4D00,color:#FFFFFF,stroke-width:2px",
+  "classDef highlight fill:#FF9E00,stroke:#F78600,color:#333333,stroke-width:2px",
+  "classDef neutral fill:#F7F8F8,stroke:#888888,color:#333333,stroke-width:2px",
+  "classDef emphasis fill:#48E2CE,stroke:#2AA499,color:#111111,stroke-width:2px",
+];
+
+// `detail` runs left-to-right so the 27 ui/ primitives stack vertically instead
+// of filling one rank; top-down put them on a single very wide row.
+lines.push(MODE === "detail" ? "flowchart LR" : "flowchart TB");
 
 const GROUPS = [
   { id: "external", label: "third-party substrate" },
@@ -403,47 +371,67 @@ const GROUPS = [
 /** `←N` = distinct feature files importing this component. Not drawn as edges. */
 function labelFor(n) {
   const fanIn = featureFanIn.get(n.id)?.size ?? 0;
-  return fanIn ? `${n.label}\\n←${fanIn}` : n.label;
+  return fanIn ? `${n.label}<br/>←${fanIn}` : n.label;
 }
+
+/** Mermaid takes `<br/>` for line breaks and needs `"` escaped inside labels. */
+const lbl = (t) =>
+  String(t).replaceAll("\\\\n", "<br/>").replaceAll('"', "&quot;");
+
+const classed = [];
 
 // Grouped nodes first (detail mode only — in layers mode every node is top-level).
 for (const g of GROUPS) {
   const members = [...nodes.values()].filter((n) => n.group === g.id);
   if (!members.length) continue;
-  lines.push(`${g.id}_g: "${g.label}" {`);
-  lines.push("  class: group");
-  for (const n of members)
-    lines.push(`  ${n.id}: "${labelFor(n)}" { class: ${n.cls} }`);
-  lines.push("}");
-}
-lines.push("");
-
-if (MODE === "detail") {
-  lines.push(
-    'legend: "←N = number of feature-code files importing this component.\\nDashed = reached through the ui/ barrel." { near: bottom-left; shape: text; style: { font-size: 20; font-color: "#555555" } }',
-  );
-  lines.push("");
+  lines.push(`  subgraph ${g.id}_g["${lbl(g.label)}"]`);
+  for (const n of members) {
+    lines.push(`    ${n.id}["${lbl(labelFor(n))}"]`);
+    classed.push([n.id, n.cls]);
+  }
+  lines.push("  end");
 }
 
 for (const n of [...nodes.values()].filter((x) => !x.group)) {
-  lines.push(`${n.id}: "${n.label}" { class: ${n.cls} }`);
+  lines.push(`  ${n.id}["${lbl(n.label)}"]`);
+  classed.push([n.id, n.cls]);
 }
+
 lines.push("");
-
-/** Fully-qualified d2 path for a node (grouped nodes live inside a container). */
-const pathOf = (id) => {
-  const n = nodes.get(id);
-  return n.group ? `${n.group}_g.${id}` : id;
-};
-
 for (const [key, { count, viaBarrel }] of [...edges.entries()].sort(
   (a, b) => b[1].count - a[1].count,
 )) {
   const [from, to] = key.split("->");
-  const dash = viaBarrel ? "; stroke-dash: 3" : "";
-  lines.push(
-    `${pathOf(from)} -> ${pathOf(to)}: "${count}" { style: { stroke: "#555555"; stroke-width: 2${dash} } }`,
-  );
+  // Dashed = reached through the ui/ barrel rather than imported directly.
+  lines.push(`  ${from} ${viaBarrel ? "-.->" : "-->"}|${count}| ${to}`);
 }
 
-console.log(lines.join("\n"));
+lines.push("");
+for (const def of CLASS_DEFS) lines.push(`  ${def}`);
+for (const [id, cls] of classed) lines.push(`  class ${id} ${cls}`);
+
+const diagram = lines.join("\n");
+
+// Injection mode: replace the marked region of a markdown file in place, so the
+// generated diagram lives embedded in the prose that explains it rather than in
+// a sidecar that has to be rendered separately.
+const intoIdx = process.argv.indexOf("--into");
+if (intoIdx === -1) {
+  console.log(diagram);
+} else {
+  const target = resolve(process.argv[intoIdx + 1]);
+  const begin = `<!-- BEGIN GENERATED ${MODE} -- node scripts/component-graph.mjs ${MODE} --into <this file> -->`;
+  const end = `<!-- END GENERATED ${MODE} -->`;
+  const md = readFileSync(target, "utf8");
+  const from = md.indexOf(begin);
+  const to = md.indexOf(end);
+  if (from === -1 || to === -1) {
+    console.error(
+      `[component-graph] ${target} has no "${MODE}" generated region.\nAdd these two lines where the diagram belongs:\n${begin}\n${end}`,
+    );
+    process.exit(1);
+  }
+  const block = `${begin}\n\n\`\`\`mermaid\n${diagram}\n\`\`\`\n\n`;
+  writeFileSync(target, md.slice(0, from) + block + md.slice(to));
+  console.error(`[component-graph] wrote the ${MODE} diagram into ${target}`);
+}

@@ -16,7 +16,7 @@
  *
  * Source assets: `public/assets/{Quori,Hugo,Toasty}_Latest_Blender_Export.glb`
  * resolved against `public/assets/{Quori,Hugo,Toasty}_Current.glb`.
- * See docs/plans/GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md.
+ * See docs/ANIMATION_INTEROP.md.
  */
 
 export const QUORI_RESOLVED: ReadonlyArray<string> = [
