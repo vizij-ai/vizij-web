@@ -26,7 +26,7 @@ import { readGlbJson } from "./readGlbJson";
  * a symmetric comparison moves both sides together and can never fail when a
  * normalization rule changes.
  *
- * See docs/plans/GLB_ANIMATION_ROUNDTRIP_PLAN_2026-09-02.md.
+ * See docs/ANIMATION_INTEROP.md.
  */
 
 const ASSET_DIR = path.resolve(__dirname, "../../../public/assets");

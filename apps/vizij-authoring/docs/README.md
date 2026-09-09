@@ -29,6 +29,9 @@ This folder is organized into active execution docs, active contracts, reference
    - UI behavior contract for authoring workflows.
 3. `apps/vizij-authoring/docs/Authoring_Blueprint.md`
    - Detailed layer and namespace contract.
+4. `apps/vizij-authoring/docs/ANIMATION_PLAYBACK.md`
+   - Behavioural contract for animation playback: transport, seek, loop, and
+     the invariants worth asserting in tests.
 
 ## Active Notes and References
 

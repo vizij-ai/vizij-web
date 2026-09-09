@@ -1682,7 +1682,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   // written, so any render where selection and buffer disagreed wrote the
   // wrong clip — which produced, at different times, a new clip holding
   // another clip's tracks, every clip emptied, and edits appearing not to
-  // save. See docs/notes/ANIMATION_SELECTION_STATE_2026-09-03.md.
+  // save.
   //
   // Nothing needs it. The buffer is persisted when switching away, while it
   // still holds the outgoing clip, and every other consumer materialises the
