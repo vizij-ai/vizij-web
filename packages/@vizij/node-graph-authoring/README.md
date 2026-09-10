@@ -8,6 +8,10 @@ Authoring-time helpers for constructing Vizij graph specifications. The package 
 - The expression parser understands comparison and boolean operators (`>`, `<`, `==`, `!=`, `&&`, `||`, `!`) and maps them through shared metadata to the appropriate logic nodes.
 - Graph summaries surface the slot `valueType`, making it easier to audit vector wiring in generated specs.
 
+## Design Docs
+
+`docs/` holds the design documents for the compile contract, including the two plans for multi-output ports and user-definable many-in / many-out blocks. Start at `docs/README.md`.
+
 ## IR Inspection
 
 Use the bundled `vizij-ir-report` CLI whenever you need to peek at or diff the metadata-annotated IR graph for a set of bindings—no GraphSpec export required. The tool rebuilds the IR via `buildRigGraphSpec`, emits a normalized machine-readable dump (including registry annotations under `irGraph.nodes[].annotations.registry`), and can compare dumps for CI/regression guards.
