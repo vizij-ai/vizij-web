@@ -1,0 +1,114 @@
+# Playwright e2e for vizij-authoring.
+#
+# A separate workflow rather than extra steps on `ci.yml`'s `build` job, so the
+# ~6-minute lint/typecheck/unit signal still lands in ~6 minutes and an e2e
+# failure is attributable on sight.
+#
+# `playwright.config.ts` was already written for CI — `retries: CI ? 1 : 0`, the
+# html reporter, `reuseExistingServer: !CI`, trace on-first-retry, screenshot
+# only-on-failure, video retain-on-failure. None of it was ever invoked from CI.
+# The two upload steps at the end are most of the value here: without them a
+# failure is a bare stack trace on a run nobody can reproduce.
+
+name: e2e
+
+on:
+  # Runnable against any ref, which is how you get a baseline. These tests had
+  # never run in CI before this workflow existed, so "did we break it?" has no
+  # answer without being able to run the same job against main.
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/vizij-authoring/**"
+      # The app consumes five workspace packages; a change in any of them can
+      # break these tests without touching the app folder.
+      - "packages/@vizij/render/**"
+      - "packages/@vizij/utils/**"
+      - "packages/@vizij/runtime-react/**"
+      - "packages/@vizij/node-graph-react/**"
+      - "packages/@vizij/node-graph-authoring/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/e2e.yml"
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two independent signals rather than one pass/fail. `smoke` is the one
+        # worth blocking a merge on once it has proven stable; `workflow` is the
+        # slow half and is expected to be the flaky one, so keep them separable.
+        project: [smoke, workflow]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      # The webServer in playwright.config.ts runs `build && preview` for the app
+      # only, so the workspace packages must already be built or that build fails
+      # on unresolved imports.
+      - run: pnpm run build:packages
+
+      # Browser binaries are not in the pnpm store. Cached on the resolved
+      # Playwright version, so this is a download per version bump rather than
+      # per run.
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          version="$(pnpm --filter vizij-authoring exec playwright --version | awk '{print $2}')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter vizij-authoring exec playwright install --with-deps chromium
+      # System libraries live outside the cached directory, so they are still
+      # needed on a cache hit.
+      - if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter vizij-authoring exec playwright install-deps chromium
+
+      # `--workers=1`, because the first CI run failed on contention rather than
+      # on anything the tests were asserting. `fullyParallel: false` still let
+      # Playwright pick 2 workers, and on a 2-core runner two browsers driving a
+      # WASM 3D runtime starve each other: locators resolved to the right
+      # elements and then timed out "waiting for element to be visible, enabled
+      # and stable" — one after 45 retries.
+      #
+      # `memory-investigation` is excluded because it is not a gate. It took
+      # 20.2 min, then 20.4 min on retry — 40 of the job's 45-minute budget for a
+      # single test that already has its own scripts (`test:e2e:memory:preview`
+      # and `:dev`) for the times someone actually wants to run it.
+      - name: Run ${{ matrix.project }}
+        run: >
+          pnpm --filter vizij-authoring exec playwright test
+          --project=${{ matrix.project }}
+          --workers=1
+          --grep-invert "memory investigation"
+
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: apps/vizij-authoring/playwright-report/
+          retention-days: 14
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.project }}
+          path: apps/vizij-authoring/test-results/
+          retention-days: 14

@@ -7,6 +7,8 @@ import {
   type VizijBundleExtension,
   type VizijBundleGraphEntry,
   type VizijBundleAnimationEntry,
+  type VizijBundleStarredSection,
+  type VizijStarredItem,
   loadGLTFWithBundle,
   loadGLTFFromBlobWithBundle,
 } from "@vizij/render";
@@ -917,6 +919,35 @@ function convertBundlePrograms(
 }
 
 /**
+ * Resolve the bundle's `starred` section into a validated list of references.
+ * Returns `undefined` when no valid starred items are present so consumers can
+ * treat "no bundle" and "empty starred" uniformly.
+ */
+function convertBundleStarred(
+  section: VizijBundleStarredSection | null | undefined,
+): VizijStarredItem[] | undefined {
+  const items = section?.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return undefined;
+  }
+  const resolved: VizijStarredItem[] = [];
+  for (const item of items) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const { kind, id } = item as Partial<VizijStarredItem>;
+    if (
+      (kind === "driver" || kind === "pose") &&
+      typeof id === "string" &&
+      id
+    ) {
+      resolved.push({ kind, id });
+    }
+  }
+  return resolved.length > 0 ? resolved : undefined;
+}
+
+/**
  * The default (neutral) value declared for an input path, resolved across the
  * path forms the constraint map is keyed by (namespaced, base, rig/face-
  * stripped, relative). Returns `undefined` when no finite default is declared.
@@ -1140,6 +1171,15 @@ export function mergeAssetBundle(
     convertBundlePrograms(resolvedBundle?.graphs),
   );
 
+  const hasBaseStarredOverride = Object.prototype.hasOwnProperty.call(
+    base,
+    "starred",
+  );
+  const starredFromBundle = convertBundleStarred(resolvedBundle?.starred);
+  const resolvedStarred = hasBaseStarredOverride
+    ? base.starred
+    : (base.starred ?? starredFromBundle);
+
   const merged: VizijAssetBundle = {
     ...base,
   };
@@ -1153,6 +1193,7 @@ export function mergeAssetBundle(
   merged.pose = resolvedPose;
   merged.animations = resolvedAnimations;
   merged.programs = programsFromBundle;
+  merged.starred = resolvedStarred;
   merged.bundle = resolvedBundle;
 
   return merged;
@@ -3263,6 +3304,15 @@ function VizijRuntimeProviderInner({
     (id: string) => {
       const state = clipPlaybackRef.current.get(id);
       if (!state || !state.playing) {
+        // Bailing here is how a pause disappears. The transport UI believes
+        // `player_states` over this flag, so if the module is still playing
+        // while the flag says otherwise, the next frame of feedback reports
+        // playing and the pause looks like it did nothing.
+        console.warn(
+          `[vizij-runtime] pause ignored for "${id}": ${
+            state ? "the clip is not marked playing" : "no clip state"
+          }`,
+        );
         return;
       }
       state.playing = false;
@@ -3324,7 +3374,18 @@ function VizijRuntimeProviderInner({
           feedback && feedback.duration > 0
             ? feedback.duration
             : state.duration,
-        playing: feedback ? feedback.state === "playing" : state.playing,
+        // A clip commanded to pause is paused, whatever the feedback says.
+        //
+        // Feedback goes stale by construction: pausing the last playing clip
+        // unregisters the animations graph source, so the module stops being
+        // stepped and `player_states` keeps reporting whatever it last said —
+        // `state: "playing"`, with the playhead frozen. Treating that as
+        // authoritative meant the transport reverted to playing a frame after
+        // every pause, leaving a Pause button over a clip that was not
+        // advancing. Feedback still decides while the clip is *meant* to be
+        // playing, which is what notices a clip reaching its end.
+        playing:
+          state.playing && (feedback ? feedback.state === "playing" : true),
         loop: state.loop,
         speed: feedback?.speed ?? state.speed,
       };

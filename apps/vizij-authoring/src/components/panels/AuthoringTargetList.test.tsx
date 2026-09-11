@@ -144,7 +144,12 @@ describe("AuthoringTargetList", () => {
     expect(screen.getByText("stopped")).toBeTruthy();
   });
 
-  it("disables pause while the active row is already paused", () => {
+  it("offers play, not a dead pause, while the active row is paused", () => {
+    // A paused row used to render a *disabled* Pause button and no Play, so
+    // pausing a clip left no way to resume it — the transport was a one-way
+    // door. Play is the control that belongs on anything that is not playing.
+    const onPlay = vi.fn();
+
     render(
       <AuthoringTargetList
         kindLabel="Program"
@@ -160,17 +165,48 @@ describe("AuthoringTargetList", () => {
         ]}
         onCreate={vi.fn()}
         onSelect={vi.fn()}
+        onPlay={onPlay}
+        onPause={vi.fn()}
+        onStop={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTitle("Pause program")).toBeNull();
+    const play = screen.getByTitle("Play program") as HTMLButtonElement;
+    expect(play.disabled).toBe(false);
+    fireEvent.click(play);
+    expect(onPlay).toHaveBeenCalledWith("program:paused");
+
+    expect(
+      (screen.getByTitle("Stop program") as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it("still offers stop, not play, while the active row is playing", () => {
+    render(
+      <AuthoringTargetList
+        kindLabel="Program"
+        emptyDescription="Empty"
+        items={[
+          {
+            id: "program:playing",
+            label: "Playing Program",
+            source: "authored",
+            selected: true,
+            runtimeState: "playing",
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSelect={vi.fn()}
         onPlay={vi.fn()}
         onPause={vi.fn()}
         onStop={vi.fn()}
       />,
     );
 
+    expect(screen.queryByTitle("Play program")).toBeNull();
     expect(
       (screen.getByTitle("Pause program") as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(
-      (screen.getByTitle("Stop program") as HTMLButtonElement).disabled,
     ).toBe(false);
   });
 });

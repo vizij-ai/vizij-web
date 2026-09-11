@@ -111,6 +111,36 @@ export async function ensureInspectorPanelVisible(page: Page): Promise<void> {
   await expect(panel).toBeVisible();
 }
 
+/**
+ * Wait until the graph editor's pan/zoom has stopped moving.
+ *
+ * `EditorCanvas` runs `fitView({ duration: 260 })` on the rAF after its nodes
+ * first appear, so for a quarter of a second after the canvas renders every
+ * node and edge is sliding across the screen. Clicking an edge in that window
+ * is a coin flip: `click({ force: true })` skips Playwright's wait-for-stable,
+ * computes the target from a bounding box that is already out of date, and can
+ * land off the edge's interaction stroke — selecting nothing. Two consecutive
+ * identical viewport transforms mean the animation has finished.
+ */
+export async function waitForGraphViewportSettled(page: Page): Promise<void> {
+  const viewport = page.locator(".react-flow__viewport").first();
+  await expect(viewport).toBeAttached();
+  const read = () =>
+    viewport.evaluate((element) => (element as HTMLElement).style.transform);
+  let previous = await read();
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    await page.waitForTimeout(100);
+    const current = await read();
+    if (current === previous && current !== "") {
+      return;
+    }
+    previous = current;
+  }
+  throw new Error(
+    `Graph editor viewport never settled (last transform: ${previous})`,
+  );
+}
+
 export async function loadReferencePreset(
   page: Page,
   presetId = "quori:basic",

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pause, Play, Plus, Square, Trash2, X } from "lucide-react";
+import { Pause, Play, Plus, Square, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import { Input } from "../ui/Input";
-import { Panel } from "../ui/Panel";
+import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import type { RuntimeAuthoringSource } from "../../state/AuthoringUiProvider";
 
 export type RuntimeSourceToolbarMode =
@@ -64,11 +64,11 @@ const modeMeta: Record<
 > = {
   animation: {
     label: "Animation Mode",
-    badgeClassName: "bg-color-accent-subtle text-color-accent",
+    badgeClassName: "bg-accent-subtle text-accent",
   },
   "procedural-animation-programming": {
     label: "PAP Mode",
-    badgeClassName: "bg-color-warning-subtle text-color-warning",
+    badgeClassName: "bg-warning-subtle text-warning",
   },
   "reference-face": {
     label: "Reference Face Mode",
@@ -342,9 +342,9 @@ export function RuntimeSourceToolbar({
 
   const playbackStatusTone =
     playbackState === "playing"
-      ? "bg-color-success-subtle text-color-success"
+      ? "bg-success-subtle text-success"
       : playbackState === "paused"
-        ? "bg-color-warning-subtle text-color-warning"
+        ? "bg-warning-subtle text-warning"
         : "bg-bg-secondary text-text-secondary";
 
   const targetMetadataCard =
@@ -382,7 +382,7 @@ export function RuntimeSourceToolbar({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[10px] gap-1 text-color-danger"
+                className="h-7 px-2 text-[10px] gap-1 text-danger"
                 onClick={() => onDeleteTarget?.()}
                 title={deleteTargetLabel ?? "Delete target"}
               >
@@ -410,7 +410,7 @@ export function RuntimeSourceToolbar({
           <span
             className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
               isLive
-                ? "bg-color-success-subtle text-color-success"
+                ? "bg-success-subtle text-success"
                 : "bg-bg-secondary text-text-secondary"
             }`}
           >
@@ -438,23 +438,10 @@ export function RuntimeSourceToolbar({
 
   if (layout === "panel") {
     return (
-      <Panel
+      <WorkbenchPanel
         title="Runtime Source"
         description="Choose which authored system is driving live runtime inputs and manage the active runtime target."
-        className="flex-1 min-h-0 border-none bg-transparent shadow-none p-0"
-        actions={
-          onClosePanel ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-text-secondary hover:text-text-primary"
-              onClick={onClosePanel}
-              title="Hide panel"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          ) : null
-        }
+        onClose={onClosePanel}
       >
         <div className="h-full min-h-0 p-3 space-y-3 bg-bg-panel/70 backdrop-blur-sm">
           <div className="space-y-1">
@@ -467,7 +454,7 @@ export function RuntimeSourceToolbar({
               <span
                 className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                   isLive
-                    ? "bg-color-success-subtle text-color-success"
+                    ? "bg-success-subtle text-success"
                     : "bg-bg-secondary text-text-secondary"
                 }`}
               >
@@ -487,7 +474,7 @@ export function RuntimeSourceToolbar({
 
           {targetMetadataCard}
         </div>
-      </Panel>
+      </WorkbenchPanel>
     );
   }
 
@@ -507,7 +494,7 @@ export function RuntimeSourceToolbar({
             <span
               className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                 isLive
-                  ? "bg-color-success-subtle text-color-success"
+                  ? "bg-success-subtle text-success"
                   : "bg-bg-secondary text-text-secondary"
               }`}
             >

@@ -9,16 +9,11 @@ import {
 import {
   Plus,
   Copy,
-  Folder,
   Zap,
   ArrowDown,
   ArrowUp,
   Activity,
-  Play,
-  RotateCcw,
-  Trash2,
   Search,
-  Sliders,
   Users,
   X,
   Camera,
@@ -46,21 +41,31 @@ import { Panel } from "../ui/Panel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { Combobox, PanelSearch, TreeRow, Tabs } from "../ui";
-import { Slider } from "../ui/Slider";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
 import { usePoseRig } from "../../state/PoseRigProvider";
+import {
+  starredRefKey,
+  useStarredStore,
+  type StarredRef,
+} from "../../state/starredStore";
 import {
   useBindingAuthoring,
   useGraphRuntime,
 } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import {
+  getCurrentPlayheadTime,
   useAnimationStore,
   type AnimationInputKeyframeEntry,
 } from "../../state/animationStore";
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 import { resolveRigMetadataInputId } from "../../utils/rigElementInputs";
 import { cn } from "../../utils/cn";
+import { ControlRow } from "../editor/molecules/ControlRow";
+import { GroupedInputTree } from "../editor/molecules/GroupedInputTree";
+import { MergeValueField } from "../editor/molecules/MergeValueField";
+import { ModalFormGroup } from "../editor/molecules/ModalFormGroup";
+import { InspectorSection } from "../editor/molecules/InspectorSection";
 import { ensureLinkedSlotActiveInExpression } from "../../utils/bindingExpressions";
 import type {
   PoseBlendMode,
@@ -103,15 +108,25 @@ import {
   AuthoringTargetList,
   type AuthoringTargetItem,
 } from "./AuthoringTargetList";
+import { TreeRowWrapper } from "./TreeRowWrapper";
+import {
+  collectFolderRigDeletionSummary,
+  MAIN_FACE_SCOPE_ICON_CLASS,
+  REFERENCE_FACE_SCOPE_ICON_CLASS,
+  type PoseGroupNodeData,
+  type PoseNodeData,
+  type RigNodeData,
+  type RigNodeSource,
+  starredRefForNode,
+  type TreeNode,
+} from "./variablesTreeModel";
 
 // ----------------------------------------------------------------------------
 // Types & Helper Functions
 // ----------------------------------------------------------------------------
 
-type NodeType = "folder" | "pose" | "rig" | "input";
-type RigNodeSource = "auto" | "preset" | "custom" | "reference" | "shared";
-type FaceOwnershipScope = "main" | "reference" | "shared" | "none";
 export type SurfaceTab =
+  | "starred"
   | "variables"
   | "poses"
   | "pose-groups"
@@ -127,6 +142,9 @@ type FilterableSurfaceTab = Exclude<
   SurfaceTab,
   "pose-groups" | "animations" | "programs"
 >;
+// Fallback surface list used only when no `availableSurfaces` prop is provided.
+// The app supplies its own ordered list (with "starred" first); "variables"
+// stays first here so standalone/test renders default to the Drivers surface.
 const DEFAULT_SURFACES: SurfaceTab[] = [
   "variables",
   "poses",
@@ -134,7 +152,10 @@ const DEFAULT_SURFACES: SurfaceTab[] = [
   "animations",
   "programs",
   "inputs",
+  "starred",
 ];
+
+const EMPTY_STARRED: StarredRef[] = [];
 
 const UNASSIGNED_POSE_GROUP_PATH = "__unassigned__";
 const UNASSIGNED_POSE_GROUP_LABEL = "Unassigned";
@@ -146,11 +167,6 @@ interface PoseGroupSummary {
   blendMode: PoseBlendMode;
   source: "configured" | "auto";
   poseIds: string[];
-}
-
-interface FaceOwnershipSummary {
-  hasMain: boolean;
-  hasReference: boolean;
 }
 
 function normalizePoseGroupPath(value: string | null | undefined): string {
@@ -309,41 +325,6 @@ export function formatSurfaceLabelWithCount(
   count: number,
 ): string {
   return `${label} (${count})`;
-}
-
-interface RigNodeData {
-  input: StandardRigInput;
-  source: RigNodeSource;
-  disabled?: boolean;
-  normalizedPath?: string;
-  linkedMainInputId?: string | null;
-  linkedReferenceInputId?: string | null;
-}
-
-interface PoseGroupNodeData {
-  kind: "pose-group";
-  groupPath: string;
-}
-
-interface PoseNodeData {
-  source: "main" | "reference" | "shared";
-  pose: PoseDefinition | ReferencePoseDefinition;
-  linkedReferencePoseId?: string | null;
-}
-
-type TreeNodeData =
-  | PoseNodeData
-  | RigNodeData
-  | PoseGroupNodeData
-  | InputCatalogRow;
-
-interface TreeNode {
-  id: string;
-  label: string;
-  type: NodeType;
-  children: Map<string, TreeNode>;
-  showChildren: boolean; // Default expansion state
-  data?: TreeNodeData;
 }
 
 interface BindingInputLike {
@@ -888,66 +869,6 @@ function collectLockedPropsRigComponentIds(
     }
   });
   return lockedComponentIds;
-}
-
-const MAIN_FACE_SCOPE_ICON_CLASS = "text-yellow-300";
-const REFERENCE_FACE_SCOPE_ICON_CLASS = "text-violet-300";
-const NO_FACE_SCOPE_ICON_CLASS = "text-text-muted";
-
-function createFaceOwnershipSummary(
-  hasMain = false,
-  hasReference = false,
-): FaceOwnershipSummary {
-  return { hasMain, hasReference };
-}
-
-function mergeFaceOwnershipSummary(
-  left: FaceOwnershipSummary,
-  right: FaceOwnershipSummary,
-): FaceOwnershipSummary {
-  return {
-    hasMain: left.hasMain || right.hasMain,
-    hasReference: left.hasReference || right.hasReference,
-  };
-}
-
-function resolveFaceOwnershipScope(
-  summary: FaceOwnershipSummary,
-): FaceOwnershipScope {
-  if (summary.hasMain && summary.hasReference) {
-    return "shared";
-  }
-  if (summary.hasReference) {
-    return "reference";
-  }
-  if (summary.hasMain) {
-    return "main";
-  }
-  return "none";
-}
-
-function resolveRigSourceOwnership(
-  source: RigNodeSource,
-): FaceOwnershipSummary {
-  if (source === "reference") {
-    return createFaceOwnershipSummary(false, true);
-  }
-  if (source === "shared") {
-    return createFaceOwnershipSummary(true, true);
-  }
-  return createFaceOwnershipSummary(true, false);
-}
-
-function resolvePoseSourceOwnership(
-  source: PoseNodeData["source"],
-): FaceOwnershipSummary {
-  if (source === "reference") {
-    return createFaceOwnershipSummary(false, true);
-  }
-  if (source === "shared") {
-    return createFaceOwnershipSummary(true, true);
-  }
-  return createFaceOwnershipSummary(true, false);
 }
 
 function normalizePoseLookupToken(value: string | null | undefined): string {
@@ -1689,104 +1610,6 @@ function simplifyNode(node: TreeNode): TreeNode {
   return newNode;
 }
 
-function collectFolderRigDeletionSummary(node: TreeNode): {
-  totalRigCount: number;
-  deletableRigInputIds: string[];
-  undeletableRigCount: number;
-} {
-  const deletableRigInputIds = new Set<string>();
-  let totalRigCount = 0;
-  const visit = (candidate: TreeNode) => {
-    if (candidate.type === "rig") {
-      totalRigCount += 1;
-      const rigData = candidate.data as RigNodeData | undefined;
-      if (rigData?.source === "custom" && !rigData.disabled) {
-        deletableRigInputIds.add(rigData.input.id);
-      }
-      return;
-    }
-    candidate.children.forEach((child) => visit(child));
-  };
-  visit(node);
-  return {
-    totalRigCount,
-    deletableRigInputIds: Array.from(deletableRigInputIds),
-    undeletableRigCount: totalRigCount - deletableRigInputIds.size,
-  };
-}
-
-function collectFolderReferenceRigSelectionIds(node: TreeNode): string[] {
-  const ids = new Set<string>();
-  const visit = (candidate: TreeNode) => {
-    if (candidate.type === "rig") {
-      const rigData = candidate.data as RigNodeData | undefined;
-      if (!rigData) {
-        return;
-      }
-      if (rigData.source === "reference") {
-        ids.add(rigData.input.id);
-        return;
-      }
-      const linkedReferenceInputId = rigData.linkedReferenceInputId?.trim();
-      if (rigData.source === "shared" && linkedReferenceInputId) {
-        ids.add(linkedReferenceInputId);
-      }
-      return;
-    }
-    candidate.children.forEach((child) => visit(child));
-  };
-  visit(node);
-  return Array.from(ids);
-}
-
-function collectFolderReferencePoseSelectionIds(node: TreeNode): string[] {
-  const ids = new Set<string>();
-  const visit = (candidate: TreeNode) => {
-    if (candidate.type === "pose") {
-      const poseData = candidate.data as PoseNodeData | undefined;
-      if (poseData?.source === "reference" && poseData.pose.id) {
-        ids.add(poseData.pose.id);
-        return;
-      }
-      if (
-        poseData?.source === "shared" &&
-        poseData.linkedReferencePoseId?.trim()
-      ) {
-        ids.add(poseData.linkedReferencePoseId.trim());
-      }
-      return;
-    }
-    candidate.children.forEach((child) => visit(child));
-  };
-  visit(node);
-  return Array.from(ids);
-}
-
-function collectNodeFaceOwnership(node: TreeNode): FaceOwnershipSummary {
-  if (node.type === "rig") {
-    const rigData = node.data as RigNodeData | undefined;
-    if (!rigData) {
-      return createFaceOwnershipSummary();
-    }
-    return resolveRigSourceOwnership(rigData.source);
-  }
-  if (node.type === "pose") {
-    const poseData = node.data as PoseNodeData | undefined;
-    if (!poseData) {
-      return createFaceOwnershipSummary();
-    }
-    return resolvePoseSourceOwnership(poseData.source);
-  }
-  let summary = createFaceOwnershipSummary();
-  node.children.forEach((child) => {
-    summary = mergeFaceOwnershipSummary(
-      summary,
-      collectNodeFaceOwnership(child),
-    );
-  });
-  return summary;
-}
-
 function arePoseIdListsEqual(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false;
@@ -1814,54 +1637,6 @@ function areStringSetsEqual(
     }
   }
   return true;
-}
-
-function OwnershipScopeIcon({
-  Icon,
-  scope,
-  size = 12,
-  strokeWidth = 2,
-  className,
-}: {
-  Icon: React.ComponentType<{
-    size?: number;
-    strokeWidth?: number;
-    className?: string;
-  }>;
-  scope: FaceOwnershipScope;
-  size?: number;
-  strokeWidth?: number;
-  className?: string;
-}): ReactNode {
-  if (scope === "shared") {
-    return (
-      <span className={cn("inline-flex items-center gap-0.5", className)}>
-        <Icon
-          size={size}
-          strokeWidth={strokeWidth}
-          className={MAIN_FACE_SCOPE_ICON_CLASS}
-        />
-        <Icon
-          size={size}
-          strokeWidth={strokeWidth}
-          className={REFERENCE_FACE_SCOPE_ICON_CLASS}
-        />
-      </span>
-    );
-  }
-  const iconClass =
-    scope === "main"
-      ? MAIN_FACE_SCOPE_ICON_CLASS
-      : scope === "reference"
-        ? REFERENCE_FACE_SCOPE_ICON_CLASS
-        : NO_FACE_SCOPE_ICON_CLASS;
-  return (
-    <Icon
-      size={size}
-      strokeWidth={strokeWidth}
-      className={cn(iconClass, className)}
-    />
-  );
 }
 
 function filterTreeBySearch(rootNode: TreeNode, query: string): TreeNode {
@@ -1950,6 +1725,7 @@ export function resolveVisibleRootForActiveSurface<T>({
   variablesRootNode,
   posesRootNode,
   inputRootNode,
+  starredRootNode,
   filterTree,
 }: {
   activeSurface: SurfaceTab;
@@ -1957,8 +1733,18 @@ export function resolveVisibleRootForActiveSurface<T>({
   variablesRootNode: T;
   posesRootNode: T;
   inputRootNode: T;
+  starredRootNode: T;
   filterTree: (node: T, searchQuery: string) => T;
 }): T {
+  if (activeSurface === "starred") {
+    return filterTreeForActiveSurface({
+      activeSurface,
+      targetSurface: "starred",
+      rootNode: starredRootNode,
+      query,
+      filterTree,
+    });
+  }
   if (activeSurface === "poses") {
     return filterTreeForActiveSurface({
       activeSurface,
@@ -2098,827 +1884,6 @@ function groupInputRowsByFolder(
 // ----------------------------------------------------------------------------
 // Components
 // ----------------------------------------------------------------------------
-
-interface TreeRowWrapperProps {
-  node: TreeNode;
-  depth: number;
-  expanded: Set<string>;
-  onToggle: (id: string) => void;
-  onAction?: (node: TreeNode, action: string) => void;
-  onSelect?: (node: TreeNode) => void;
-  onInputValueChange?: (inputId: string, value: number) => void;
-  selection?: {
-    type: "pose" | "rig" | "pose-group" | "input";
-    id: string;
-  } | null;
-  selectedReferenceRigIds?: ReadonlySet<string>;
-  selectedReferencePoseIds?: ReadonlySet<string>;
-  onToggleReferenceRigSelection?: (inputId: string) => void;
-  onToggleReferencePoseSelection?: (poseId: string) => void;
-  onSetReferenceRigSelection?: (
-    inputIds: readonly string[],
-    selected: boolean,
-  ) => void;
-  onSetReferencePoseSelection?: (
-    poseIds: readonly string[],
-    selected: boolean,
-  ) => void;
-  timelineInputLockActive?: boolean;
-  timelineLockedInputIds?: ReadonlySet<string>;
-  motionGraphContext?: {
-    active: boolean;
-    runtimeFaceSegment: string;
-    eligibleInputPaths: ReadonlySet<string>;
-    eligibleOutputPaths: ReadonlySet<string>;
-    enabledInputPaths: ReadonlySet<string>;
-    enabledOutputPaths: ReadonlySet<string>;
-    onToggleInputPath: (path: string) => void;
-    onToggleOutputPath: (path: string) => void;
-  };
-  animationTrackContext?: {
-    active: boolean;
-    trackedInputIds: ReadonlySet<string>;
-    onAddTrack: (row: InputCatalogRow) => void;
-    onRemoveTrack: (inputId: string) => void;
-  };
-  poseTargetContext?: {
-    active: boolean;
-    selectedPoseId: string | null;
-    targetedInputIds: ReadonlySet<string>;
-    onSetTarget: (row: InputCatalogRow) => void;
-  };
-  searchQuery: string;
-}
-
-function TreeRowWrapper({
-  node,
-  depth,
-  expanded,
-  onToggle,
-  onAction,
-  onSelect,
-  onInputValueChange,
-  selection,
-  selectedReferenceRigIds,
-  selectedReferencePoseIds,
-  onToggleReferenceRigSelection,
-  onToggleReferencePoseSelection,
-  onSetReferenceRigSelection,
-  onSetReferencePoseSelection,
-  timelineInputLockActive,
-  timelineLockedInputIds,
-  motionGraphContext,
-  animationTrackContext,
-  poseTargetContext,
-  searchQuery,
-}: TreeRowWrapperProps) {
-  const isExpanded = expanded.has(node.id);
-  const hasChildren = node.children.size > 0;
-  const isPoseGroupFolder =
-    node.type === "folder" &&
-    (node.data as PoseGroupNodeData | undefined)?.kind === "pose-group";
-  const poseNodeData =
-    node.type === "pose" ? (node.data as PoseNodeData | undefined) : undefined;
-  const rigNodeData =
-    node.type === "rig" ? (node.data as RigNodeData | undefined) : undefined;
-  const isReferencePoseNode = poseNodeData?.source === "reference";
-  const isSharedPoseNode = poseNodeData?.source === "shared";
-  const isReferenceRigNode = rigNodeData?.source === "reference";
-  const isSharedRigNode = rigNodeData?.source === "shared";
-  const referencePoseId = isReferencePoseNode
-    ? (poseNodeData?.pose.id ?? null)
-    : isSharedPoseNode
-      ? (poseNodeData?.linkedReferencePoseId ?? null)
-      : null;
-  const referenceRigInputId = isReferenceRigNode ? rigNodeData?.input.id : null;
-  const sharedRigReferenceInputId = isSharedRigNode
-    ? (rigNodeData?.linkedReferenceInputId ?? null)
-    : null;
-  const bulkReferenceRigSelectionId =
-    referenceRigInputId ?? sharedRigReferenceInputId;
-  const isBulkSelected =
-    (referencePoseId
-      ? selectedReferencePoseIds?.has(referencePoseId)
-      : false) ||
-    (bulkReferenceRigSelectionId
-      ? selectedReferenceRigIds?.has(bulkReferenceRigSelectionId)
-      : false);
-
-  // Check selection
-  const isSelected =
-    selection &&
-    ((node.type === "pose" &&
-      selection.type === "pose" &&
-      poseNodeData?.pose.id === selection.id) ||
-      (node.type === "rig" &&
-        selection.type === "rig" &&
-        (node.data as RigNodeData)?.input?.id === selection.id) ||
-      (node.type === "input" &&
-        selection.type === "input" &&
-        (node.data as InputCatalogRow)?.inputId === selection.id) ||
-      (isPoseGroupFolder &&
-        selection.type === "pose-group" &&
-        node.id === selection.id));
-  const rowIsSelected = Boolean(isSelected || isBulkSelected);
-  const nodeOwnershipScope = useMemo(
-    () => resolveFaceOwnershipScope(collectNodeFaceOwnership(node)),
-    [node],
-  );
-  const folderReferenceRigSelectionIds = useMemo(
-    () =>
-      node.type === "folder" ? collectFolderReferenceRigSelectionIds(node) : [],
-    [node],
-  );
-  const folderReferencePoseSelectionIds = useMemo(
-    () =>
-      node.type === "folder"
-        ? collectFolderReferencePoseSelectionIds(node)
-        : [],
-    [node],
-  );
-  const folderAllReferenceRigSelected =
-    folderReferenceRigSelectionIds.length > 0 &&
-    folderReferenceRigSelectionIds.every((id) =>
-      selectedReferenceRigIds?.has(id),
-    );
-  const folderAllReferencePoseSelected =
-    folderReferencePoseSelectionIds.length > 0 &&
-    folderReferencePoseSelectionIds.every((id) =>
-      selectedReferencePoseIds?.has(id),
-    );
-  const folderDeletionSummary =
-    node.type === "folder" && !isPoseGroupFolder
-      ? collectFolderRigDeletionSummary(node)
-      : null;
-  const folderDeleteCount = folderDeletionSummary?.deletableRigInputIds.length;
-  const canDeleteFolderDrivers =
-    node.type === "folder" &&
-    node.id !== "root" &&
-    Boolean(folderDeletionSummary) &&
-    (folderDeleteCount ?? 0) > 0 &&
-    (folderDeletionSummary?.undeletableRigCount ?? 0) === 0;
-
-  // Determine Icon
-  let Icon = Folder;
-  if (node.type === "pose") Icon = Activity;
-  else if (node.type === "rig") Icon = Zap;
-  else if (node.type === "input") Icon = Sliders;
-
-  if (node.type === "input") {
-    const inputData = node.data as InputCatalogRow;
-    const inputLocked =
-      Boolean(timelineInputLockActive) &&
-      Boolean(
-        timelineLockedInputIds?.has(inputData.inputId) ||
-          timelineLockedInputIds?.has(inputData.path),
-      );
-    const motionGraphPath = motionGraphContext
-      ? buildRigInputPath(motionGraphContext.runtimeFaceSegment, inputData.path)
-      : null;
-    const canToggleMotionGraphInput =
-      motionGraphContext && motionGraphContext.active && motionGraphPath
-        ? motionGraphContext.eligibleInputPaths.has(motionGraphPath)
-        : false;
-    const canToggleMotionGraphOutput =
-      motionGraphContext && motionGraphContext.active && motionGraphPath
-        ? motionGraphContext.eligibleOutputPaths.has(motionGraphPath)
-        : false;
-    const motionGraphInputEnabled =
-      motionGraphContext && motionGraphPath
-        ? motionGraphContext.enabledInputPaths.has(motionGraphPath)
-        : false;
-    const motionGraphOutputEnabled =
-      motionGraphContext && motionGraphPath
-        ? motionGraphContext.enabledOutputPaths.has(motionGraphPath)
-        : false;
-    const canToggleAnimationTrack = inputData.editable && inputData.selectable;
-    const animationTrackEnabled =
-      canToggleAnimationTrack && animationTrackContext
-        ? animationTrackContext.trackedInputIds.has(inputData.inputId)
-        : false;
-    const canSetPoseTarget =
-      Boolean(poseTargetContext?.active) &&
-      inputData.editable &&
-      inputData.controlKind === "rig-input";
-    const poseTargetEnabled =
-      canSetPoseTarget && Boolean(poseTargetContext?.selectedPoseId);
-    const poseTargetSaved =
-      canSetPoseTarget &&
-      Boolean(poseTargetContext?.targetedInputIds.has(inputData.inputId));
-    return (
-      <FlatInputControlRow
-        row={inputData}
-        depth={depth}
-        selected={rowIsSelected}
-        locked={inputLocked}
-        selectable={inputData.selectable}
-        onSelect={() => onSelect?.(node)}
-        onValueChange={(inputId, value) => onInputValueChange?.(inputId, value)}
-        lockedMessage="Animation playback is currently driving this input."
-        actions={
-          <div className="flex items-center gap-1">
-            {motionGraphContext?.active && canToggleMotionGraphInput ? (
-              <Button
-                variant={motionGraphInputEnabled ? "ghost" : "secondary"}
-                size="sm"
-                className={cn(
-                  "h-6 px-2 text-[10px] gap-1",
-                  motionGraphInputEnabled
-                    ? "text-cyan-200 hover:text-cyan-100"
-                    : undefined,
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!motionGraphPath) {
-                    return;
-                  }
-                  motionGraphContext.onToggleInputPath(motionGraphPath);
-                }}
-                title={
-                  motionGraphInputEnabled
-                    ? "Remove from procedural animation programming inputs"
-                    : "Add as procedural animation programming input"
-                }
-                aria-label={
-                  motionGraphInputEnabled ? "Remove PAP Input" : "Add PAP Input"
-                }
-              >
-                {motionGraphInputEnabled ? "PAP In -" : "PAP In +"}
-              </Button>
-            ) : null}
-            {motionGraphContext?.active && canToggleMotionGraphOutput ? (
-              <Button
-                variant={motionGraphOutputEnabled ? "ghost" : "secondary"}
-                size="sm"
-                className={cn(
-                  "h-6 px-2 text-[10px] gap-1",
-                  motionGraphOutputEnabled
-                    ? "text-cyan-200 hover:text-cyan-100"
-                    : undefined,
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!motionGraphPath) {
-                    return;
-                  }
-                  motionGraphContext.onToggleOutputPath(motionGraphPath);
-                }}
-                title={
-                  motionGraphOutputEnabled
-                    ? "Remove from procedural animation programming outputs"
-                    : "Add as procedural animation programming output"
-                }
-                aria-label={
-                  motionGraphOutputEnabled
-                    ? "Remove PAP Output"
-                    : "Add PAP Output"
-                }
-              >
-                {motionGraphOutputEnabled ? "PAP Out -" : "PAP Out +"}
-              </Button>
-            ) : null}
-            {animationTrackContext?.active && canToggleAnimationTrack ? (
-              <Button
-                variant={animationTrackEnabled ? "ghost" : "secondary"}
-                size="sm"
-                className={cn(
-                  "h-6 px-2 text-[10px] gap-1",
-                  animationTrackEnabled
-                    ? "text-emerald-200 hover:text-emerald-100"
-                    : undefined,
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (animationTrackEnabled) {
-                    animationTrackContext.onRemoveTrack(inputData.inputId);
-                    return;
-                  }
-                  animationTrackContext.onAddTrack(inputData);
-                }}
-                title={
-                  animationTrackEnabled
-                    ? "Remove from animation tracks"
-                    : "Add as animation track"
-                }
-                aria-label={
-                  animationTrackEnabled
-                    ? "Remove Animation Track"
-                    : "Add Animation Track"
-                }
-              >
-                {animationTrackEnabled ? "Track -" : "Track +"}
-              </Button>
-            ) : null}
-            {canSetPoseTarget ? (
-              <Button
-                variant={poseTargetSaved ? "ghost" : "secondary"}
-                size="sm"
-                className={cn(
-                  "h-6 px-2 text-[10px] gap-1",
-                  poseTargetSaved
-                    ? "text-amber-200 hover:text-amber-100"
-                    : undefined,
-                )}
-                disabled={!poseTargetEnabled}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!poseTargetEnabled) {
-                    return;
-                  }
-                  poseTargetContext?.onSetTarget(inputData);
-                }}
-                title={
-                  poseTargetEnabled
-                    ? poseTargetSaved
-                      ? "Update the selected pose target from this current input value"
-                      : "Save this current input value as a target on the selected pose"
-                    : "Select a pose before saving input targets"
-                }
-                aria-label={
-                  poseTargetSaved ? "Update Pose Target" : "Save Pose Target"
-                }
-              >
-                {poseTargetSaved ? "Update Target" : "Save Target"}
-              </Button>
-            ) : null}
-          </div>
-        }
-      />
-    );
-  }
-
-  return (
-    <TreeRow
-      depth={depth}
-      label={node.label}
-      hasChildren={hasChildren}
-      isExpanded={isExpanded}
-      isSelected={rowIsSelected}
-      onToggle={() => onToggle(node.id)}
-      onSelect={!hasChildren ? () => onSelect?.(node) : undefined}
-      highlightQuery={searchQuery}
-      icon={<OwnershipScopeIcon Icon={Icon} scope={nodeOwnershipScope} />}
-      actions={
-        <>
-          {node.type === "pose" && !isReferencePoseNode && (
-            <>
-              {referencePoseId ? (
-                <label
-                  className="flex items-center gap-1 text-[9px] text-cyan-200"
-                  onClick={(event) => event.stopPropagation()}
-                  title="Select pose for bulk copy"
-                >
-                  <input
-                    type="checkbox"
-                    checked={isBulkSelected}
-                    onChange={() => {
-                      if (!referencePoseId) {
-                        return;
-                      }
-                      onToggleReferencePoseSelection?.(referencePoseId);
-                    }}
-                  />
-                  Bulk
-                </label>
-              ) : null}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "play");
-                }}
-                title="Apply Pose"
-              >
-                <Play size={10} fill="currentColor" />
-              </Button>
-              {animationTrackContext?.active ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0 hover:text-accent text-emerald-300"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.(node, "key-pose");
-                  }}
-                  title="Add pose channels as animation tracks at current time"
-                >
-                  <Plus size={10} />
-                </Button>
-              ) : null}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-sky-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "reset-pose");
-                }}
-                title="Reset this pose weight"
-              >
-                <RotateCcw size={10} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-purple-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "duplicate-pose");
-                }}
-                title="Duplicate this pose"
-              >
-                <Copy size={10} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-amber-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "delete-pose");
-                }}
-                title="Delete Pose"
-              >
-                <Trash2 size={10} />
-              </Button>
-            </>
-          )}
-          {node.type === "pose" && isReferencePoseNode && (
-            <>
-              <label
-                className="flex items-center gap-1 text-[9px] text-cyan-200"
-                onClick={(event) => event.stopPropagation()}
-                title="Select pose for bulk copy"
-              >
-                <input
-                  type="checkbox"
-                  checked={referencePoseId ? isBulkSelected : false}
-                  onChange={() => {
-                    if (!referencePoseId) {
-                      return;
-                    }
-                    onToggleReferencePoseSelection?.(referencePoseId);
-                  }}
-                />
-                Bulk
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "play");
-                }}
-                title="Apply Pose"
-              >
-                <Play size={10} fill="currentColor" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-sky-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "reset-pose");
-                }}
-                title="Reset pose targets to defaults"
-              >
-                <RotateCcw size={10} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-cyan-300"
-                data-testid="pose-copy-to-main"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "copy-pose-to-main");
-                }}
-                title="Copy pose to main face"
-              >
-                <Copy size={10} />
-              </Button>
-            </>
-          )}
-
-          {node.type === "rig" &&
-            !(node.data as RigNodeData | undefined)?.disabled && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 px-1 text-[9px] uppercase text-text-secondary hover:text-text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.(node, "set-min");
-                  }}
-                  title="Set current value to min"
-                >
-                  Min
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 px-1 text-[9px] uppercase text-text-secondary hover:text-text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.(node, "set-default");
-                  }}
-                  title="Set current value to default"
-                >
-                  Def
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 px-1 text-[9px] uppercase text-text-secondary hover:text-text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.(node, "set-max");
-                  }}
-                  title="Set current value to max"
-                >
-                  Max
-                </Button>
-              </>
-            )}
-          {node.type === "rig" &&
-            ((node.data as RigNodeData | undefined)?.source === "reference" ||
-              (node.data as RigNodeData | undefined)?.source === "shared") && (
-              <>
-                {(node.data as RigNodeData | undefined)?.source !==
-                  undefined && (
-                  <label
-                    className="flex items-center gap-1 text-[9px] text-cyan-200"
-                    onClick={(event) => event.stopPropagation()}
-                    title="Select driver for bulk copy"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={
-                        bulkReferenceRigSelectionId ? isBulkSelected : false
-                      }
-                      onChange={() => {
-                        if (!bulkReferenceRigSelectionId) {
-                          return;
-                        }
-                        onToggleReferenceRigSelection?.(
-                          bulkReferenceRigSelectionId,
-                        );
-                      }}
-                    />
-                    Bulk
-                  </label>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0 hover:text-accent"
-                  data-testid="variable-copy-to-main"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.(node, "copy-to-main");
-                  }}
-                  title="Copy driver to main face"
-                >
-                  <Copy size={10} />
-                </Button>
-              </>
-            )}
-          {node.type === "rig" &&
-            (node.data as RigNodeData | undefined)?.source !== "reference" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-purple-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "duplicate-variable");
-                }}
-                title="Duplicate driver"
-              >
-                <Copy size={10} />
-              </Button>
-            )}
-          {node.type === "rig" &&
-            (node.data as RigNodeData | undefined)?.source === "custom" &&
-            !(node.data as RigNodeData | undefined)?.disabled && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 w-5 p-0 hover:text-accent text-amber-300"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAction?.(node, "delete-variable");
-                }}
-                title="Delete driver"
-              >
-                <Trash2 size={10} />
-              </Button>
-            )}
-          {node.type === "folder" &&
-            folderReferenceRigSelectionIds.length > 0 && (
-              <label
-                className="flex items-center gap-1 text-[9px] text-cyan-200"
-                onClick={(event) => event.stopPropagation()}
-                title="Select all reference/shared drivers in this folder for bulk copy"
-              >
-                <input
-                  type="checkbox"
-                  checked={folderAllReferenceRigSelected}
-                  onChange={() => {
-                    onSetReferenceRigSelection?.(
-                      folderReferenceRigSelectionIds,
-                      !folderAllReferenceRigSelected,
-                    );
-                  }}
-                />
-                Bulk Drv
-              </label>
-            )}
-          {node.type === "folder" &&
-            folderReferencePoseSelectionIds.length > 0 && (
-              <label
-                className="flex items-center gap-1 text-[9px] text-cyan-200"
-                onClick={(event) => event.stopPropagation()}
-                title="Select all reference poses in this folder for bulk copy"
-              >
-                <input
-                  type="checkbox"
-                  checked={folderAllReferencePoseSelected}
-                  onChange={() => {
-                    onSetReferencePoseSelection?.(
-                      folderReferencePoseSelectionIds,
-                      !folderAllReferencePoseSelected,
-                    );
-                  }}
-                />
-                Bulk Pose
-              </label>
-            )}
-
-          {canDeleteFolderDrivers ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 hover:text-accent text-amber-300"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAction?.(node, "delete-folder-drivers");
-              }}
-              title={`Delete folder drivers (${folderDeleteCount ?? 0})`}
-            >
-              <Trash2 size={10} />
-            </Button>
-          ) : null}
-        </>
-      }
-    >
-      {hasChildren && isExpanded && (
-        <div className="flex flex-col">
-          {Array.from(node.children.values())
-            .sort((a, b) => {
-              // Folders first
-              if (a.type === "folder" && b.type !== "folder") return -1;
-              if (a.type !== "folder" && b.type === "folder") return 1;
-              return a.label.localeCompare(b.label);
-            })
-            .map((child) => (
-              <TreeRowWrapper
-                key={child.id}
-                node={child}
-                depth={depth + 1}
-                expanded={expanded}
-                onToggle={onToggle}
-                onAction={onAction}
-                onSelect={onSelect}
-                onInputValueChange={onInputValueChange}
-                selection={selection}
-                selectedReferenceRigIds={selectedReferenceRigIds}
-                selectedReferencePoseIds={selectedReferencePoseIds}
-                onToggleReferenceRigSelection={onToggleReferenceRigSelection}
-                onToggleReferencePoseSelection={onToggleReferencePoseSelection}
-                onSetReferenceRigSelection={onSetReferenceRigSelection}
-                onSetReferencePoseSelection={onSetReferencePoseSelection}
-                timelineInputLockActive={timelineInputLockActive}
-                timelineLockedInputIds={timelineLockedInputIds}
-                motionGraphContext={motionGraphContext}
-                animationTrackContext={animationTrackContext}
-                poseTargetContext={poseTargetContext}
-                searchQuery={searchQuery}
-              />
-            ))}
-        </div>
-      )}
-    </TreeRow>
-  );
-}
-
-interface FlatInputControlRowProps {
-  row: InputCatalogRow;
-  selected: boolean;
-  locked: boolean;
-  depth?: number;
-  selectable?: boolean;
-  lockedMessage?: string;
-  onSelect: () => void;
-  onValueChange: (inputId: string, value: number) => void;
-  actions?: ReactNode;
-}
-
-function FlatInputControlRow({
-  row,
-  selected,
-  locked,
-  depth = 0,
-  selectable = true,
-  lockedMessage,
-  onSelect,
-  onValueChange,
-  actions,
-}: FlatInputControlRowProps) {
-  const value =
-    typeof row.value === "number" && Number.isFinite(row.value) ? row.value : 0;
-  const paddingLeft = Math.max(0, depth) * 14;
-
-  return (
-    <div
-      role="button"
-      tabIndex={selectable ? 0 : -1}
-      style={{ marginLeft: `${paddingLeft}px` }}
-      title={row.label}
-      className={cn(
-        "rounded border px-2 py-1.5 flex flex-col gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        selected
-          ? "border-accent/60 bg-accent/10"
-          : "border-border-default/50 bg-bg-panel/35",
-        selectable ? "hover:border-border-default/70 hover:bg-bg-panel/45" : "",
-      )}
-      aria-disabled={!selectable}
-      onClick={() => {
-        if (!selectable) {
-          return;
-        }
-        onSelect();
-      }}
-      onKeyDown={(event) => {
-        if (!selectable) {
-          return;
-        }
-        if (event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-        event.preventDefault();
-        onSelect();
-      }}
-    >
-      <div className="flex items-center gap-1.5 min-w-0">
-        <Sliders size={12} className="text-cyan-300 shrink-0" />
-        <span className="text-xs text-text-primary truncate">{row.label}</span>
-        <div className="ml-auto flex items-center gap-1 shrink-0">
-          {actions}
-        </div>
-      </div>
-      {row.editable ? (
-        <div
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <Slider
-            value={value}
-            defaultValue={row.defaultValue}
-            min={row.min}
-            max={row.max}
-            step={0.01}
-            disabled={locked}
-            onChange={(nextValue) => {
-              const normalizedValue = Array.isArray(nextValue)
-                ? nextValue[0]
-                : nextValue;
-              if (!Number.isFinite(normalizedValue)) {
-                return;
-              }
-              onValueChange(row.inputId, normalizedValue);
-            }}
-          />
-        </div>
-      ) : (
-        <p className="text-[10px] text-text-muted">
-          Derived control (read-only)
-        </p>
-      )}
-      {locked ? (
-        <p className="text-[10px] text-amber-300">
-          {lockedMessage ??
-            "Animation playback is currently driving this input."}
-        </p>
-      ) : null}
-    </div>
-  );
-}
 
 interface VariablesPanelProps {
   selectedRigId?: string | null;
@@ -3329,7 +2294,6 @@ export function VariablesPanel({
   );
   const activeInputValueChange = onInputValueChange ?? handleInputValueChange;
   const animationTracks = useAnimationStore((state) => state.tracks);
-  const animationCurrentTime = useAnimationStore((state) => state.currentTime);
   const addAnimationTrack = useAnimationStore((state) => state.addTrack);
   const removeAnimationTrack = useAnimationStore((state) => state.removeTrack);
   const upsertAnimationInputKeyframe = useAnimationStore(
@@ -4143,6 +3107,18 @@ export function VariablesPanel({
     const trimmed = runtimeFaceId?.trim();
     return trimmed && trimmed.length > 0 ? trimmed : "face";
   }, [runtimeFaceId]);
+  // Per-face starred set. Keyed by the raw (trimmed) face id so it matches the
+  // key used at glb export/import time.
+  const starredFaceId = useMemo(() => {
+    const trimmed = runtimeFaceId?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : null;
+  }, [runtimeFaceId]);
+  const starredRefs = useStarredStore((state) =>
+    starredFaceId
+      ? (state.byFace[starredFaceId] ?? EMPTY_STARRED)
+      : EMPTY_STARRED,
+  );
+  const toggleStarred = useStarredStore((state) => state.toggleStarred);
   const motionGraphDisplayInputRoot = useMemo(
     () =>
       filterTreeForActiveSurface({
@@ -5241,6 +4217,60 @@ export function VariablesPanel({
     sharedPoseLinks,
   ]);
 
+  // Starred surface: collect the live driver/pose nodes referenced by the
+  // per-face starred set. Reuse the exact same TreeNode objects so edits to the
+  // underlying driver/pose flow through here and row actions behave identically.
+  const starredKeys = useMemo(
+    () => new Set(starredRefs.map((ref) => starredRefKey(ref))),
+    [starredRefs],
+  );
+  const starredRootNode = useMemo(() => {
+    const root: TreeNode = {
+      id: "root",
+      label: "Starred",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+    if (starredKeys.size === 0) {
+      return root;
+    }
+    const driverFolder: TreeNode = {
+      id: "starred/drivers",
+      label: "Drivers",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+    const poseFolder: TreeNode = {
+      id: "starred/poses",
+      label: "Poses",
+      type: "folder",
+      children: new Map(),
+      showChildren: true,
+    };
+    const collect = (node: TreeNode, folder: TreeNode) => {
+      for (const child of node.children.values()) {
+        const ref = starredRefForNode(child);
+        if (ref && starredKeys.has(starredRefKey(ref))) {
+          folder.children.set(child.id, child);
+        }
+        if (child.children.size > 0) {
+          collect(child, folder);
+        }
+      }
+    };
+    collect(variablesRootNode, driverFolder);
+    collect(posesRootNode, poseFolder);
+    if (driverFolder.children.size > 0) {
+      root.children.set(driverFolder.id, driverFolder);
+    }
+    if (poseFolder.children.size > 0) {
+      root.children.set(poseFolder.id, poseFolder);
+    }
+    return root;
+  }, [variablesRootNode, posesRootNode, starredKeys]);
+
   const visibleRoot = useMemo(
     () =>
       resolveVisibleRootForActiveSurface({
@@ -5249,6 +4279,7 @@ export function VariablesPanel({
         variablesRootNode,
         posesRootNode,
         inputRootNode,
+        starredRootNode,
         filterTree: filterTreeBySearch,
       }),
     [
@@ -5256,6 +4287,7 @@ export function VariablesPanel({
       inputRootNode,
       posesRootNode,
       searchQuery,
+      starredRootNode,
       variablesRootNode,
     ],
   );
@@ -5265,7 +4297,8 @@ export function VariablesPanel({
     if (
       (activeSurface !== "variables" &&
         activeSurface !== "poses" &&
-        activeSurface !== "inputs") ||
+        activeSurface !== "inputs" &&
+        activeSurface !== "starred") ||
       !searchQuery.trim()
     ) {
       return;
@@ -5422,6 +4455,14 @@ export function VariablesPanel({
   );
 
   const handleAction = (node: TreeNode, action: string) => {
+    if (action === "toggle-star") {
+      const ref = starredRefForNode(node);
+      if (!ref || !starredFaceId) {
+        return;
+      }
+      toggleStarred(starredFaceId, ref);
+      return;
+    }
     if (node.type === "pose" && action === "copy-pose-to-main") {
       const poseNodeData = node.data as PoseNodeData;
       if (poseNodeData.source !== "reference") {
@@ -5749,10 +4790,10 @@ export function VariablesPanel({
           label: input?.label ?? inputId,
           channel: input?.path ?? inputId,
         },
-        animationCurrentTime,
+        getCurrentPlayheadTime(),
       );
     },
-    [animationCurrentTime, standardInputsById, upsertAnimationInputKeyframe],
+    [standardInputsById, upsertAnimationInputKeyframe],
   );
   const handlePanelInputValueChange = useCallback(
     (inputId: string, value: number) => {
@@ -5843,11 +4884,10 @@ export function VariablesPanel({
       if (entries.length === 0) {
         return;
       }
-      upsertAnimationInputKeyframes(entries, animationCurrentTime);
+      upsertAnimationInputKeyframes(entries, getCurrentPlayheadTime());
       applyStandardInputBatch(previewValues);
     },
     [
-      animationCurrentTime,
       applyStandardInputBatch,
       standardInputsById,
       upsertAnimationInputKeyframes,
@@ -6079,6 +5119,20 @@ export function VariablesPanel({
   const animationItemCount = animationTargets.length;
   const programItemCount = programTargets.length;
   const inputItemCount = inputRows.length;
+  const starredItemCount = useMemo(() => {
+    let count = 0;
+    const walk = (node: TreeNode) => {
+      for (const child of node.children.values()) {
+        if (child.type === "folder") {
+          walk(child);
+        } else {
+          count += 1;
+        }
+      }
+    };
+    walk(starredRootNode);
+    return count;
+  }, [starredRootNode]);
   const poseGroupsForSurface = useMemo(() => {
     const list = [...visiblePoseGroups];
     list.sort((a, b) => {
@@ -6187,17 +5241,19 @@ export function VariablesPanel({
   ]);
 
   const totalCount =
-    activeSurface === "variables"
-      ? variableItemCount
-      : activeSurface === "poses"
-        ? poseItemCount
-        : activeSurface === "pose-groups"
-          ? poseGroupItemCount
-          : activeSurface === "animations"
-            ? animationItemCount
-            : activeSurface === "programs"
-              ? programItemCount
-              : inputItemCount;
+    activeSurface === "starred"
+      ? starredItemCount
+      : activeSurface === "variables"
+        ? variableItemCount
+        : activeSurface === "poses"
+          ? poseItemCount
+          : activeSurface === "pose-groups"
+            ? poseGroupItemCount
+            : activeSurface === "animations"
+              ? animationItemCount
+              : activeSurface === "programs"
+                ? programItemCount
+                : inputItemCount;
 
   const uncopiedReferenceCount = referenceRigEntries.filter(
     (entry) => !entry.linkedMainInputId,
@@ -6258,6 +5314,14 @@ export function VariablesPanel({
   ) : null;
 
   const surfaceTabs = allSurfaces.map((id) => {
+    if (id === "starred") {
+      return {
+        id,
+        label: formatSurfaceLabelWithCount("Starred", starredItemCount),
+        testId: "control-authoring-tab-starred",
+        panelTestId: "control-authoring-panel-starred",
+      };
+    }
     if (id === "variables") {
       return {
         id,
@@ -6307,17 +5371,19 @@ export function VariablesPanel({
   });
 
   const surfaceForTab = (id: string): SurfaceTab =>
-    id === "poses"
-      ? "poses"
-      : id === "pose-groups"
-        ? "pose-groups"
-        : id === "animations"
-          ? "animations"
-          : id === "programs"
-            ? "programs"
-            : id === "inputs"
-              ? "inputs"
-              : "variables";
+    id === "starred"
+      ? "starred"
+      : id === "poses"
+        ? "poses"
+        : id === "pose-groups"
+          ? "pose-groups"
+          : id === "animations"
+            ? "animations"
+            : id === "programs"
+              ? "programs"
+              : id === "inputs"
+                ? "inputs"
+                : "variables";
 
   const selectedPoseName = selectedPoseId
     ? (poseNameById.get(selectedPoseId) ?? selectedPoseId)
@@ -6584,6 +5650,7 @@ export function VariablesPanel({
               if (surfaceForTab(id) !== activeSurface) {
                 return null;
               }
+              const isStarred = id === "starred";
               const isVariables = id === "variables";
               const isPoseGroups = id === "pose-groups";
               const isPoses = id === "poses";
@@ -6632,208 +5699,135 @@ export function VariablesPanel({
               const renderProceduralAvailableGroups = (
                 groups: GroupedInputRowsByFolder[],
                 depth = 0,
-              ): ReactNode =>
-                groups.map((group) => {
-                  const folderExpanded =
-                    filteredSearch.length > 0 ||
-                    availablePapExpandedIds.has(group.id);
-                  const hasChildren =
-                    group.children.length > 0 || group.rows.length > 0;
-                  return (
-                    <TreeRow
-                      key={`pap-available-folder:${group.id}`}
-                      depth={depth}
-                      label={group.label}
-                      hasChildren={hasChildren}
-                      isExpanded={folderExpanded}
-                      onToggle={() => toggleAvailablePapFolder(group.id)}
-                      icon={<Folder size={12} className="text-text-muted" />}
-                    >
-                      {folderExpanded ? (
-                        <>
-                          {group.children.length > 0
-                            ? renderProceduralAvailableGroups(
-                                group.children,
-                                depth + 1,
-                              )
-                            : null}
-                          {group.rows.length > 0 ? (
-                            <div className="flex flex-col gap-1.5 pt-1">
-                              {group.rows.map((row) => {
-                                const path = buildRigInputPath(
-                                  runtimeFaceSegment,
-                                  row.path,
-                                );
-                                const canAddInput =
-                                  motionGraphEligibleInputPaths.has(path) &&
-                                  !enabledMotionGraphInputs.has(path);
-                                const canAddOutput =
-                                  motionGraphEligibleOutputPaths.has(path) &&
-                                  !enabledMotionGraphOutputs.has(path);
-                                return (
-                                  <FlatInputControlRow
-                                    key={`pap-available:${row.inputId}:${row.path}`}
-                                    row={row}
-                                    selected={
-                                      activeSelection?.type === "input" &&
-                                      activeSelection.id === row.inputId
-                                    }
-                                    depth={depth + 1}
-                                    locked={isInputCatalogRowLocked(row)}
-                                    onSelect={() =>
-                                      handleSelectInputCatalogRow(row)
-                                    }
-                                    onValueChange={handlePanelInputValueChange}
-                                    actions={
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          data-testid="pap-add-input"
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleEnableMotionGraphInputRow(
-                                              row,
-                                            );
-                                          }}
-                                          disabled={!canAddInput}
-                                          title="Add PAP Input"
-                                          aria-label="Add PAP Input"
-                                        >
-                                          <Plus size={11} />
-                                          In
-                                        </Button>
-                                        <Button
-                                          data-testid="pap-add-output"
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleEnableMotionGraphOutputRow(
-                                              row,
-                                            );
-                                          }}
-                                          disabled={!canAddOutput}
-                                          title="Add PAP Output"
-                                          aria-label="Add PAP Output"
-                                        >
-                                          <Plus size={11} />
-                                          Out
-                                        </Button>
-                                      </div>
-                                    }
-                                  />
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </TreeRow>
-                  );
-                });
+              ): ReactNode => (
+                <GroupedInputTree
+                  groups={groups}
+                  depth={depth}
+                  keyPrefix="pap-available"
+                  isFolderExpanded={(id) =>
+                    filteredSearch.length > 0 || availablePapExpandedIds.has(id)
+                  }
+                  onToggleFolder={toggleAvailablePapFolder}
+                  isRowSelected={(row) =>
+                    activeSelection?.type === "input" &&
+                    activeSelection.id === row.inputId
+                  }
+                  isRowLocked={isInputCatalogRowLocked}
+                  onSelectRow={handleSelectInputCatalogRow}
+                  onValueChange={handlePanelInputValueChange}
+                  rowKey={(row) => `${row.inputId}:${row.path}`}
+                  renderRowActions={(row) => {
+                    const path = buildRigInputPath(
+                      runtimeFaceSegment,
+                      row.path,
+                    );
+                    const canAddInput =
+                      motionGraphEligibleInputPaths.has(path) &&
+                      !enabledMotionGraphInputs.has(path);
+                    const canAddOutput =
+                      motionGraphEligibleOutputPaths.has(path) &&
+                      !enabledMotionGraphOutputs.has(path);
+                    return (
+                      <>
+                        <Button
+                          data-testid="pap-add-input"
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleEnableMotionGraphInputRow(row);
+                          }}
+                          disabled={!canAddInput}
+                          title="Add PAP Input"
+                          aria-label="Add PAP Input"
+                        >
+                          <Plus size={11} />
+                          In
+                        </Button>
+                        <Button
+                          data-testid="pap-add-output"
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 px-2 text-[10px] gap-1 text-cyan-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleEnableMotionGraphOutputRow(row);
+                          }}
+                          disabled={!canAddOutput}
+                          title="Add PAP Output"
+                          aria-label="Add PAP Output"
+                        >
+                          <Plus size={11} />
+                          Out
+                        </Button>
+                      </>
+                    );
+                  }}
+                />
+              );
               const renderAnimationAvailableGroups = (
                 groups: GroupedInputRowsByFolder[],
                 depth = 0,
-              ): ReactNode =>
-                groups.map((group) => {
-                  const folderExpanded =
+              ): ReactNode => (
+                <GroupedInputTree
+                  groups={groups}
+                  depth={depth}
+                  keyPrefix="animation-available"
+                  isFolderExpanded={(id) =>
                     filteredSearch.length > 0 ||
-                    availableAnimationExpandedIds.has(group.id);
-                  const hasChildren =
-                    group.children.length > 0 || group.rows.length > 0;
-                  return (
-                    <TreeRow
-                      key={`animation-available-folder:${group.id}`}
-                      depth={depth}
-                      label={group.label}
-                      hasChildren={hasChildren}
-                      isExpanded={folderExpanded}
-                      onToggle={() => toggleAvailableAnimationFolder(group.id)}
-                      icon={<Folder size={12} className="text-text-muted" />}
-                    >
-                      {folderExpanded ? (
-                        <>
-                          {group.children.length > 0
-                            ? renderAnimationAvailableGroups(
-                                group.children,
-                                depth + 1,
-                              )
-                            : null}
-                          {group.rows.length > 0 ? (
-                            <div className="flex flex-col gap-1.5 pt-1">
-                              {group.rows.map((row) => {
-                                const trackInput = standardInputsById.get(
-                                  row.inputId,
-                                );
-                                const poseId = parsePoseWeightInputSourceId(
-                                  trackInput?.sourceId,
-                                );
-                                const pose = poseId
-                                  ? poseById.get(poseId)
-                                  : undefined;
-                                return (
-                                  <FlatInputControlRow
-                                    key={`animation-available:${row.inputId}`}
-                                    row={row}
-                                    selected={
-                                      activeSelection?.type === "input" &&
-                                      activeSelection.id === row.inputId
-                                    }
-                                    depth={depth + 1}
-                                    locked={isInputCatalogRowLocked(row)}
-                                    onSelect={() =>
-                                      handleSelectInputCatalogRow(row)
-                                    }
-                                    onValueChange={handlePanelInputValueChange}
-                                    actions={
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 text-emerald-100"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleAddAnimationTrack(row);
-                                          }}
-                                          title="Add Animation Track"
-                                          aria-label="Add Animation Track"
-                                        >
-                                          <Plus size={11} />
-                                        </Button>
-                                        {pose ? (
-                                          <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            className="h-6 px-2 text-[10px] gap-1 text-violet-100"
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              keyPoseChannelsAtCurrentTime(
-                                                pose,
-                                              );
-                                            }}
-                                            title="Add pose channels as animation tracks at current time"
-                                            aria-label="Add Pose Targets"
-                                          >
-                                            <Zap size={11} />
-                                            Targets
-                                          </Button>
-                                        ) : null}
-                                      </div>
-                                    }
-                                  />
-                                );
-                              })}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </TreeRow>
-                  );
-                });
-
+                    availableAnimationExpandedIds.has(id)
+                  }
+                  onToggleFolder={toggleAvailableAnimationFolder}
+                  isRowSelected={(row) =>
+                    activeSelection?.type === "input" &&
+                    activeSelection.id === row.inputId
+                  }
+                  isRowLocked={isInputCatalogRowLocked}
+                  onSelectRow={handleSelectInputCatalogRow}
+                  onValueChange={handlePanelInputValueChange}
+                  renderRowActions={(row) => {
+                    const trackInput = standardInputsById.get(row.inputId);
+                    const poseId = parsePoseWeightInputSourceId(
+                      trackInput?.sourceId,
+                    );
+                    const pose = poseId ? poseById.get(poseId) : undefined;
+                    return (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-emerald-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAddAnimationTrack(row);
+                          }}
+                          title="Add Animation Track"
+                          aria-label="Add Animation Track"
+                        >
+                          <Plus size={11} />
+                        </Button>
+                        {pose ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              keyPoseChannelsAtCurrentTime(pose);
+                            }}
+                            title="Add pose channels as animation tracks at current time"
+                            aria-label="Add Pose Targets"
+                          >
+                            <Zap size={11} />
+                            Targets
+                          </Button>
+                        ) : null}
+                      </>
+                    );
+                  }}
+                />
+              );
               return (
                 <div className="flex flex-col h-full min-h-0 gap-1 p-2">
                   {isInputs ? (
@@ -7576,25 +6570,144 @@ export function VariablesPanel({
                       <div className="flex flex-col gap-3 px-1 pb-2">
                         {proceduralAnimationProgrammingActive ? (
                           <>
-                            <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                  Active Graph Inputs
-                                </span>
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {visibleMotionGraphInputRows.length}
-                                </span>
+                            <InspectorSection
+                              title="Active Graph Inputs"
+                              count={visibleMotionGraphInputRows.length}
+                              emptyMessage="No inputs are currently enabled for the procedural graph."
+                            >
+                              <div className="flex flex-col gap-1.5">
+                                {visibleMotionGraphInputRows.map((row) => (
+                                  <ControlRow
+                                    key={`pap-active-input:${row.inputId}`}
+                                    row={row}
+                                    selected={
+                                      activeSelection?.type === "input" &&
+                                      activeSelection.id === row.inputId
+                                    }
+                                    depth={0}
+                                    locked={isInputCatalogRowLocked(row)}
+                                    onSelect={() =>
+                                      handleSelectInputCatalogRow(row)
+                                    }
+                                    onValueChange={handlePanelInputValueChange}
+                                    actions={
+                                      <Button
+                                        data-testid="pap-remove-input"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleEnableMotionGraphInputRow(row);
+                                        }}
+                                        title="Remove PAP Input"
+                                        aria-label="Remove PAP Input"
+                                      >
+                                        <X size={11} />
+                                      </Button>
+                                    }
+                                  />
+                                ))}
                               </div>
-                              {visibleMotionGraphInputRows.length === 0 ? (
+                            </InspectorSection>
+
+                            <InspectorSection
+                              title="Active Graph Outputs"
+                              count={visibleMotionGraphOutputRows.length}
+                              emptyMessage="No outputs are currently enabled for the procedural graph."
+                            >
+                              <div className="flex flex-col gap-1.5">
+                                {visibleMotionGraphOutputRows.map((row) => {
+                                  const timelineLocked =
+                                    isInputCatalogRowLocked(row);
+                                  const graphLocked =
+                                    proceduralOutputPlaybackLocked;
+                                  return (
+                                    <ControlRow
+                                      key={`pap-active-output:${row.inputId}:${row.path}`}
+                                      row={row}
+                                      selected={
+                                        activeSelection?.type === "input" &&
+                                        activeSelection.id === row.inputId
+                                      }
+                                      depth={0}
+                                      locked={timelineLocked || graphLocked}
+                                      lockedMessage={
+                                        graphLocked && !timelineLocked
+                                          ? "Procedural animation playback is currently driving this output."
+                                          : undefined
+                                      }
+                                      onSelect={() =>
+                                        handleSelectInputCatalogRow(row)
+                                      }
+                                      onValueChange={
+                                        handlePanelInputValueChange
+                                      }
+                                      actions={
+                                        <Button
+                                          data-testid="pap-remove-output"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleEnableMotionGraphOutputRow(
+                                              row,
+                                            );
+                                          }}
+                                          title="Remove PAP Output"
+                                          aria-label="Remove PAP Output"
+                                        >
+                                          <X size={11} />
+                                        </Button>
+                                      }
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </InspectorSection>
+
+                            <InspectorSection
+                              title="Available"
+                              count={availableMotionGraphRows.length}
+                            >
+                              {availableMotionGraphRowsByFolder.length === 0 ? (
                                 <p className="text-[10px] text-text-muted">
-                                  No inputs are currently enabled for the
-                                  procedural graph.
+                                  All visible rows are already active for both
+                                  graph input and output.
                                 </p>
                               ) : (
                                 <div className="flex flex-col gap-1.5">
-                                  {visibleMotionGraphInputRows.map((row) => (
-                                    <FlatInputControlRow
-                                      key={`pap-active-input:${row.inputId}`}
+                                  {renderProceduralAvailableGroups(
+                                    availableMotionGraphRowsByFolder,
+                                  )}
+                                </div>
+                              )}
+                            </InspectorSection>
+                          </>
+                        ) : null}
+
+                        {animationAuthoringActive ? (
+                          <>
+                            <InspectorSection
+                              title="Active Tracks"
+                              count={visibleAnimationTrackRows.length}
+                              emptyMessage="No tracks are currently active."
+                            >
+                              <div className="flex flex-col gap-1.5">
+                                {visibleAnimationTrackRows.map((row) => {
+                                  const trackInput = standardInputsById.get(
+                                    row.inputId,
+                                  );
+                                  const poseId = parsePoseWeightInputSourceId(
+                                    trackInput?.sourceId,
+                                  );
+                                  const pose = poseId
+                                    ? poseById.get(poseId)
+                                    : undefined;
+                                  return (
+                                    <ControlRow
+                                      key={`animation-active:${row.inputId}`}
                                       row={row}
                                       selected={
                                         activeSelection?.type === "input" &&
@@ -7609,216 +6722,51 @@ export function VariablesPanel({
                                         handlePanelInputValueChange
                                       }
                                       actions={
-                                        <Button
-                                          data-testid="pap-remove-input"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            handleEnableMotionGraphInputRow(
-                                              row,
-                                            );
-                                          }}
-                                          title="Remove PAP Input"
-                                          aria-label="Remove PAP Input"
-                                        >
-                                          <X size={11} />
-                                        </Button>
-                                      }
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </section>
-
-                            <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                  Active Graph Outputs
-                                </span>
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {visibleMotionGraphOutputRows.length}
-                                </span>
-                              </div>
-                              {visibleMotionGraphOutputRows.length === 0 ? (
-                                <p className="text-[10px] text-text-muted">
-                                  No outputs are currently enabled for the
-                                  procedural graph.
-                                </p>
-                              ) : (
-                                <div className="flex flex-col gap-1.5">
-                                  {visibleMotionGraphOutputRows.map((row) => {
-                                    const timelineLocked =
-                                      isInputCatalogRowLocked(row);
-                                    const graphLocked =
-                                      proceduralOutputPlaybackLocked;
-                                    return (
-                                      <FlatInputControlRow
-                                        key={`pap-active-output:${row.inputId}:${row.path}`}
-                                        row={row}
-                                        selected={
-                                          activeSelection?.type === "input" &&
-                                          activeSelection.id === row.inputId
-                                        }
-                                        depth={0}
-                                        locked={timelineLocked || graphLocked}
-                                        lockedMessage={
-                                          graphLocked && !timelineLocked
-                                            ? "Procedural animation playback is currently driving this output."
-                                            : undefined
-                                        }
-                                        onSelect={() =>
-                                          handleSelectInputCatalogRow(row)
-                                        }
-                                        onValueChange={
-                                          handlePanelInputValueChange
-                                        }
-                                        actions={
+                                        <div className="flex items-center gap-1">
+                                          {pose ? (
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              className="h-6 px-2 text-[10px] gap-1 text-violet-100"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                keyPoseChannelsAtCurrentTime(
+                                                  pose,
+                                                );
+                                              }}
+                                              title="Add pose channels as animation tracks at current time"
+                                              aria-label="Add Pose Targets"
+                                            >
+                                              <Zap size={11} />
+                                              Targets
+                                            </Button>
+                                          ) : null}
                                           <Button
-                                            data-testid="pap-remove-output"
                                             variant="ghost"
                                             size="sm"
                                             className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
                                             onClick={(event) => {
                                               event.stopPropagation();
-                                              handleEnableMotionGraphOutputRow(
-                                                row,
+                                              handleRemoveAnimationTrack(
+                                                row.inputId,
                                               );
                                             }}
-                                            title="Remove PAP Output"
-                                            aria-label="Remove PAP Output"
+                                            title="Remove Animation Track"
+                                            aria-label="Remove Animation Track"
                                           >
                                             <X size={11} />
                                           </Button>
-                                        }
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </section>
-
-                            <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                  Available
-                                </span>
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {availableMotionGraphRows.length}
-                                </span>
+                                        </div>
+                                      }
+                                    />
+                                  );
+                                })}
                               </div>
-                              {availableMotionGraphRowsByFolder.length === 0 ? (
-                                <p className="text-[10px] text-text-muted">
-                                  All visible rows are already active for both
-                                  graph input and output.
-                                </p>
-                              ) : (
-                                <div className="flex flex-col gap-1.5">
-                                  {renderProceduralAvailableGroups(
-                                    availableMotionGraphRowsByFolder,
-                                  )}
-                                </div>
-                              )}
-                            </section>
-                          </>
-                        ) : null}
-
-                        {animationAuthoringActive ? (
-                          <>
-                            <section className="rounded border border-border-default/50 bg-bg-panel/30 p-2 flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                  Active Tracks
-                                </span>
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {visibleAnimationTrackRows.length}
-                                </span>
-                              </div>
-                              {visibleAnimationTrackRows.length === 0 ? (
-                                <p className="text-[10px] text-text-muted">
-                                  No tracks are currently active.
-                                </p>
-                              ) : (
-                                <div className="flex flex-col gap-1.5">
-                                  {visibleAnimationTrackRows.map((row) => {
-                                    const trackInput = standardInputsById.get(
-                                      row.inputId,
-                                    );
-                                    const poseId = parsePoseWeightInputSourceId(
-                                      trackInput?.sourceId,
-                                    );
-                                    const pose = poseId
-                                      ? poseById.get(poseId)
-                                      : undefined;
-                                    return (
-                                      <FlatInputControlRow
-                                        key={`animation-active:${row.inputId}`}
-                                        row={row}
-                                        selected={
-                                          activeSelection?.type === "input" &&
-                                          activeSelection.id === row.inputId
-                                        }
-                                        depth={0}
-                                        locked={isInputCatalogRowLocked(row)}
-                                        onSelect={() =>
-                                          handleSelectInputCatalogRow(row)
-                                        }
-                                        onValueChange={
-                                          handlePanelInputValueChange
-                                        }
-                                        actions={
-                                          <div className="flex items-center gap-1">
-                                            {pose ? (
-                                              <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="h-6 px-2 text-[10px] gap-1 text-violet-100"
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  keyPoseChannelsAtCurrentTime(
-                                                    pose,
-                                                  );
-                                                }}
-                                                title="Add pose channels as animation tracks at current time"
-                                                aria-label="Add Pose Targets"
-                                              >
-                                                <Zap size={11} />
-                                                Targets
-                                              </Button>
-                                            ) : null}
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-6 w-6 p-0 text-amber-300 hover:text-amber-200"
-                                              onClick={(event) => {
-                                                event.stopPropagation();
-                                                handleRemoveAnimationTrack(
-                                                  row.inputId,
-                                                );
-                                              }}
-                                              title="Remove Animation Track"
-                                              aria-label="Remove Animation Track"
-                                            >
-                                              <X size={11} />
-                                            </Button>
-                                          </div>
-                                        }
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </section>
-                            <section className="rounded border border-border-default/50 bg-bg-panel/20 p-2 flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] uppercase tracking-wider text-text-muted">
-                                  Available Tracks
-                                </span>
-                                <span className="text-[10px] text-text-muted font-mono">
-                                  {availableAnimationTrackRows.length}
-                                </span>
-                              </div>
+                            </InspectorSection>
+                            <InspectorSection
+                              title="Available Tracks"
+                              count={availableAnimationTrackRows.length}
+                            >
                               {availableAnimationTrackRowsByFolder.length ===
                               0 ? (
                                 <p className="text-[10px] text-text-muted">
@@ -7831,7 +6779,7 @@ export function VariablesPanel({
                                   )}
                                 </div>
                               )}
-                            </section>
+                            </InspectorSection>
                           </>
                         ) : null}
                       </div>
@@ -7842,24 +6790,28 @@ export function VariablesPanel({
                         title={
                           filteredSearch.length > 0
                             ? "No results"
-                            : isVariables
-                              ? "No drivers defined"
-                              : isPoses
-                                ? "No poses defined"
-                                : isInputs
-                                  ? "No inputs defined"
-                                  : "No pose groups defined"
+                            : isStarred
+                              ? "No starred functionality"
+                              : isVariables
+                                ? "No drivers defined"
+                                : isPoses
+                                  ? "No poses defined"
+                                  : isInputs
+                                    ? "No inputs defined"
+                                    : "No pose groups defined"
                         }
                         description={
                           filteredSearch.length > 0
                             ? `No items found matching "${searchQuery}"`
-                            : isVariables
-                              ? "Create new drivers or import a model with poses."
-                              : isPoses
-                                ? "Create a pose to get started."
-                                : isInputs
-                                  ? "Inputs are populated from rig auto-generation and references."
-                                  : "No pose groups yet."
+                            : isStarred
+                              ? "Star drivers and poses to collect the approved way to control this face here."
+                              : isVariables
+                                ? "Create new drivers or import a model with poses."
+                                : isPoses
+                                  ? "Create a pose to get started."
+                                  : isInputs
+                                    ? "Inputs are populated from rig auto-generation and references."
+                                    : "No pose groups yet."
                         }
                         action={
                           filteredSearch.length > 0 ? (
@@ -7921,6 +6873,7 @@ export function VariablesPanel({
                             motionGraphContext={motionGraphInputContext}
                             animationTrackContext={animationTrackInputContext}
                             poseTargetContext={poseTargetInputContext}
+                            starredKeys={starredKeys}
                             searchQuery={searchQuery}
                           />
                         ))
@@ -7966,10 +6919,7 @@ export function VariablesPanel({
                 </div>
               )}
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
-              <div className="text-xs font-semibold text-text-primary">
-                Destination
-              </div>
+            <ModalFormGroup title={"Destination"} spacing="loose">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -8051,7 +7001,7 @@ export function VariablesPanel({
                             : current,
                         );
                       }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs text-text-muted">
@@ -8069,17 +7019,14 @@ export function VariablesPanel({
                             : current,
                         );
                       }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                      className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                     />
                   </label>
                 </div>
               )}
-            </section>
+            </ModalFormGroup>
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
-              <div className="text-xs font-semibold text-text-primary">
-                Value Merge
-              </div>
+            <ModalFormGroup title={"Value Merge"} spacing="tight">
               {(
                 [
                   {
@@ -8117,58 +7064,44 @@ export function VariablesPanel({
                       : existingDestinationInput.defaultValue
                   : null;
                 return (
-                  <div
+                  <MergeValueField
                     key={field.key}
-                    className="grid grid-cols-1 gap-2 md:grid-cols-[96px_minmax(0,1fr)_auto] md:items-center"
-                  >
-                    <div className="text-xs text-text-muted">
-                      {field.label} ({field.sourceValue.toFixed(3)})
-                    </div>
-                    <input
-                      value={draft.customValue}
-                      onChange={(event) => {
-                        setVariableCopyBlockingMessages([]);
-                        setVariableCopyValueMergeDraft(
-                          field.key,
-                          (current) => ({
-                            ...current,
-                            mode: "custom",
-                            customValue: event.target.value,
-                          }),
-                        );
-                      }}
-                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
-                    />
-                    {isFiniteNumber(destinationValue) ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-[10px]"
-                        onClick={() => {
-                          setVariableCopyBlockingMessages([]);
-                          setVariableCopyValueMergeDraft(
-                            field.key,
-                            (current) => ({
-                              ...current,
-                              mode: "custom",
-                              customValue:
-                                toDecisionCustomValue(destinationValue),
-                            }),
-                          );
-                        }}
-                      >
-                        Use current {field.label.toLowerCase()} (
-                        {destinationValue.toFixed(3)})
-                      </Button>
-                    ) : (
-                      <span className="text-[10px] text-text-muted">
-                        No current main face value
+                    label={
+                      <span className="text-xs text-text-muted">
+                        {field.label} ({field.sourceValue.toFixed(3)})
                       </span>
-                    )}
-                  </div>
+                    }
+                    value={draft.customValue}
+                    onValueChange={(next) => {
+                      setVariableCopyBlockingMessages([]);
+                      setVariableCopyValueMergeDraft(field.key, (current) => ({
+                        ...current,
+                        mode: "custom",
+                        customValue: next,
+                      }));
+                    }}
+                    currentValue={
+                      isFiniteNumber(destinationValue) ? destinationValue : null
+                    }
+                    onUseCurrent={() => {
+                      // `MergeValueField` only renders the button when
+                      // `currentValue` is finite, but the narrowing that used to
+                      // come from the surrounding ternary is gone, so re-establish
+                      // it here rather than asserting.
+                      if (!isFiniteNumber(destinationValue)) return;
+                      setVariableCopyBlockingMessages([]);
+                      setVariableCopyValueMergeDraft(field.key, (current) => ({
+                        ...current,
+                        mode: "custom",
+                        customValue: toDecisionCustomValue(destinationValue),
+                      }));
+                    }}
+                    useCurrentLabel={`Use current ${field.label.toLowerCase()}`}
+                    emptyLabel="No current main face value"
+                  />
                 );
               })}
-            </section>
+            </ModalFormGroup>
 
             {(
               [
@@ -8189,13 +7122,11 @@ export function VariablesPanel({
                   ? variableCopyModal.parentRowDrafts
                   : variableCopyModal.childRowDrafts;
               return (
-                <section
+                <ModalFormGroup
                   key={relationship}
-                  className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2"
+                  title={label}
+                  spacing="tight"
                 >
-                  <div className="text-xs font-semibold text-text-primary">
-                    {label}
-                  </div>
                   {rows.length === 0 ? (
                     <div className="text-xs text-text-muted">No mappings.</div>
                   ) : (
@@ -8358,69 +7289,59 @@ export function VariablesPanel({
                                   ? (resolvedLinkValues?.scale ?? null)
                                   : (resolvedLinkValues?.offset ?? null);
                               return (
-                                <div
+                                <MergeValueField
                                   key={key}
-                                  className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]"
-                                >
-                                  <div className="flex flex-col gap-1">
+                                  label={
                                     <span className="text-[10px] uppercase tracking-wide text-text-muted">
                                       {mergeLabel} ({sourceValue.toFixed(3)})
                                     </span>
-                                    <input
-                                      value={decision.customValue}
-                                      disabled={!draft.apply}
-                                      onChange={(event) => {
-                                        setVariableCopyBlockingMessages([]);
-                                        setVariableCopyLinkRowDraft(
-                                          relationship,
-                                          row.rowId,
-                                          (current) => ({
-                                            ...current,
-                                            [key]: {
-                                              ...current[key],
-                                              mode: "custom",
-                                              customValue: event.target.value,
-                                            },
-                                          }),
-                                        );
-                                      }}
-                                      className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary disabled:opacity-40"
-                                    />
-                                  </div>
-                                  {isFiniteNumber(destinationValue) ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      disabled={!draft.apply}
-                                      className="h-8 px-2 text-[10px]"
-                                      onClick={() => {
-                                        setVariableCopyBlockingMessages([]);
-                                        setVariableCopyLinkRowDraft(
-                                          relationship,
-                                          row.rowId,
-                                          (current) => ({
-                                            ...current,
-                                            [key]: {
-                                              ...current[key],
-                                              mode: "custom",
-                                              customValue:
-                                                toDecisionCustomValue(
-                                                  destinationValue,
-                                                ),
-                                            },
-                                          }),
-                                        );
-                                      }}
-                                    >
-                                      Use current {mergeLabel.toLowerCase()} (
-                                      {destinationValue.toFixed(3)})
-                                    </Button>
-                                  ) : (
-                                    <span className="self-center text-[10px] text-text-muted">
-                                      No current value
-                                    </span>
-                                  )}
-                                </div>
+                                  }
+                                  labelPlacement="above"
+                                  value={decision.customValue}
+                                  disabled={!draft.apply}
+                                  onValueChange={(next) => {
+                                    setVariableCopyBlockingMessages([]);
+                                    setVariableCopyLinkRowDraft(
+                                      relationship,
+                                      row.rowId,
+                                      (current) => ({
+                                        ...current,
+                                        [key]: {
+                                          ...current[key],
+                                          mode: "custom",
+                                          customValue: next,
+                                        },
+                                      }),
+                                    );
+                                  }}
+                                  currentValue={
+                                    isFiniteNumber(destinationValue)
+                                      ? destinationValue
+                                      : null
+                                  }
+                                  onUseCurrent={() => {
+                                    if (!isFiniteNumber(destinationValue))
+                                      return;
+                                    setVariableCopyBlockingMessages([]);
+                                    setVariableCopyLinkRowDraft(
+                                      relationship,
+                                      row.rowId,
+                                      (current) => ({
+                                        ...current,
+                                        [key]: {
+                                          ...current[key],
+                                          mode: "custom",
+                                          customValue:
+                                            toDecisionCustomValue(
+                                              destinationValue,
+                                            ),
+                                        },
+                                      }),
+                                    );
+                                  }}
+                                  useCurrentLabel={`Use current ${mergeLabel.toLowerCase()}`}
+                                  emptyLabel="No current value"
+                                />
                               );
                             })}
                           </div>
@@ -8433,7 +7354,7 @@ export function VariablesPanel({
                       );
                     })
                   )}
-                </section>
+                </ModalFormGroup>
               );
             })}
 
@@ -8492,10 +7413,7 @@ export function VariablesPanel({
                 </div>
               )}
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-3">
-              <div className="text-xs font-semibold text-text-primary">
-                Destination Pose
-              </div>
+            <ModalFormGroup title={"Destination Pose"} spacing="loose">
               <label className="flex flex-col gap-1 text-xs text-text-muted">
                 Name
                 <input
@@ -8520,7 +7438,7 @@ export function VariablesPanel({
                         : current,
                     );
                   }}
-                  className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
+                  className="h-8 rounded border border-border-default bg-bg-input px-2 text-xs text-text-primary"
                 />
               </label>
               {poseCopyUniqueExistingPoseMatch ? (
@@ -8557,12 +7475,9 @@ export function VariablesPanel({
                   disabled until the destination name resolves to a single pose.
                 </div>
               ) : null}
-            </section>
+            </ModalFormGroup>
 
-            <section className="rounded border border-border-default/60 bg-bg-panel/40 p-3 space-y-2">
-              <div className="text-xs font-semibold text-text-primary">
-                Target mappings
-              </div>
+            <ModalFormGroup title={"Target mappings"} spacing="tight">
               {poseCopyModal.proposal.targetRows.length === 0 ? (
                 <div className="text-xs text-text-muted">
                   No targets available.
@@ -8667,52 +7582,40 @@ export function VariablesPanel({
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-                        <input
-                          value={draft.value.customValue}
-                          onChange={(event) => {
-                            setPoseCopyBlockingMessages([]);
-                            setPoseCopyTargetRowDraft(row.rowId, (current) => ({
-                              ...current,
-                              value: {
-                                ...current.value,
-                                mode: "custom",
-                                customValue: event.target.value,
-                              },
-                            }));
-                          }}
-                          className="h-8 rounded border border-border-default bg-bg-canvas px-2 text-xs text-text-primary"
-                        />
-                        {isFiniteNumber(existingPoseValue) ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-[10px]"
-                            onClick={() => {
-                              setPoseCopyBlockingMessages([]);
-                              setPoseCopyTargetRowDraft(
-                                row.rowId,
-                                (current) => ({
-                                  ...current,
-                                  value: {
-                                    ...current.value,
-                                    mode: "custom",
-                                    customValue:
-                                      toDecisionCustomValue(existingPoseValue),
-                                  },
-                                }),
-                              );
-                            }}
-                          >
-                            Use current pose value (
-                            {existingPoseValue.toFixed(3)})
-                          </Button>
-                        ) : (
-                          <span className="self-center text-[10px] text-text-muted">
-                            No current pose value
-                          </span>
-                        )}
-                      </div>
+                      <MergeValueField
+                        value={draft.value.customValue}
+                        onValueChange={(next) => {
+                          setPoseCopyBlockingMessages([]);
+                          setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                            ...current,
+                            value: {
+                              ...current.value,
+                              mode: "custom",
+                              customValue: next,
+                            },
+                          }));
+                        }}
+                        currentValue={
+                          isFiniteNumber(existingPoseValue)
+                            ? existingPoseValue
+                            : null
+                        }
+                        onUseCurrent={() => {
+                          if (!isFiniteNumber(existingPoseValue)) return;
+                          setPoseCopyBlockingMessages([]);
+                          setPoseCopyTargetRowDraft(row.rowId, (current) => ({
+                            ...current,
+                            value: {
+                              ...current.value,
+                              mode: "custom",
+                              customValue:
+                                toDecisionCustomValue(existingPoseValue),
+                            },
+                          }));
+                        }}
+                        useCurrentLabel="Use current pose value"
+                        emptyLabel="No current pose value"
+                      />
 
                       {row.rationale.length > 0 && (
                         <div className="text-[11px] text-text-muted">
@@ -8723,7 +7626,7 @@ export function VariablesPanel({
                   );
                 })
               )}
-            </section>
+            </ModalFormGroup>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button

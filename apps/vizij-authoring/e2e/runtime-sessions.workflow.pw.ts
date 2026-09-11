@@ -17,15 +17,39 @@ async function clickLocatorViaDom(locator: Locator): Promise<void> {
 }
 
 async function clickSelectedAnimationPanelPlay(page: Page): Promise<void> {
+  // By title, not by position. This used to be `button[title="Stop"] + button`,
+  // which stopped being Play once the transport row became
+  // Stop / Step back / Play / Step forward: the click landed on "Step back one
+  // frame", nothing played, and the runtime chip stayed "Runtime: Idle".
   await clickLocatorViaDom(
-    page
-      .getByTestId("animation-panel")
-      .locator('button[title="Stop"] + button'),
+    page.getByTestId("animation-panel").locator('button[title="Play"]'),
   );
 }
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The labels of an authoring target list's rows, in order.
+ *
+ * These tests used to hard-code the clip and program names embedded in
+ * `Quori_Current_Extended.glb` ("New Animation Clip", "New Procedural
+ * Program"). The asset has since been re-exported with different ones
+ * ("Nonesense"/"Stages", "Speaks"/"Live"), so the names are read off the panel
+ * instead of being spelled out — the test is about session independence, not
+ * about what the fixture happens to be called.
+ */
+async function targetRowLabels(panel: Locator): Promise<string[]> {
+  // A row renders as `<label>\n<source badge>\n<state badge>\n…`, so the
+  // rendered first line is the label.
+  return panel
+    .locator('[role="button"]')
+    .evaluateAll((nodes) =>
+      nodes.map((node) =>
+        ((node as HTMLElement).innerText ?? "").split("\n")[0]!.trim(),
+      ),
+    );
 }
 
 function parseTrackCount(value: string): number | null {
@@ -63,13 +87,25 @@ test("animation and program runtime sessions stay independent across UI changes 
   await loadMainPreset(page, "quori:latest");
 
   const runtimeChip = page.getByTestId("main-runtime-status-chip");
+  const animationsPanel = page.getByTestId(
+    "control-authoring-panel-animations",
+  );
+  const programsPanel = page.getByTestId("control-authoring-panel-programs");
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
+  const clipNames = await targetRowLabels(animationsPanel);
+  expect(clipNames.length).toBeGreaterThanOrEqual(2);
+  const [playingClip, otherClip] = clipNames as [string, string];
+
   await clickViaDom(page, 'button[title="Play animation"]');
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).not.toContainText("Program: Playing");
 
   await page.getByRole("tab", { name: /^Programs \(\d+\)$/ }).click();
+  const programNames = await targetRowLabels(programsPanel);
+  expect(programNames.length).toBeGreaterThanOrEqual(1);
+  const playingProgram = programNames[0]!;
+
   await clickViaDom(page, 'button[title="Play program"]');
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
@@ -78,55 +114,58 @@ test("animation and program runtime sessions stay independent across UI changes 
   await expect(page.getByTestId("motiongraph-panel")).toBeVisible();
 
   await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
-  await page
-    .getByRole("button", {
-      name: /New Animation Clip IMPORTED STOPPED/i,
-    })
-    .evaluate((node) => {
-      (node as HTMLButtonElement).click();
-    });
+  await clickLocatorViaDom(
+    page.getByRole("button", {
+      name: new RegExp(`${escapeRegex(otherClip)} IMPORTED STOPPED`, "i"),
+    }),
+  );
   await expect(runtimeChip).not.toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
-  await expect(page.getByText("Currently running: Nonesense")).toBeHidden();
+  await expect(
+    page.getByText(`Currently running: ${playingClip}`),
+  ).toBeHidden();
   await expect(
     page.getByTestId("bottom-panel").getByTitle("Stop"),
   ).toBeDisabled();
-  await expect(page.getByTitle("Play animation")).toHaveCount(2);
-  await expect(page.getByTitle("Pause animation")).toHaveCount(0);
+  // Every clip row offers Play again, and none offers Pause.
+  await expect(animationsPanel.getByTitle("Play animation")).toHaveCount(
+    clipNames.length,
+  );
+  await expect(animationsPanel.getByTitle("Pause animation")).toHaveCount(0);
 
   await clickViaDom(page, 'button[title="Play animation"]');
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
-  await expect(page.getByText("Currently running: Nonesense")).toBeHidden();
+  await expect(
+    page.getByText(`Currently running: ${playingClip}`),
+  ).toBeHidden();
 
   await page.getByRole("tab", { name: /^Programs \(\d+\)$/ }).click();
   await clickViaDom(page, 'button[title="Copy program"]');
-  await expect(
-    page.getByRole("button", {
-      name: /New Procedural Program Copy/i,
-    }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", {
-      name: /New Procedural Program Copy/i,
-    })
-    .evaluate((node) => {
-      (node as HTMLButtonElement).click();
-    });
+  const programCopy = `${playingProgram} Copy`;
+  const programCopyRow = page.getByRole("button", {
+    name: new RegExp(`${escapeRegex(programCopy)} AUTHORED STOPPED`, "i"),
+  });
+  await expect(programCopyRow).toBeVisible();
+  await clickLocatorViaDom(programCopyRow);
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(
-    page.getByText("Currently running: New Procedural Program"),
+    page.getByText(`Currently running: ${playingProgram}`),
   ).toBeVisible();
   await expect(page.getByTitle("Pause program").last()).toBeDisabled();
   await expect(page.getByTitle("Stop program").last()).toBeDisabled();
-  await expect(page.getByTitle("Play program")).toHaveCount(2);
+  // One of the (now `programNames.length + 1`) rows is playing, so every other
+  // one — the fresh copy included — offers Play.
+  await expect(programsPanel.getByTitle("Play program")).toHaveCount(
+    programNames.length + 1 - 1,
+  );
 
   await clickViaDom(page, 'button[title="Play program"]');
   await expect(runtimeChip).toContainText("Animation: Playing");
   await expect(runtimeChip).toContainText("Program: Playing");
   await expect(
-    page.getByText("Currently running: New Procedural Program"),
+    page.getByText(`Currently running: ${playingProgram}`),
   ).toBeHidden();
 
   await clickViaDom(page, 'button[title="Pause program"]');
@@ -153,43 +192,48 @@ test("switching animation targets stops the active runtime before loading the ne
   const durationField = inspectorPanel.getByRole("textbox", {
     name: "Duration",
   });
+  await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
+  const clipNames = await targetRowLabels(
+    page.getByTestId("control-authoring-panel-animations"),
+  );
+  expect(clipNames.length).toBeGreaterThanOrEqual(2);
+  const [primaryClip, secondaryClip] = clipNames as [string, string];
   const primaryTargetButton = page.getByRole("button", {
-    name: /Nonesense IMPORTED STOPPED/i,
+    name: new RegExp(`${escapeRegex(primaryClip)} IMPORTED STOPPED`, "i"),
   });
 
-  await page.getByRole("tab", { name: /^Animations \(\d+\)$/ }).click();
   const primaryTrackCount = parseTrackCount(
     await primaryTargetButton.innerText(),
   );
   expect(primaryTrackCount).not.toBeNull();
   await clickLocatorViaDom(
     page.getByRole("button", {
-      name: /New Animation Clip IMPORTED STOPPED/i,
+      name: new RegExp(`${escapeRegex(secondaryClip)} IMPORTED STOPPED`, "i"),
     }),
   );
   const secondaryName = await selectedNameField.inputValue();
   const secondaryDuration = await durationField.inputValue();
 
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: /Nonesense IMPORTED STOPPED/i,
-    }),
-  );
+  await clickLocatorViaDom(primaryTargetButton);
   await clickViaDom(page, 'button[title="Play animation"]');
   await expect(runtimeChip).toContainText("Animation: Playing");
 
   const activeName = await selectedNameField.inputValue();
 
   await durationField.click();
-  await page.keyboard.press("Control+A");
+  // `ControlOrMeta`, not `Control`: on macOS Chromium Ctrl+A is
+  // move-to-line-start, not select-all, so typing over a duration of "5" left
+  // "12.55" behind rather than replacing it.
+  await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.type("12.5");
   await durationField.blur();
+  await expect(durationField).toHaveValue("12.5");
   await clickViaDom(page, 'button[title="Pause animation"]');
   await expect(runtimeChip).toContainText("Animation: Paused");
 
   await expect(
     page.getByRole("button", {
-      name: /Nonesense IMPORTED PAUSED/i,
+      name: new RegExp(`${escapeRegex(primaryClip)} IMPORTED PAUSED`, "i"),
     }),
   ).toBeVisible();
 
@@ -210,11 +254,7 @@ test("switching animation targets stops the active runtime before loading the ne
     secondaryDuration,
   ]);
 
-  await clickLocatorViaDom(
-    page.getByRole("button", {
-      name: /Nonesense IMPORTED STOPPED/i,
-    }),
-  );
+  await clickLocatorViaDom(primaryTargetButton);
   await expect(selectedNameField).toHaveValue(activeName);
   await expect(durationField).toHaveValue("12.5");
   await expect(parseTrackCount(await primaryTargetButton.innerText())).toBe(

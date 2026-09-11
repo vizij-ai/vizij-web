@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ANIMATION_TIMELINE_FPS,
   formatKeyframeTime,
+  parseTimeInput,
   snapTimeToFrame,
 } from "../animationTimeDisplay";
 
@@ -45,5 +46,43 @@ describe("snapTimeToFrame", () => {
   it("is idempotent, so re-snapping never drifts", () => {
     const once = snapTimeToFrame(1.2345, "frames");
     expect(snapTimeToFrame(once, "frames")).toBe(once);
+  });
+});
+
+describe("parseTimeInput", () => {
+  it("reads a bare number in the mode's own unit", () => {
+    expect(parseTimeInput("1.5", "seconds")).toBeCloseTo(1.5, 10);
+    expect(parseTimeInput("48", "frames")).toBeCloseTo(48 * FRAME, 10);
+  });
+
+  it("round-trips a value the readout printed", () => {
+    // `formatKeyframeTime` prints "1.500s" and "48f"; typing either back has
+    // to mean the same instant, or the field cannot be used to copy a time.
+    expect(
+      parseTimeInput(formatKeyframeTime(1.5, "seconds"), "seconds"),
+    ).toBeCloseTo(1.5, 10);
+    expect(
+      parseTimeInput(formatKeyframeTime(48 * FRAME, "frames"), "frames"),
+    ).toBeCloseTo(48 * FRAME, 10);
+  });
+
+  it("lets an explicit suffix override the current mode", () => {
+    expect(parseTimeInput("48f", "seconds")).toBeCloseTo(48 * FRAME, 10);
+    expect(parseTimeInput("2s", "frames")).toBeCloseTo(2, 10);
+  });
+
+  it("clamps a negative time to zero rather than rejecting it", () => {
+    expect(parseTimeInput("-3", "seconds")).toBe(0);
+  });
+
+  it("returns null for input it cannot read, leaving the field alone", () => {
+    // Snapping the playhead to zero on a typo is worse than ignoring it.
+    for (const bad of ["", "  ", "abc", "1.2.3", "1s2", "--4", "NaN", "1e3"]) {
+      expect(parseTimeInput(bad, "seconds"), `"${bad}"`).toBeNull();
+    }
+  });
+
+  it("accepts whitespace around the value and the suffix", () => {
+    expect(parseTimeInput("  2.25 s ", "frames")).toBeCloseTo(2.25, 10);
   });
 });

@@ -1,4 +1,6 @@
 import React from "react";
+import type { ToneMappingMode } from "@vizij/render";
+import { TONE_MAPPING_MODES, TONE_MAPPING_LABELS } from "@vizij/render";
 import {
   MenuBar,
   Menu,
@@ -19,6 +21,7 @@ import type {
 import { cn } from "../../utils/cn";
 
 type AuthoringSurfaceMenuTarget =
+  | "starred"
   | "variables"
   | "poses"
   | "pose-groups"
@@ -61,6 +64,8 @@ interface AppMenuBarProps {
   saveDirty: boolean;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
+  toneMapping: ToneMappingMode;
+  onSelectToneMapping: (mode: ToneMappingMode) => void;
   activeEditFocus: EditFocus;
   onSelectEditFocus: (focus: EditFocus) => void;
   rotationDisplayMode: RotationDisplayMode;
@@ -93,6 +98,8 @@ export function AppMenuBar({
   saveDirty,
   showSelectionGlow,
   onToggleSelectionGlow,
+  toneMapping,
+  onSelectToneMapping,
   activeEditFocus,
   onSelectEditFocus,
   rotationDisplayMode,
@@ -138,10 +145,14 @@ export function AppMenuBar({
   );
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
+  // `ui/ThemeToggle` is controlled — it used to read the store itself, which was
+  // the only ui/ -> state/ import in the app. The binding lives here now.
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const controlAuthoringVisible =
     variablesPanelVisible || posesPanelVisible || materialsPanelVisible;
   const showAuthoringSurface = (surface: AuthoringSurfaceMenuTarget) => {
     if (
+      surface === "starred" ||
       surface === "variables" ||
       surface === "animations" ||
       surface === "programs"
@@ -401,6 +412,17 @@ export function AppMenuBar({
           }}
         >
           <MenuCheckboxItem
+            checked={activeAuthoringSurface === "starred"}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                return;
+              }
+              showAuthoringSurface("starred");
+            }}
+          >
+            Starred
+          </MenuCheckboxItem>
+          <MenuCheckboxItem
             checked={activeAuthoringSurface === "variables"}
             onCheckedChange={(checked) => {
               if (!checked) {
@@ -540,6 +562,24 @@ export function AppMenuBar({
         >
           Dark Mode
         </MenuCheckboxItem>
+        <MenuSubmenu
+          label="Tone Mapping (current face)"
+          testId="app-menu-settings-tone-mapping"
+        >
+          {TONE_MAPPING_MODES.map((mode) => (
+            <MenuCheckboxItem
+              key={mode}
+              checked={toneMapping === mode}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  onSelectToneMapping(mode);
+                }
+              }}
+            >
+              {TONE_MAPPING_LABELS[mode]}
+            </MenuCheckboxItem>
+          ))}
+        </MenuSubmenu>
       </Menu>
 
       <Button
@@ -566,7 +606,7 @@ export function AppMenuBar({
       </Button>
 
       <div className="flex-1" />
-      <ThemeToggle className="mr-2" />
+      <ThemeToggle theme={theme} onToggle={toggleTheme} className="mr-2" />
     </MenuBar>
   );
 }

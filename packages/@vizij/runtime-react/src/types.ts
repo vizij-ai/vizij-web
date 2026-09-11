@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 import type { ValueJSON } from "@vizij/value-json";
 import type { IrGraph } from "@vizij/node-graph-authoring";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
-import type { World, VizijProps, VizijBundleExtension } from "@vizij/render";
+import type {
+  World,
+  VizijProps,
+  VizijBundleExtension,
+  VizijStarredItem,
+} from "@vizij/render";
 
 // ---------------------------------------------------------------------------
 // Engine-facing types. The engine is an Arora device running ONE composed
@@ -187,6 +192,12 @@ export type VizijAssetBundle = {
   };
   animations?: VizijAnimationAsset[];
   programs?: VizijProgramAsset[];
+  /**
+   * Designer-curated set of starred drivers/poses, resolved from the loaded
+   * bundle's `starred` section. References real functionality by stable id
+   * (driver = standard-input id, pose = pose id).
+   */
+  starred?: VizijStarredItem[];
   initialInputs?: Record<string, ValueJSON>;
   metadata?: Record<string, unknown>;
   bundle?: VizijBundleExtension | null;

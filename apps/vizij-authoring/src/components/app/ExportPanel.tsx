@@ -98,7 +98,7 @@ export function ExportPanel({
           hint="Controls how poses blend within each pose group."
           renderLabelInControl
           control={
-            <div className="button-group button-group--segmented">
+            <div className="inline-flex items-center gap-1">
               <Button
                 size="sm"
                 variant={blendMode === "average" ? "primary" : "subtle"}
@@ -123,7 +123,7 @@ export function ExportPanel({
           hint="Controls how pose-group outputs combine per rig target."
           renderLabelInControl
           control={
-            <div className="button-group button-group--segmented">
+            <div className="inline-flex items-center gap-1">
               <Button
                 size="sm"
                 variant={

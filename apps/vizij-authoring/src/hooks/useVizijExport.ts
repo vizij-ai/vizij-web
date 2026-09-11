@@ -6,7 +6,9 @@ import {
   type VizijBundleGraphEntry,
   type VizijPoseRigConfig,
   type VizijSpeechConfig,
+  type VizijStarredItem,
   type VizijData,
+  type ToneMappingMode,
 } from "@vizij/render";
 import {
   buildRigGraphSpec,
@@ -56,6 +58,7 @@ import type {
   PoseRigIrFile,
 } from "../poseRig/types";
 import { useAnimationStore } from "../state/animationStore";
+import { getStarredForFace, useStarredStore } from "../state/starredStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
@@ -133,6 +136,7 @@ interface UseVizijExportOptions {
   includeVizijBundle: boolean;
   includeImportedAnimations: boolean;
   loadedBundle: VizijBundleExtension | null;
+  toneMapping?: ToneMappingMode;
   authoredAnimationClips?: AnimationClipIR[];
   animatableComponents: AnimatableComponent[];
   animatables: Record<string, AnimatableValue>;
@@ -589,6 +593,7 @@ export function useVizijExport(
     includeVizijBundle,
     includeImportedAnimations,
     loadedBundle,
+    toneMapping,
     authoredAnimationClips,
     animatableComponents,
     animatables,
@@ -955,6 +960,7 @@ export function useVizijExport(
           faceId: exportFaceId,
           sourceName,
           loadedBundle,
+          toneMapping,
           poseRig,
           animatablesForExport,
           animatableComponents,
@@ -969,6 +975,10 @@ export function useVizijExport(
           poseConfigForExport,
           authoredAnimationClips: normalizedAuthoredAnimationClips,
           speechConfig: collectSpeechConfigFromLocalStorage(),
+          starredItems: getStarredForFace(
+            useStarredStore.getState(),
+            exportFaceId,
+          ),
         });
       } catch (error) {
         await alertDialog(
@@ -1066,8 +1076,13 @@ export function useVizijExport(
             return;
           }
         }
+        const auditStartedAt = performance.now();
         const bundleAudits = await auditBundleGraphs(bundle, {
           validOutputTargets,
+        });
+        logVizijExportDebug("export-glb:bundle-audit", {
+          graphCount: bundle?.graphs?.length ?? 0,
+          elapsedMs: Math.round(performance.now() - auditStartedAt),
         });
         const contractViolationMessage =
           resolveBundleContractViolationMessage(bundleAudits);
@@ -1316,6 +1331,7 @@ export function useVizijExport(
     sourceName,
     standardInputsById,
     standardInputMetadataById,
+    toneMapping,
     validOutputTargets,
     values,
     // Read by the bake, and previously absent: a stale closure here would
@@ -1527,6 +1543,7 @@ interface BuildVizijBundleOptions {
   faceId: string;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
+  toneMapping?: ToneMappingMode;
   poseRig: PoseRigExportState;
   animatablesForExport: Record<string, AnimatableValue>;
   animatableComponents: AnimatableComponent[];
@@ -1543,6 +1560,7 @@ interface BuildVizijBundleOptions {
   poseGraphSpecForExport?: GraphSpec | null;
   poseConfigForExport?: PoseRigConfigFile | null;
   speechConfig?: VizijSpeechConfig | null;
+  starredItems?: VizijStarredItem[];
 }
 
 function clonePoseIrForBundle(
@@ -1893,6 +1911,12 @@ function buildVizijBundle(
         }
       : null,
     animations: mergedAnimations,
+    // Preserve any previously-imported value if the caller did not supply one.
+    toneMapping: options.toneMapping ?? loadedBundle?.toneMapping,
+    starred:
+      options.starredItems && options.starredItems.length > 0
+        ? { items: options.starredItems.map((item) => ({ ...item })) }
+        : null,
     metadata: bundleMetadata,
   };
 }

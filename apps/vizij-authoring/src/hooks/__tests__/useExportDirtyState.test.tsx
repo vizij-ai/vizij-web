@@ -56,6 +56,7 @@ function createSnapshotOptions(
       },
     ],
     featureLabelOverrides: {},
+    rootBounds: null,
     standardInputs: [INPUT],
     bindings: {
       [ANIMATABLE.id]: {
@@ -71,6 +72,7 @@ function createSnapshotOptions(
     poseConfigDraft: null,
     poseIrDraft: null,
     blendMode: "average",
+    toneMapping: undefined,
     crossGroupBlendMode: "additive",
     authoredAnimationClips: [],
     authoredMotionGraphs: [],
@@ -138,6 +140,30 @@ describe("buildGlbExportDirtySnapshot", () => {
           ...ANIMATABLE,
           default: 0.4,
         },
+      },
+    });
+
+    expect(first).not.toEqual(second);
+  });
+
+  it("tracks tone mapping changes even when bundle export is disabled", () => {
+    // Tone mapping travels in the GLB, so changing it changes what the next
+    // export writes — the dirty indicator has to notice.
+    const base = createSnapshotOptions({ includeVizijBundle: false });
+    const first = buildGlbExportDirtySnapshot(base);
+    const second = buildGlbExportDirtySnapshot({ ...base, toneMapping: "agx" });
+
+    expect(first).not.toEqual(second);
+  });
+
+  it("tracks face bounds changes even when bundle export is disabled", () => {
+    const base = createSnapshotOptions({ includeVizijBundle: false });
+    const first = buildGlbExportDirtySnapshot(base);
+    const second = buildGlbExportDirtySnapshot({
+      ...base,
+      rootBounds: {
+        center: { x: 0, y: 0.5 },
+        size: { x: 6, y: 4 },
       },
     });
 

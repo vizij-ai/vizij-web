@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronRight, RotateCcw } from "lucide-react";
-import { Button as BaseButton } from "@base-ui/react";
-import { cn } from "../../utils/cn";
+import { Button } from "../../ui/Button";
+import { cn } from "../../../utils/cn";
 
-export interface RiggingPropertyRowProps {
+export interface PropertyRowProps {
   label: string;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -129,7 +129,9 @@ export function ScrubbableLabel({
       className={cn(
         "transition-colors box-border",
         onScrub ? "cursor-ew-resize select-none" : "cursor-default",
-        isScrubbing ? "text-accent" : "text-text-muted",
+        isScrubbing
+          ? "text-[var(--editor-accent,var(--color-accent))]"
+          : "text-[var(--editor-muted-fg,var(--text-muted))]",
         onScrub && "hover:text-text-primary",
         className,
       )}
@@ -192,7 +194,7 @@ export function useScrub(
   return { isScrubbing, handleMouseDown };
 }
 
-export function RiggingPropertyRow({
+export function PropertyRow({
   label,
   expanded: controlledExpanded,
   onExpandedChange,
@@ -212,7 +214,7 @@ export function RiggingPropertyRow({
   onScrubEnd,
   className,
   icon,
-}: RiggingPropertyRowProps) {
+}: PropertyRowProps) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = controlledExpanded ?? internalExpanded;
   const canToggleExpanded = Boolean(renderDefaultInput);
@@ -228,14 +230,17 @@ export function RiggingPropertyRow({
   return (
     <div
       className={cn(
-        "flex flex-col bg-bg-panel/30 rounded border border-transparent hover:border-border-hover transition-colors group/row @container",
-        isExpanded && "bg-bg-panel/50 border-border-default",
+        "flex flex-col rounded border border-transparent transition-colors group/row @container",
+        "bg-[color-mix(in_oklab,var(--editor-panel-bg,var(--bg-panel))_30%,transparent)]",
+        "hover:border-[var(--editor-border-strong,var(--border-hover))]",
+        isExpanded &&
+          "bg-[color-mix(in_oklab,var(--editor-panel-bg,var(--bg-panel))_50%,transparent)] border-[var(--editor-border,var(--border-default))]",
         className,
       )}
     >
       <div
         className={cn(
-          "flex flex-col @[300px]:flex-row @[300px]:items-center gap-1.5 p-1 pl-1.5 min-h-[32px]",
+          "flex flex-col @[300px]:flex-row @[300px]:items-center gap-1.5 p-1 pl-1.5 min-h-[var(--editor-row-min-height,32px)]",
           canToggleExpanded && "cursor-pointer",
         )}
         onClick={canToggleExpanded ? handleToggle : undefined}
@@ -246,8 +251,9 @@ export function RiggingPropertyRow({
           {canToggleExpanded ? (
             <div
               className={cn(
-                "flex h-4 w-4 items-center justify-center rounded text-text-secondary transition-colors",
-                isExpanded && "text-text-primary",
+                "flex h-4 w-4 items-center justify-center rounded transition-colors text-[var(--editor-label-fg,var(--text-secondary))]",
+                isExpanded &&
+                  "text-[var(--editor-value-fg,var(--text-primary))]",
               )}
             >
               <ChevronRight
@@ -259,20 +265,20 @@ export function RiggingPropertyRow({
               />
             </div>
           ) : (
-            <div className="w-3.5 flex justify-center text-zinc-500">
+            <div className="w-3.5 flex justify-center text-[var(--editor-muted-fg,var(--text-muted))]">
               {icon}
             </div>
           )}
 
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             {hasDifferentDefault && (
-              <div className="w-1 h-1 rounded-full bg-accent flex-shrink-0" />
+              <div className="w-1 h-1 rounded-full flex-shrink-0 bg-[var(--editor-accent,var(--color-accent))]" />
             )}
             {canToggleExpanded ? (
               <span
                 className={cn(
                   "min-w-0 text-left rounded px-0.5 -mx-0.5",
-                  "text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors",
+                  "text-xs font-medium truncate select-none transition-colors text-[var(--editor-muted-fg,var(--text-muted))] hover:text-[var(--editor-value-fg,var(--text-primary))]",
                 )}
               >
                 {label}
@@ -283,7 +289,7 @@ export function RiggingPropertyRow({
                 onScrub={onScrub}
                 onScrubStart={onScrubStart}
                 onScrubEnd={onScrubEnd}
-                className="text-xs font-medium truncate text-text-muted select-none hover:text-text-primary transition-colors"
+                className="text-xs font-medium truncate select-none transition-colors text-[var(--editor-muted-fg,var(--text-muted))] hover:text-[var(--editor-value-fg,var(--text-primary))]"
               />
             )}
           </div>
@@ -294,7 +300,9 @@ export function RiggingPropertyRow({
           {renderMainInput()}
 
           {hasDifferentDefault && onResetToDefault && (
-            <BaseButton
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -303,16 +311,19 @@ export function RiggingPropertyRow({
               onMouseDown={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               className={cn(
-                "ml-1 p-1 rounded cursor-pointer transition-colors",
-                hasDifferentDefault
-                  ? "text-accent hover:text-accent-hover hover:bg-accent/10"
-                  : "text-zinc-600 cursor-default opacity-40 hover:bg-transparent",
+                // Undo `size="icon"`'s 36px box — this sits in a 32px row.
+                "ml-1 h-auto w-auto p-1 rounded transition-colors",
+                // NO text colour here: `ui/Button`'s ghost variant emits
+                // `text-text-secondary!`, so a plain `text-accent` never applied.
+                // The icon has always rendered secondary, not accent. Keeping the
+                // dead classes only misleads the next reader. See THEMING.md,
+                // "Deliberate non-tokens".
+                "hover:bg-[color-mix(in_oklab,var(--editor-accent,var(--color-accent))_10%,transparent)]",
               )}
               title="Reset to default"
-              disabled={!hasDifferentDefault}
             >
               <RotateCcw size={10} />
-            </BaseButton>
+            </Button>
           )}
           {renderRowAction && (
             <div
@@ -328,11 +339,11 @@ export function RiggingPropertyRow({
       </div>
 
       {isExpanded && (
-        <div className="flex flex-col gap-0.5 border-t border-white/5 mt-0.5 bg-black/20 pb-1.5">
+        <div className="flex flex-col gap-0.5 border-t mt-0.5 pb-1.5 border-[var(--editor-row-expanded-border,rgb(255_255_255/0.05))] bg-[var(--editor-row-expanded-bg,rgb(0_0_0/0.2))]">
           {renderDefaultInput && (
             <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-2 px-1.5 pt-1">
               <div className="@[300px]:w-20 w-full flex-shrink-0 @[300px]:pl-4 flex items-center pl-6">
-                <span className="text-[9px] uppercase font-bold text-text-secondary tracking-wider">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--editor-label-fg,var(--text-secondary))]">
                   {defaultLabel}
                 </span>
               </div>
@@ -346,7 +357,7 @@ export function RiggingPropertyRow({
           {renderMinInput && (
             <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-2 px-1.5 pt-1">
               <div className="@[300px]:w-20 w-full flex-shrink-0 @[300px]:pl-4 flex items-center pl-6">
-                <span className="text-[9px] uppercase font-bold text-text-secondary tracking-wider">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--editor-label-fg,var(--text-secondary))]">
                   Min
                 </span>
               </div>
@@ -359,7 +370,7 @@ export function RiggingPropertyRow({
           {renderMaxInput && (
             <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-2 px-1.5 pt-1">
               <div className="@[300px]:w-20 w-full flex-shrink-0 @[300px]:pl-4 flex items-center pl-6">
-                <span className="text-[9px] uppercase font-bold text-text-secondary tracking-wider">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--editor-label-fg,var(--text-secondary))]">
                   Max
                 </span>
               </div>
@@ -372,7 +383,7 @@ export function RiggingPropertyRow({
           {renderAnimatableRow && (
             <div className="flex flex-col @[300px]:flex-row @[300px]:items-center gap-2 px-1.5 pt-1 mt-0.5">
               <div className="@[300px]:w-20 w-full flex-shrink-0 @[300px]:pl-4 flex items-center pl-6">
-                <span className="text-[9px] uppercase font-bold text-text-secondary tracking-wider">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-[var(--editor-label-fg,var(--text-secondary))]">
                   Editable
                 </span>
               </div>

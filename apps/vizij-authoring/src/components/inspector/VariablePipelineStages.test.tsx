@@ -272,11 +272,15 @@ describe("VariablePipelineStages", () => {
       "pipeline-stage-direct-input",
       /direct input/i,
     );
+    // These three handlers are declared `(enabled: boolean) => void`. They
+    // previously also received a second argument only because `Switch` was
+    // built on Base UI, whose `onCheckedChange` emitted `(checked, event)`, and
+    // `VariablePipelineStages` passes the handler through directly. Radix —
+    // which `@semio/ui`'s Switch uses — emits `(checked)` only. Asserting on
+    // the event coupled these tests to that leaked implementation detail; the
+    // contract being guarded is the boolean.
     fireEvent.click(within(directStage).getByRole("switch"));
-    expect(props.onDirectInputEnabledChange).toHaveBeenCalledWith(
-      false,
-      expect.anything(),
-    );
+    expect(props.onDirectInputEnabledChange).toHaveBeenCalledWith(false);
 
     const overrideStage = openStage(
       view,
@@ -284,17 +288,11 @@ describe("VariablePipelineStages", () => {
       /override/i,
     );
     fireEvent.click(within(overrideStage).getByRole("switch"));
-    expect(props.onOverrideEnabledChange).toHaveBeenCalledWith(
-      true,
-      expect.anything(),
-    );
+    expect(props.onOverrideEnabledChange).toHaveBeenCalledWith(true);
 
     const clampStage = openStage(view, "pipeline-stage-clamp", /clamp/i);
     fireEvent.click(within(clampStage).getByRole("switch"));
-    expect(props.onClampEnabledChange).toHaveBeenCalledWith(
-      false,
-      expect.anything(),
-    );
+    expect(props.onClampEnabledChange).toHaveBeenCalledWith(false);
   });
 
   it("applies advanced parent formulas from collapsed editor", () => {
@@ -345,21 +343,30 @@ describe("VariablePipelineStages", () => {
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
+    // `aria-roledescription="Number field"` was a Base UI attribute; NumberField
+    // now sits on @semio/ui, whose input does not emit it. Selecting the text
+    // inputs directly keeps this test on the behaviour it exists to guard —
+    // scale/offset commit on blur, not before.
+    // `inputmode="decimal"` is NumberField's own marker. Selecting by role
+    // "textbox" also matches the parent expression <textarea> in this stage, and
+    // `aria-roledescription="Number field"` was a Base UI attribute that no longer
+    // exists.
     const parentFields = Array.from(
-      parentStage.querySelectorAll(
-        'input[aria-roledescription="Number field"]',
-      ),
+      parentStage.querySelectorAll('input[inputmode="decimal"]'),
     ) as HTMLInputElement[];
     const parentScaleField = parentFields[0];
     const parentOffsetField = parentFields[1];
     expect(parentScaleField).toBeTruthy();
     expect(parentOffsetField).toBeTruthy();
 
+    // Guards commit-on-blur, and NOT before.
+    fireEvent.click(parentScaleField!);
     fireEvent.change(parentScaleField!, { target: { value: "1.5" } });
     expect(parentScaleChange).not.toHaveBeenCalled();
     fireEvent.blur(parentScaleField!);
     expect(parentScaleChange).toHaveBeenCalledWith(1.5);
 
+    fireEvent.click(parentOffsetField!);
     fireEvent.change(parentOffsetField!, { target: { value: "3.4" } });
     expect(parentOffsetChange).toHaveBeenCalledTimes(0);
     fireEvent.blur(parentOffsetField!);
@@ -370,7 +377,7 @@ describe("VariablePipelineStages", () => {
       within(childStage).getByRole("button", { name: /mouth child/i }),
     );
     const childFields = Array.from(
-      childStage.querySelectorAll('input[aria-roledescription="Number field"]'),
+      childStage.querySelectorAll('input[inputmode="decimal"]'),
     ) as HTMLInputElement[];
     const childScaleField = childFields[0];
     const childOffsetField = childFields[1];

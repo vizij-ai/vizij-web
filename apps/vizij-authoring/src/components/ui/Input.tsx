@@ -1,54 +1,62 @@
 import { forwardRef, type ReactNode } from "react";
 import type { InputHTMLAttributes } from "react";
-import { Input as BaseInput } from "@base-ui/react";
+import { TextField, Size } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
 export interface InputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   size?: "sm" | "md";
   startContent?: ReactNode;
-  endContent?: ReactNode;
 }
 
+const SIZES: Record<"sm" | "md", Size> = {
+  sm: Size.Sm,
+  md: Size.Md,
+};
+
+/**
+ * Single-line text input, built on `@semio/ui`'s `TextField`.
+ *
+ * Preserves two quirks of the previous implementation deliberately, because call
+ * sites depend on them:
+ *
+ * 1. **`className` lands on the wrapper, not the input.** Callers pass sizing
+ *    and surface classes expecting to style the outer box — see `RowSlider`'s
+ *    numeric field (`w-[var(--editor-numeric-width,88px)] ... h-6 p-0`). semio's
+ *    `wrapperClassName` is the same seam, so this maps across cleanly. Note the
+ *    `cn("w-full", className)` below is tailwind-merge, so a caller's own width
+ *    class wins over `w-full` rather than fighting it in the cascade.
+ * 2. **Native `onChange(event)`.** semio reports `(value, event)`; every caller
+ *    reads `event.target.value`.
+ *
+ * `startContent` maps to semio's `icon`. `endContent` was dropped — it existed
+ * on the old interface but had zero call sites.
+ *
+ * `type` and `placeholder` are forwarded onto the real `<input>`, which is what
+ * keeps `PanelSearch`'s `getByRole("searchbox", { name: … })` e2e contract alive.
+ */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, size = "md", startContent, endContent, ...props }, ref) => {
-    return (
-      <div
-        className={cn(
-          "group flex items-center w-full rounded-lg border border-border-default bg-bg-input shadow-inner transition-all focus-within:ring-2 focus-within:ring-accent/40 focus-within:border-accent focus-within:shadow-premium",
-          {
-            "h-8": size === "sm",
-            "h-10": size === "md",
-          },
-          className,
-        )}
-      >
-        {startContent && (
-          <div className="pl-2 flex items-center pointer-events-none text-text-muted">
-            {startContent}
-          </div>
-        )}
-        <BaseInput
-          ref={ref}
-          className={cn(
-            "flex h-full w-full border-0 bg-transparent px-3 py-1 text-sm text-text-primary shadow-none transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
-            {
-              "text-xs": size === "sm",
-              "text-sm": size === "md",
-              "pl-3": !startContent,
-              "pr-3": !endContent,
-            },
-          )}
-          {...props}
-        />
-        {endContent && (
-          <div className="pr-2 flex items-center pointer-events-none text-text-muted">
-            {endContent}
-          </div>
-        )}
-      </div>
-    );
-  },
+  ({ className, size = "md", startContent, onChange, ...props }, ref) => (
+    <TextField
+      ref={ref}
+      bg
+      // semio defaults to `outline="interact"`, which shows the border only on
+      // focus. On a panel surface that leaves the field with no visible bounds
+      // at rest — it stops reading as an input at all. This app's inputs are
+      // always visibly bounded, so the outline is persistent.
+      outline="always"
+      size={SIZES[size]}
+      icon={startContent}
+      wrapperClassName={cn("w-full", className)}
+      // `rounded-lg` goes on the input, not the wrapper: with
+      // `outline="always"` semio draws the persistent outline on the input
+      // element, so the wrapper's radius has no effect on the visible bounds.
+      // Matches the radius kept on Card and Panel.
+      className={cn("rounded-lg", size === "sm" ? "text-xs" : "text-sm")}
+      onChange={(_value, event) => onChange?.(event)}
+      {...props}
+    />
+  ),
 );
 
 Input.displayName = "Input";

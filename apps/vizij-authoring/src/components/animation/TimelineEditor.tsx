@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Plus } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import {
   evaluateTrack,
   useAnimationStore,
@@ -7,8 +16,15 @@ import {
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import {
   ANIMATION_TIMELINE_FPS,
+  formatKeyframeTime,
+  parseTimeInput,
   snapTimeToFrame,
 } from "../../utils/animationTimeDisplay";
+import { Button } from "../ui/Button";
+import {
+  resolveTimelineShortcut,
+  shouldIgnoreTimelineShortcut,
+} from "./timelineShortcuts";
 import { TrackRow } from "./TrackRow";
 
 interface TimelineEditorProps {
@@ -22,6 +38,17 @@ interface TimelineEditorProps {
   onResume?: () => void;
   timeDisplayMode?: AnimationTimeDisplayMode;
   onInspectTrack?: (trackId: string) => void;
+  /**
+   * Actions that operate on the playhead, rendered in the toolbar beside the
+   * time field. A slot rather than an import: the pose action needs the
+   * pose-rig store, and the timeline has nothing to do with poses — wiring it
+   * in directly would make every timeline test stand up a pose rig.
+   */
+  playheadActions?: ReactNode;
+  /** Space. Omitted when no transport is bound, which disables the shortcut. */
+  onTogglePlay?: () => void;
+  /** Left/right arrow, in frames. */
+  onStep?: (direction: -1 | 1) => void;
 }
 
 const TRACK_HEADER_WIDTH = 192;
@@ -32,7 +59,14 @@ export function TimelineEditor({
   onResume,
   timeDisplayMode = "seconds",
   onInspectTrack,
+  playheadActions,
+  onTogglePlay,
+  onStep,
 }: TimelineEditorProps) {
+  // Selected, not the whole store. A bare `useAnimationStore()` re-renders on
+  // every change — during playback that is every frame — which rebuilds every
+  // handler here and, twice today, fed a render loop through an effect that
+  // wrote back to the store.
   const {
     tracks,
     duration,
@@ -43,7 +77,23 @@ export function TimelineEditor({
     selectedTrackId,
     selectTrack,
     selectKeyframe,
-  } = useAnimationStore();
+  } = useAnimationStore(
+    useShallow((state) => ({
+      tracks: state.tracks,
+      duration: state.duration,
+      currentTime: state.currentTime,
+      transportPlaybackState: state.transportPlaybackState,
+      seek: state.seek,
+      addKeyframe: state.addKeyframe,
+      selectedTrackId: state.selectedTrackId,
+      selectTrack: state.selectTrack,
+      selectKeyframe: state.selectKeyframe,
+    })),
+  );
+
+  // Held as text while focused so a partial entry ("1." , "-") is not fought
+  // by a reformat on every keystroke; committed on Enter or blur.
+  const [timeDraft, setTimeDraft] = useState<string | null>(null);
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLDivElement>(null);
@@ -53,6 +103,11 @@ export function TimelineEditor({
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
+  const setScrubbing = useAnimationStore((state) => state.setScrubbing);
+  // Read through a ref in the unmount cleanup so that cleanup can depend on
+  // nothing and therefore run only on unmount.
+  const setScrubbingRef = useRef(setScrubbing);
+  setScrubbingRef.current = setScrubbing;
   const seekTo = onSeek ?? seek;
 
   const resolveTimeFromClientX = useCallback(
@@ -96,6 +151,32 @@ export function TimelineEditor({
     seekFromClientX(e.clientX);
   };
 
+  const insertKeyframeAt = useCallback(
+    (time: number) => {
+      if (!selectedTrackId) {
+        return;
+      }
+      const selectedTrack = tracks.find(
+        (track) => track.id === selectedTrackId,
+      );
+      if (!selectedTrack) {
+        return;
+      }
+      // Insert is value-preserving: the new key takes the curve's value at that
+      // time, so adding a key never changes the motion. Writing the input's
+      // default instead put a step into every curve that was not already
+      // resting there — inserting into a translation curve snapped the face.
+      // Only an empty track has no curve to read, and then the default is right.
+      const value =
+        selectedTrack.keyframes.length > 0
+          ? evaluateTrack(selectedTrack, time)
+          : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ??
+            0);
+      addKeyframe(selectedTrackId, time, value);
+    },
+    [addKeyframe, selectedTrackId, standardInputsById, tracks],
+  );
+
   // Double click to add keyframe
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (!selectedTrackId) return;
@@ -107,22 +188,36 @@ export function TimelineEditor({
     if (t === null) {
       return;
     }
-
-    const selectedTrack = tracks.find((track) => track.id === selectedTrackId);
-    if (!selectedTrack) {
-      return;
-    }
-    // Insert is value-preserving: the new key takes the curve's value at that
-    // time, so adding a key never changes the motion. Writing the input's
-    // default instead put a step into every curve that was not already resting
-    // there — inserting into a translation curve snapped the face.
-    // Only an empty track has no curve to read, and then the default is right.
-    const value =
-      selectedTrack.keyframes.length > 0
-        ? evaluateTrack(selectedTrack, t)
-        : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0);
-    addKeyframe(selectedTrackId, t, value);
+    insertKeyframeAt(t);
   };
+
+  /**
+   * The window listeners, with identities that never change.
+   *
+   * The handlers themselves are rebuilt on every render — they close over
+   * `onSeek`, which `AnimationPanel` recreates each time — and during playback
+   * the store updates every frame. Registering them directly meant the
+   * listener added on pointer-down was never the one a later cleanup removed,
+   * and, worse, the cleanup effect re-ran mid-drag and tore down the drag it
+   * was in the middle of: `pausedForScrubRef` was cleared, so the release
+   * never resumed playback and the clip sat paused with the transport still
+   * claiming to play.
+   *
+   * Delegating through a ref keeps the registration stable, so the drag ends
+   * when the pointer says so and the cleanup runs only on unmount.
+   */
+  const scrubHandlersRef = useRef<{
+    move: (event: PointerEvent) => void;
+    stop: () => void;
+  }>({ move: () => {}, stop: () => {} });
+  const onWindowPointerMove = useCallback(
+    (event: PointerEvent) => scrubHandlersRef.current.move(event),
+    [],
+  );
+  const onWindowPointerEnd = useCallback(
+    () => scrubHandlersRef.current.stop(),
+    [],
+  );
 
   const handleRulerPointerMove = useCallback(
     (event: PointerEvent) => {
@@ -149,6 +244,7 @@ export function TimelineEditor({
     }
     isScrubbingRulerRef.current = false;
     scrubStartClientXRef.current = null;
+    setScrubbing(false);
     // Resume only if *we* paused it for the scrub. A scrub that began while
     // already paused must stay paused.
     const shouldResume = pausedForScrubRef.current;
@@ -156,10 +252,15 @@ export function TimelineEditor({
     if (shouldResume) {
       onResume?.();
     }
-    window.removeEventListener("pointermove", handleRulerPointerMove);
-    window.removeEventListener("pointerup", stopRulerScrub);
-    window.removeEventListener("pointercancel", stopRulerScrub);
-  }, [handleRulerPointerMove, onResume]);
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerEnd);
+    window.removeEventListener("pointercancel", onWindowPointerEnd);
+  }, [onResume, onWindowPointerEnd, onWindowPointerMove, setScrubbing]);
+
+  scrubHandlersRef.current = {
+    move: handleRulerPointerMove,
+    stop: stopRulerScrub,
+  };
 
   const handleRulerPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
@@ -170,23 +271,108 @@ export function TimelineEditor({
     isScrubbingRulerRef.current = true;
     scrubStartClientXRef.current = event.clientX;
     pausedForScrubRef.current = false;
+    // Claim the clock before the first seek, or the runtime feedback loop
+    // overwrites it on the very next frame.
+    setScrubbing(true);
     seekFromClientX(event.clientX);
-    window.addEventListener("pointermove", handleRulerPointerMove);
-    window.addEventListener("pointerup", stopRulerScrub);
-    window.addEventListener("pointercancel", stopRulerScrub);
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerEnd);
+    window.addEventListener("pointercancel", onWindowPointerEnd);
   };
 
   useEffect(
     () => () => {
-      isScrubbingRulerRef.current = false;
+      // Unmount only, by construction: these dependencies never change.
+      if (isScrubbingRulerRef.current) {
+        isScrubbingRulerRef.current = false;
+        setScrubbingRef.current(false);
+      }
       scrubStartClientXRef.current = null;
       pausedForScrubRef.current = false;
-      window.removeEventListener("pointermove", handleRulerPointerMove);
-      window.removeEventListener("pointerup", stopRulerScrub);
-      window.removeEventListener("pointercancel", stopRulerScrub);
+      window.removeEventListener("pointermove", onWindowPointerMove);
+      window.removeEventListener("pointerup", onWindowPointerEnd);
+      window.removeEventListener("pointercancel", onWindowPointerEnd);
     },
-    [handleRulerPointerMove, stopRulerScrub],
+    [onWindowPointerEnd, onWindowPointerMove],
   );
+
+  const commitTimeDraft = useCallback(() => {
+    if (timeDraft === null) {
+      return;
+    }
+    const parsed = parseTimeInput(timeDraft, timeDisplayMode);
+    setTimeDraft(null);
+    if (parsed === null) {
+      // Unreadable input leaves the playhead where it was. Snapping to zero on
+      // a typo loses the author's place for no reason.
+      return;
+    }
+    seekTo(Math.min(snapTimeToFrame(parsed, timeDisplayMode), duration));
+  }, [duration, seekTo, timeDisplayMode, timeDraft]);
+
+  const removeKeyframe = useAnimationStore((state) => state.removeKeyframe);
+  const selectedKeyframeId = useAnimationStore(
+    (state) => state.selectedKeyframeId,
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (shouldIgnoreTimelineShortcut(event)) {
+        return;
+      }
+      const shortcut = resolveTimelineShortcut(event.key);
+      if (!shortcut) {
+        return;
+      }
+
+      switch (shortcut.kind) {
+        case "toggle-play": {
+          if (!onTogglePlay) {
+            return;
+          }
+          onTogglePlay();
+          break;
+        }
+        case "step": {
+          if (!onStep) {
+            return;
+          }
+          onStep(shortcut.direction);
+          break;
+        }
+        case "delete-keyframe": {
+          if (!selectedTrackId || !selectedKeyframeId) {
+            return;
+          }
+          removeKeyframe(selectedTrackId, selectedKeyframeId);
+          break;
+        }
+        case "go-to-start": {
+          seekTo(0);
+          break;
+        }
+        case "go-to-end": {
+          seekTo(duration);
+          break;
+        }
+      }
+      // Only once the shortcut is handled: Space would otherwise scroll the
+      // page and Backspace could navigate back, and claiming those before
+      // knowing we act on them would break the rest of the app.
+      event.preventDefault();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    duration,
+    onStep,
+    onTogglePlay,
+    removeKeyframe,
+    seekTo,
+    selectedKeyframeId,
+    selectedTrackId,
+  ]);
 
   const rulerTicks = useMemo(() => {
     const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;
@@ -238,6 +424,61 @@ export function TimelineEditor({
       onClick={handleTimelineClick}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Toolbar. The actions that act on the playhead live next to the
+          playhead readout, rather than in the transport row with play/pause:
+          adding a key and saving a pose both write something durable, and
+          "frame" only reads clearly beside a frame count. It also gives
+          add-keyframe a label — double-click was the only way to do it, and
+          nothing said so. */}
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-border-default/60 bg-bg-panel/60 shrink-0">
+        <label className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
+            Time
+          </span>
+          <input
+            className="w-20 rounded border border-zinc-800 bg-zinc-950/60 px-1.5 py-0.5 text-[11px] font-mono text-zinc-100 outline-none focus:border-zinc-600"
+            value={
+              timeDraft ?? formatKeyframeTime(currentTime, timeDisplayMode)
+            }
+            onChange={(event) => setTimeDraft(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            onBlur={commitTimeDraft}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitTimeDraft();
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setTimeDraft(null);
+              }
+            }}
+            aria-label="Current time"
+            data-testid="timeline-current-time"
+          />
+        </label>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[10px] px-2"
+          onClick={() => insertKeyframeAt(currentTime)}
+          disabled={!selectedTrackId}
+          title={
+            selectedTrackId
+              ? "Add a keyframe on the selected track at the playhead"
+              : "Select a track to add a keyframe"
+          }
+          data-testid="timeline-add-key"
+        >
+          <Plus className="mr-1 h-3 w-3" />
+          Add Key
+        </Button>
+
+        {playheadActions}
+      </div>
+
       {/* Time Ruler */}
       <div
         className="h-7 border-b border-border-default/80 bg-bg-panel/80 flex items-end backdrop-blur-sm z-10 shrink-0 select-none cursor-ew-resize hover:bg-bg-panel transition-colors"

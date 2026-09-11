@@ -68,13 +68,24 @@ export async function toggleRos4hriProfile(page: Page): Promise<void> {
   await closeMenus(page);
 }
 
-/** Export the open face as GLB through the export dialog. */
+/** Export the open face as GLB through the export dialog, then close it.
+ *
+ * The dialog does not close itself on export (you may want a second format),
+ * and its backdrop sits above the menubar, so leaving it open makes every
+ * later `File` menu click time out on "intercepts pointer events". */
 export async function exportGlb(page: Page): Promise<Download> {
   await openExportDialog(page);
   const download = await expectDownload(page, async () => {
     await page.getByTestId("export-glb-button").click();
   });
+  await closeExportDialog(page);
   return download;
+}
+
+/** Dismiss the export dialog and wait for its backdrop to go away. */
+export async function closeExportDialog(page: Page): Promise<void> {
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("export-dialog")).toBeHidden();
 }
 
 /** The exported GLB's bundle graphs. */

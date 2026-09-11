@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAnimationStore } from "../animationStore";
+import { createEmptyClip } from "../animationClipsStore";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
 
@@ -203,5 +204,199 @@ describe("animationStore deterministic behavior", () => {
     state = useAnimationStore.getState();
     expect(state.transportActive).toBe(false);
     expect(state.transportPlaybackState).toBe("stopped");
+  });
+});
+
+describe("animationStore reset vs resetAll", () => {
+  function clip(clipId: string, name: string) {
+    return {
+      clipId,
+      name,
+      source: "authored" as const,
+      baseline: null,
+      clip: createEmptyClip(clipId, name),
+    };
+  }
+
+  function seedTwoClips() {
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.1", "First"));
+    store.addClip(clip("clip.2", "Second"));
+    useAnimationStore
+      .getState()
+      .addTrack("jaw_open", "Jaw Open", "/propsrig/jaw/open");
+    return useAnimationStore.getState();
+  }
+
+  it("reset clears the buffer but keeps every clip", () => {
+    // App calls reset() while switching targets, failing to resolve one, and
+    // deleting one. Now that this store owns the clips, wiping them there
+    // would destroy the user's work — and `...INITIAL_STATE` very nearly does.
+    const seeded = seedTwoClips();
+    expect(seeded.clipOrder.length).toBe(2);
+
+    useAnimationStore.getState().reset();
+    const after = useAnimationStore.getState();
+
+    expect(after.clipOrder.length).toBe(2);
+    expect(after.tracks).toEqual([]);
+    expect(after.currentTime).toBe(0);
+    expect(after.transportPlaybackState).toBe("stopped");
+  });
+
+  it("a reset buffer is not written over the clip it was cleared from", () => {
+    // The clip-switch path in App saves the outgoing clip, then calls reset()
+    // to unload the transport before the next clip loads — and reset()
+    // deliberately keeps `selectedClipId`, because App derives the selected
+    // target from it. The `selectClip` that follows must not treat the blank
+    // buffer as an edit to the clip it is leaving.
+    //
+    // Measured in the app before this was guarded: a duration edited to 12.5
+    // was saved, the reset blanked the buffer to the 10s default, and the
+    // switch wrote 10 back over the entry — the edit reverted, and the clip's
+    // tracks went with it.
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.1", "First"));
+    store.addClip(clip("clip.2", "Second"));
+    useAnimationStore.getState().selectClip("clip.1");
+    useAnimationStore.getState().setDuration(12.5);
+    useAnimationStore
+      .getState()
+      .addTrack("jaw_open", "Jaw Open", "/propsrig/jaw/open");
+    const edited = useAnimationStore.getState().exportClipIr({ id: "clip.1" });
+    useAnimationStore.getState().updateClip("clip.1", (entry) => ({
+      ...entry,
+      clip: edited,
+    }));
+
+    useAnimationStore.getState().reset();
+    expect(useAnimationStore.getState().duration).toBe(10);
+    useAnimationStore.getState().selectClip("clip.2");
+
+    const saved = useAnimationStore.getState().clipEntries["clip.1"]!;
+    expect(saved.clip.duration).toBe(12.5);
+    expect(saved.clip.tracks).toHaveLength(1);
+  });
+
+  it("saves edits again once a clip is loaded after a reset", () => {
+    // The guard has to be cleared *and* re-armed. App follows the reset by
+    // loading the target it is switching to (`importClipIr`), and from then on
+    // the buffer is that clip again — so the next real edit must still be
+    // saved.
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.10", "Tenth"));
+    store.addClip(clip("clip.11", "Eleventh"));
+    useAnimationStore.getState().selectClip("clip.10");
+    useAnimationStore.getState().reset();
+
+    useAnimationStore
+      .getState()
+      .importClipIr(useAnimationStore.getState().clipEntries["clip.10"]!.clip);
+    useAnimationStore.getState().setDuration(3);
+    useAnimationStore.getState().selectClip("clip.11");
+
+    expect(
+      useAnimationStore.getState().clipEntries["clip.10"]!.clip.duration,
+    ).toBe(3);
+  });
+
+  it("re-arms when a clip set is replaced after a reset", () => {
+    // `replaceClips` and `removeClip` load the buffer from whatever ends up
+    // selected, so they re-arm the guard the same way loading a clip does.
+    useAnimationStore.getState().reset();
+    useAnimationStore
+      .getState()
+      .replaceClips(
+        [clip("clip.20", "Twentieth"), clip("clip.21", "First")],
+        "clip.20",
+      );
+
+    useAnimationStore.getState().setDuration(4);
+    useAnimationStore.getState().selectClip("clip.21");
+
+    expect(
+      useAnimationStore.getState().clipEntries["clip.20"]!.clip.duration,
+    ).toBe(4);
+  });
+
+  it("does not export a buffer the reset discarded", () => {
+    // `getAllClips` materialises the selected clip from the buffer so that
+    // what ships is what is on screen. After a reset the buffer is not that
+    // clip, and exporting it would ship an empty one.
+    const store = useAnimationStore.getState();
+    store.addClip(clip("clip.1", "First"));
+    useAnimationStore.getState().selectClip("clip.1");
+    useAnimationStore.getState().setDuration(7);
+    useAnimationStore.getState().updateClip("clip.1", (entry) => ({
+      ...entry,
+      clip: useAnimationStore.getState().exportClipIr({ id: "clip.1" }),
+    }));
+
+    useAnimationStore.getState().reset();
+
+    const exported = useAnimationStore
+      .getState()
+      .getAllClips()
+      .find((entry) => entry.clipId === "clip.1");
+    expect(exported!.clip.duration).toBe(7);
+  });
+
+  it("resetAll drops the clip set too, for unloading a face", () => {
+    seedTwoClips();
+    useAnimationStore.getState().resetAll();
+    const after = useAnimationStore.getState();
+
+    expect(after.clipOrder).toEqual([]);
+    expect(after.clipEntries).toEqual({});
+    expect(after.selectedClipId).toBeNull();
+    expect(after.tracks).toEqual([]);
+  });
+});
+
+describe("animationStore clip actions are idempotent", () => {
+  function clipInput(clipId: string, name: string) {
+    return {
+      clipId,
+      name,
+      source: "authored" as const,
+      baseline: null,
+      clip: createEmptyClip(clipId, name),
+    };
+  }
+
+  it("adding a clip that already exists does not produce new state", () => {
+    // `set` with a spread always builds a new object, so a no-op reducer still
+    // notifies every subscriber — and a component whose render feeds an effect
+    // that calls this again loops forever. That hung the face load with no
+    // error at all.
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave"));
+    const before = useAnimationStore.getState();
+
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave again"));
+    const after = useAnimationStore.getState();
+
+    expect(after.clipEntries).toBe(before.clipEntries);
+    expect(after.clipOrder).toBe(before.clipOrder);
+    expect(after.clipEntries["clip.1"]!.name).toBe("Wave");
+  });
+
+  it("renaming to the same name does not produce new state", () => {
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave"));
+    const before = useAnimationStore.getState().clipEntries;
+    useAnimationStore.getState().renameClip("clip.1", "Wave");
+    expect(useAnimationStore.getState().clipEntries).toBe(before);
+  });
+
+  it("updating to an identical entry does not produce new state", () => {
+    useAnimationStore.getState().addClip(clipInput("clip.1", "Wave"));
+    const before = useAnimationStore.getState().clipEntries;
+    useAnimationStore.getState().updateClip("clip.1", (entry) => entry);
+    expect(useAnimationStore.getState().clipEntries).toBe(before);
+  });
+
+  it("removing a clip that is not there does not produce new state", () => {
+    const before = useAnimationStore.getState().clipEntries;
+    useAnimationStore.getState().removeClip("missing");
+    expect(useAnimationStore.getState().clipEntries).toBe(before);
   });
 });

@@ -317,7 +317,7 @@ function isRectangleFeatures(
   }
 }
 
-function deriveRootBounds(
+export function deriveRootBounds(
   group: Group,
 ): { center: RawVector2; size: RawVector2 } | null {
   const boundingBox = new THREE.Box3().setFromObject(group);

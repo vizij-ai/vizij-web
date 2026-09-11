@@ -1,9 +1,0 @@
-import * as React from "react";
-/* 
-  Imports will be fixed after I read the d.ts file. 
-  I am preparing the structure without 'order' prop. 
-*/
-// ...
-/*
-  This step is just a placeholder action until I get the d.ts
-*/

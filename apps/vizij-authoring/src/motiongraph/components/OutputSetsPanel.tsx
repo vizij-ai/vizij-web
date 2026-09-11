@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEditorStore } from "../store/useEditorStore";
+import { SetTreeRow, type SetTreeNode } from "./SetTreeRow";
 
 // ─── Path helpers ─────────────────────────────────────────────────────
 
@@ -18,23 +19,14 @@ function getBase(path: string): string {
 
 // ─── Tree data structure ─────────────────────────────────────────────
 
-interface TreeNode {
-  name: string;
-  /** Full path from root (used as the toggle key). */
-  path: string;
-  children: TreeNode[];
-  /** True if this node is a leaf (an actual output path). */
-  isLeaf: boolean;
-}
-
-function buildTree(paths: string[], base: string): TreeNode[] {
+function buildTree(paths: string[], base: string): SetTreeNode[] {
   const root = new Map<
     string,
-    { node: TreeNode; childMap: Map<string, any> }
+    { node: SetTreeNode; childMap: Map<string, any> }
   >();
 
   function getOrCreate(
-    level: Map<string, { node: TreeNode; childMap: Map<string, any> }>,
+    level: Map<string, { node: SetTreeNode; childMap: Map<string, any> }>,
     name: string,
     path: string,
     isLeaf: boolean,
@@ -73,8 +65,8 @@ function buildTree(paths: string[], base: string): TreeNode[] {
 
   // Convert Maps to sorted arrays
   function flatten(
-    level: Map<string, { node: TreeNode; childMap: Map<string, any> }>,
-  ): TreeNode[] {
+    level: Map<string, { node: SetTreeNode; childMap: Map<string, any> }>,
+  ): SetTreeNode[] {
     return Array.from(level.values())
       .map(({ node, childMap }) => {
         node.children = flatten(childMap);
@@ -84,74 +76,6 @@ function buildTree(paths: string[], base: string): TreeNode[] {
   }
 
   return flatten(root);
-}
-
-// ─── Tree row ────────────────────────────────────────────────────────
-
-function TreeRow({
-  node,
-  depth,
-  enabled,
-  onToggle,
-}: {
-  node: TreeNode;
-  depth: number;
-  enabled: Set<string>;
-  onToggle: (path: string) => void;
-}) {
-  const isLeaf = node.isLeaf;
-  const hasChildren = node.children.length > 0;
-  const isActive = isLeaf && enabled.has(node.path);
-
-  return (
-    <>
-      <button
-        onClick={() => {
-          if (isLeaf) {
-            onToggle(node.path);
-          }
-        }}
-        disabled={!isLeaf}
-        className={`w-full text-left py-1 px-2 transition-colors ${
-          isActive
-            ? "bg-emerald-600/20 text-emerald-300"
-            : "bg-neutral-800/40 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300 disabled:cursor-default disabled:hover:bg-neutral-800/40 disabled:hover:text-neutral-500"
-        }`}
-      >
-        <span
-          className="flex items-center gap-1.5"
-          style={{ paddingLeft: depth * 12 }}
-        >
-          {/* Checkbox indicator */}
-          <span
-            className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 border transition-colors ${
-              isActive
-                ? "bg-emerald-500 border-emerald-400"
-                : "border-neutral-600 bg-transparent"
-            }`}
-          />
-
-          {/* Label */}
-          <span
-            className={`text-xs truncate ${hasChildren ? "font-medium" : ""}`}
-          >
-            {node.name}
-          </span>
-        </span>
-      </button>
-
-      {/* Children — always visible, no collapse */}
-      {node.children.map((child) => (
-        <TreeRow
-          key={child.path}
-          node={child}
-          depth={depth + 1}
-          enabled={enabled}
-          onToggle={onToggle}
-        />
-      ))}
-    </>
-  );
 }
 
 // ─── Panel ───────────────────────────────────────────────────────────
@@ -244,11 +168,12 @@ export default function OutputSetsPanel({ paths }: OutputSetsPanelProps) {
       {/* Tree */}
       <div className="flex-1 overflow-y-auto py-1 px-1">
         {tree.map((node) => (
-          <TreeRow
+          <SetTreeRow
             key={node.path}
             node={node}
             depth={0}
             enabled={enabled}
+            accent="emerald"
             onToggle={toggleOutput}
           />
         ))}

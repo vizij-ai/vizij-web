@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Copy,
   Film,
@@ -13,7 +14,7 @@ import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { Input } from "../ui/Input";
-import { cn } from "../../utils/cn";
+import { ListRow } from "../ui/ListRow";
 
 export type AuthoringTargetSource = "authored" | "imported";
 export type AuthoringTargetRuntimeState = "playing" | "paused" | "stopped";
@@ -25,7 +26,9 @@ export interface AuthoringTargetItem {
   selected?: boolean;
   meta?: string;
   runtimeState?: AuthoringTargetRuntimeState;
-  runtimeTimeLabel?: string | null;
+  /** A node, not a string: a live clock must subscribe for itself
+   * rather than have its value threaded down through the owner's renders. */
+  runtimeTimeLabel?: ReactNode;
 }
 
 interface AuthoringTargetListProps {
@@ -188,22 +191,19 @@ export function AuthoringTargetList({
             {filteredItems.map((item) => {
               const runtimeState = item.runtimeState ?? "stopped";
               const isRuntimeActive = runtimeState !== "stopped";
+              // Play is offered whenever the row is not playing — stopped or
+              // paused. Pausing used to swap Play for a *disabled* Pause,
+              // which left no control to resume with.
+              const isRuntimePlaying = runtimeState === "playing";
               return (
-                <div
+                <ListRow
                   key={item.id}
-                  className={cn(
-                    "group flex w-full scroll-mt-24 flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors",
-                    item.selected
-                      ? "border-accent/60 bg-accent/10"
-                      : "border-border-default/70 bg-bg-panel/60 hover:border-border-hover hover:bg-bg-hover",
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="flex w-full min-w-0 flex-1 cursor-pointer flex-col items-start justify-center text-left"
-                    onClick={() => onSelect(item.id)}
-                  >
-                    <div className="flex items-center gap-2">
+                  selected={item.selected ?? false}
+                  onSelect={() => onSelect(item.id)}
+                  className="w-full scroll-mt-24 rounded-lg px-3 py-2.5"
+                  bodyClassName="mt-0"
+                  title={
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate text-sm font-semibold text-text-primary">
                         {item.label}
                       </span>
@@ -219,14 +219,17 @@ export function AuthoringTargetList({
                         <Badge tone="muted">{item.runtimeTimeLabel}</Badge>
                       ) : null}
                     </div>
-                    {item.meta ? (
-                      <p className="truncate pt-1 font-mono text-[10px] text-text-secondary">
+                  }
+                  description={
+                    item.meta ? (
+                      <span className="block truncate font-mono text-[10px] text-text-secondary">
                         {item.meta}
-                      </p>
-                    ) : null}
-                  </button>
+                      </span>
+                    ) : null
+                  }
+                >
                   <div className="flex w-full flex-wrap items-center gap-1">
-                    {onPlay && !isRuntimeActive ? (
+                    {onPlay && !isRuntimePlaying ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -242,12 +245,11 @@ export function AuthoringTargetList({
                         Play
                       </Button>
                     ) : null}
-                    {onPause && isRuntimeActive ? (
+                    {onPause && isRuntimePlaying ? (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-[10px] gap-1"
-                        disabled={runtimeState !== "playing"}
                         onClick={(event) => {
                           event.stopPropagation();
                           onSelect(item.id);
@@ -306,7 +308,7 @@ export function AuthoringTargetList({
                       </Button>
                     ) : null}
                   </div>
-                </div>
+                </ListRow>
               );
             })}
           </div>

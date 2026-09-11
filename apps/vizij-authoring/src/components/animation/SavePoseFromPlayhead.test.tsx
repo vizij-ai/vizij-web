@@ -43,6 +43,9 @@ const poseState = {
 vi.mock("../../state/animationStore", () => ({
   useAnimationStore: (selector?: (s: typeof animationState) => unknown) =>
     selector ? selector(animationState) : animationState,
+  // Read imperatively, not subscribed: the dialog opens at the playhead but
+  // must not re-render while it moves.
+  getCurrentPlayheadTime: () => animationState.currentTime,
 }));
 
 vi.mock("../../poseRig/store", () => ({

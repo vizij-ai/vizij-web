@@ -1,3 +1,5 @@
+import type { ToneMappingMode } from "./tone-mapping";
+
 export type VizijBundleVersion = 1;
 
 export type VizijBundleGraphKind =
@@ -97,6 +99,22 @@ export interface VizijBundleAnimationEntry {
   };
 }
 
+export type VizijStarredKind = "driver" | "pose";
+
+/**
+ * A starred reference collected into the "Starred" control surface. Points at a
+ * real driver (standard-input id) or pose (pose id) by stable id so both the
+ * source panel and the Starred panel render the same underlying object.
+ */
+export interface VizijStarredItem {
+  kind: VizijStarredKind;
+  id: string;
+}
+
+export interface VizijBundleStarredSection {
+  items: VizijStarredItem[];
+}
+
 export interface VizijSpeechConfig {
   /** TTS voice name (e.g., "Ruth") */
   voice?: string;
@@ -128,6 +146,18 @@ export interface VizijBundleExtension {
   graphs?: VizijBundleGraphEntry[];
   poses?: VizijBundlePoseSection | null;
   animations?: VizijBundleAnimationEntry[];
+  /**
+   * Scene-level view transform this face should be rendered with. Travels with
+   * the asset so a face authored in Blender (which typically wants `"agx"`)
+   * renders consistently wherever it is loaded. Omitted/unknown falls back to
+   * the renderer default (`"none"` — web match).
+   */
+  toneMapping?: ToneMappingMode;
+  /**
+   * Designer-curated set of starred drivers/poses (the "Starred" control
+   * surface). References real functionality by stable id.
+   */
+  starred?: VizijBundleStarredSection | null;
   /**
    * Bundle-level metadata. May include `speechConfig: VizijSpeechConfig`
    * for configuring the STT/LLM/TTS speech pipeline.
