@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Sliders } from "lucide-react";
+import { Sliders, Unplug } from "lucide-react";
 import { Slider } from "../../ui/Slider";
 import { cn } from "../../../utils/cn";
 
@@ -21,6 +21,8 @@ export interface ControlRowValue {
   max?: number;
   /** `false` renders the read-only note instead of the slider. */
   editable?: boolean;
+  /** `false` marks the control as read by nothing downstream. */
+  driven?: boolean;
 }
 
 export interface ControlRowProps {
@@ -140,6 +142,18 @@ export function ControlRow({
         <span className="text-xs truncate text-[var(--editor-value-fg,var(--text-primary))]">
           {row.label}
         </span>
+        {row.driven === false ? (
+          // The control exists but nothing downstream reads it — the state a
+          // profile's controls arrive in, and where a rig input lands when its
+          // binding is removed. Worth marking: moving the slider does nothing.
+          <Unplug
+            size={11}
+            className="text-amber-300 shrink-0"
+            aria-label="Not connected"
+          >
+            <title>Not connected — nothing reads this input yet</title>
+          </Unplug>
+        ) : null}
         <div className="ml-auto flex items-center gap-1 shrink-0">
           {actions}
         </div>

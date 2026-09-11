@@ -4,6 +4,10 @@ import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { SidebarSection } from "../common/SidebarSection";
 import { Button, RowSlider } from "../ui";
 import { useReferenceFace } from "../../state/ReferenceFaceContext";
+import {
+  useDeclaredNamespaces,
+  type DeclaredNamespaces,
+} from "../../state/DeclaredProfilesContext";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { GroupMappingEditor } from "./StdFeatureSpacesMappingEditor";
 
@@ -34,50 +38,46 @@ function getFaceStatusClass(status: FaceStatus): string {
  * For paths like "/standard/semio/left_eye/pos/x", returns { namespace: "semio", channel: "left_eye" }
  * For paths like "/standard/left_eye/pos/x", returns { namespace: "", channel: "left_eye" }
  */
-function deriveNamespaceAndChannelFromPath(path: string): {
+export function deriveNamespaceAndChannelFromPath(
+  path: string,
+  declared: DeclaredNamespaces,
+): {
   namespace: string;
   channel: string;
 } {
   // Extract the /standard/... portion from the path
   const standardMatch = path.match(/\/standard\/(.+)/);
-  if (!standardMatch || !standardMatch[1]) {
-    // Fallback: try normalizing and splitting
+  const afterStandard = standardMatch?.[1];
+  if (!afterStandard) {
     const normalized = normalizeStandardRigInputPath(path);
     const withoutLeading = normalized.startsWith("/")
       ? normalized.slice(1)
       : normalized;
-    if (!withoutLeading) return { namespace: "", channel: "custom" };
-    const segments = withoutLeading.split("/");
-    if (segments[0] === "standard" && segments.length > 1) {
-      // Check if there's a namespace (4+ parts after standard means namespace exists)
-      const afterStandard = segments.slice(1);
-      if (afterStandard.length >= 4) {
-        return {
-          namespace: afterStandard[0] || "",
-          channel: afterStandard[1] || "custom",
-        };
-      }
-      return { namespace: "", channel: afterStandard[0] || "custom" };
-    }
+    const segments = withoutLeading.split("/").filter(Boolean);
     return { namespace: "", channel: segments[0] || "custom" };
   }
 
-  const afterStandard = standardMatch[1];
   const segments = afterStandard.split("/");
+  const first = segments[0] ?? "";
 
-  // Path structure: namespace/channel/track/attribute (4+ segments after /standard/)
-  // Or: channel/track/attribute (3 segments - no namespace)
-  if (segments.length >= 4) {
-    // Has namespace: namespace/channel/track/attribute
-    return { namespace: segments[0], channel: segments[1] || "custom" };
-  } else {
-    // No namespace: channel/track/attribute
-    return { namespace: "", channel: segments[0] || "custom" };
+  // A declared profile names its namespace, so no guessing is needed: the
+  // segment after `standard` is the group and everything under it subdivides
+  // it, however deep the path happens to be.
+  if (declared.has(first)) {
+    return { namespace: first, channel: segments[1] || "custom" };
   }
+
+  // Otherwise fall back to the length heuristic, which is all a legacy path
+  // (`/standard/left_eye/pos/x`, no namespace at all) gives us to go on.
+  if (segments.length >= 4) {
+    return { namespace: first, channel: segments[1] || "custom" };
+  }
+  return { namespace: "", channel: first || "custom" };
 }
 
 export function StdFeatureSpacesControls() {
   const referenceFace = useReferenceFace();
+  const declaredNamespaces = useDeclaredNamespaces();
   const [selectedNamespace, setSelectedNamespace] = useState<string | null>(
     null,
   );
@@ -193,6 +193,7 @@ export function StdFeatureSpacesControls() {
     for (const input of combinedInputsByPath.values()) {
       const { namespace, channel } = deriveNamespaceAndChannelFromPath(
         input.path,
+        declaredNamespaces,
       );
       if (!namespaces.has(namespace)) {
         namespaces.set(namespace, new Map());
@@ -210,7 +211,7 @@ export function StdFeatureSpacesControls() {
       }
     }
     return namespaces;
-  }, [combinedInputsByPath]);
+  }, [combinedInputsByPath, declaredNamespaces]);
 
   const namespaceNames = useMemo(
     () => Array.from(groupedByNamespaceAndChannel.keys()),
@@ -385,7 +386,9 @@ export function StdFeatureSpacesControls() {
                           setSelectedChannel(null); // Reset channel when namespace changes
                         }}
                       >
-                        {ns === "" ? "Root" : formatGroupName(ns)}
+                        {ns === ""
+                          ? "Root"
+                          : (declaredNamespaces.get(ns) ?? formatGroupName(ns))}
                       </button>
                     ))}
                   </div>
