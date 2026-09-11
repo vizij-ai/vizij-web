@@ -364,7 +364,7 @@ If speech looks half-configured, check both the Tauri CLI flags and the browser-
 
 ### Arora-native TTS (the Vizij `tts` module)
 
-The speech pipeline above runs in JavaScript (`@vizij/speech-react`): it fetches audio + visemes in the webview and writes face pose weights directly. The [`tts` module in vizij-rs](https://github.com/vizij-ai/vizij-rs/blob/main/crates/vizij/src/tts.rs) is the **arora-native** counterpart — the same text-to-speech, exposed as a `say(text, voice)` action the device describes, so speech is part of the behavior instead of a side system. The native `vizij` app registers it on its device.
+The speech pipeline above runs in JavaScript (`@vizij/speech-react`): it fetches audio + visemes in the webview and writes face pose weights directly. The [`vizij-arora-tts` crate in vizij-rs](https://github.com/vizij-ai/vizij-rs/tree/main/crates/interop/vizij-arora-tts) is the **arora-native** counterpart — the same text-to-speech as a host module implementing the `say(text, voice)` contract of the [speech skill](https://github.com/vizij-ai/vizij-rs/blob/main/docs/skills.md), so speech is part of the behavior instead of a side system. The native `vizij` app registers it on its device and drives the lips from the viseme it streams.
 
 It uses the **same provider** as the JS path — the Vizij TTS cloud function (`{API_URL}/tts/get-audio` + `/tts/get-visemes`, AWS Polly behind it) — and reads the same `API_URL` (default the demo cloud function) plus a `voice` (default `Ruth`), so it needs no extra configuration and no credentials. Each tick it emits the current viseme (the AWS Polly viseme code at the audio playhead) as an output.
 
