@@ -17,7 +17,8 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via th
 7. [Development Tips](#development-tips)
 8. [Validation Workflow](#validation-workflow)
 9. [Publishing & Versioning](#publishing--versioning)
-10. [Related Repositories](#related-repositories)
+10. [Deployments](#deployments)
+11. [Related Repositories](#related-repositories)
 
 ---
 
@@ -273,10 +274,29 @@ Authentication is **npm trusted publishing** (OIDC) — no `NPM_TOKEN`. Each pac
 
 ### Releasing a change
 
-1. In your PR, bump the version of each package you changed — with Changesets (`pnpm changeset` to record intent, `pnpm version:packages` to apply the bumps and changelogs) or by editing the `version` field for a one-off.
-2. Merge to `main`. CI publishes every bumped version that isn't on npm yet. That is the whole flow.
+1. In your PR, run `pnpm changeset` and commit the generated `.changeset/*.md`. Describe the change for a reader of the changelog, not for a reviewer of the diff.
+2. Merge to `main`. [`.github/workflows/release.yml`](.github/workflows/release.yml) opens or updates a **Version Packages** PR that applies every pending changeset: version bumps, patch bumps cascaded to workspace dependents, and the `CHANGELOG.md` entries.
+3. Merge the Version Packages PR. The bumped versions land on `main`, and `publish-npm.yml` publishes each one that isn't on npm yet.
 
-Versioning is decoupled from publishing: CI publishes whatever versions land on `main`, however they were bumped. You can also run the publisher manually via `workflow_dispatch`, or locally with `pnpm publish:unpublished` (`--dry-run` to preview).
+Versioning and publishing stay decoupled: `release.yml` never touches npm, and `publish-npm.yml` publishes whatever versions reach `main`, however they were bumped — a hand-edited `version` field still ships. You can run the publisher manually via `workflow_dispatch`, or locally with `pnpm publish:unpublished` (`--dry-run` to preview).
+
+A changeset may name a private app (`vizij-authoring`, `vizij-standalone`) alongside published packages; those get versions and changelogs but are never published. An app with **no** `version` field cannot appear in a changeset at all — changesets treats it as ignored and refuses the whole run with `Mixed changesets that contain both ignored and not ignored packages are not allowed`.
+
+## Deployments
+
+`vizij-authoring` is a Firebase Hosting site — project `semio-vizij`, site `vizij-workspace`, configured by [`apps/vizij-authoring/firebase.json`](apps/vizij-authoring/firebase.json) with the SPA rewrites and the COOP/COEP headers the WASM runtime requires.
+
+- **Production** — [`.github/workflows/deploy-authoring.yml`](.github/workflows/deploy-authoring.yml) deploys the `live` channel on every push to `main` that touches the app, one of its five workspace packages, or `pnpm-lock.yaml`. Also available on `workflow_dispatch` to redeploy the current `main`.
+- **Per-PR previews** — [`.github/workflows/preview-authoring.yml`](.github/workflows/preview-authoring.yml) deploys a `pr-<number>` channel and comments the URL. Channels expire after 30 days. Fork PRs are skipped: they get no secrets.
+
+Both need a `FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ` repository secret — a service-account JSON for `semio-vizij` with the Hosting Admin role. Without it a preview warns and skips, while a production deploy **fails**: a deploy that quietly does nothing is how the live site went months stale unnoticed.
+
+To deploy by hand from an authenticated machine:
+
+```bash
+pnpm run build:packages
+cd apps/vizij-authoring && firebase deploy --only hosting:vizij-workspace
+```
 
 ### First publish of a new package
 
