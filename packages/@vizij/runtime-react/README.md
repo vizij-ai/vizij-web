@@ -460,6 +460,7 @@ See:
 
 - [`apps/tutorial-fullscreen-face/tutorial.md`](../../../apps/tutorial-fullscreen-face/tutorial.md)
 - [`apps/tutorial-agent-face/tutorial.md`](../../../apps/tutorial-agent-face/tutorial.md)
+- [`apps/vizij-standalone`](../../../apps/vizij-standalone/README.md) — the face page with a voice agent, on `@vizij/runtime` directly
 
 ### Runtime-truthful authoring
 
