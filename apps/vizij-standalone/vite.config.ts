@@ -1,62 +1,31 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
 const host = process.env.TAURI_DEV_HOST;
-const workspaceRoot = resolve(__dirname, "../..");
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
-  assetsInclude: ["**/*.gltf", "**/*.glb"],
+  assetsInclude: ["**/*.glb"],
   clearScreen: false,
-  resolve: {
-    alias: {
-      "@vizij/node-graph-authoring": resolve(
-        workspaceRoot,
-        "packages/@vizij/node-graph-authoring/src",
-      ),
-    },
-  },
   server: {
     port: 1420,
     strictPort: true,
     host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
+    hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
     watch: {
-      ignored: [
-        "**/src-tauri/**",
-        "**/node_modules/**",
-        "!**/node_modules/@vizij/node-graph/**",
-        "!**/node_modules/@vizij/node-graph-react/**",
-        "!**/node_modules/@vizij/node-graph-authoring/**",
-        "!**/node_modules/@vizij/render/**",
-        "!**/node_modules/@vizij/utils/**",
-        "!**/node_modules/@vizij/runtime-react/**",
-      ],
+      ignored: ["**/src-tauri/**"],
     },
+    // A locally linked @vizij/runtime (the wasm link workflow) lives beside
+    // this checkout.
     fs: {
       allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../..")],
     },
-    headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
   },
+  // The runtime's wasm loads itself; pre-bundling would break its URL.
   optimizeDeps: {
-    exclude: ["@vizij/node-graph", "@vizij/runtime", "@vizij/animation-module"],
-    include: [
-      "@vizij/node-graph-react",
-      "@vizij/node-graph-authoring",
-      "@vizij/render",
-      "@vizij/runtime-react",
-    ],
-    force: true,
+    exclude: ["@vizij/runtime"],
   },
 }));

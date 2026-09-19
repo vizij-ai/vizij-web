@@ -8,6 +8,8 @@
     "e2e:heavy": "RUN_HEAVY=1 playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "pngjs": "^7.0.0",
+    "@types/pngjs": "^6.0.5"
   }
 }
