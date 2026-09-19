@@ -35,19 +35,18 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 
 ### Apps (`apps/*`)
 
-| App                            | Focus                                |
-| ------------------------------ | ------------------------------------ |
-| `vizij-authoring`              | Runtime-truthful authoring surface   |
-| `demo-vizij-player`            | Bundle-first runtime-react player    |
-| `demo-animation-studio`        | Animation playground                 |
-| `demo-graph-studio`            | Graph editing demo                   |
-| `minimal-demo-animation`       | Minimal animation smoke surface      |
-| `minimal-demo-animation-graph` | Combined animation + graph sample    |
-| `minimal-demo-graph`           | Minimal graph sample                 |
-| `tutorial-fullscreen-face`     | Runtime tutorial example             |
-| `tutorial-agent-face`          | Tutorial/demo with agent interaction |
-| `vizij-showcase`               | Shareable showcase/demo surface      |
-| `vizij-standalone`             | Tauri standalone app                 |
+| App                            | Focus                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `vizij-authoring`              | Runtime-truthful authoring surface                                          |
+| `demo-vizij-player`            | Bundle-first runtime-react player                                           |
+| `demo-animation-studio`        | Animation playground                                                        |
+| `demo-graph-studio`            | Graph editing demo                                                          |
+| `minimal-demo-animation`       | Minimal animation smoke surface                                             |
+| `minimal-demo-animation-graph` | Combined animation + graph sample                                           |
+| `minimal-demo-graph`           | Minimal graph sample                                                        |
+| `tutorial-fullscreen-face`     | Runtime tutorial example                                                    |
+| `vizij-showcase`               | Shareable showcase/demo surface                                             |
+| `vizij-standalone`             | The face page: a face on the Bevy view with a voice agent, in a Tauri shell |
 
 `apps/vizij-ws-app` also exists as a directory, but it is not part of the primary current pnpm app map or root command set. Treat it as a transitional implementation surface tied to the standalone/protocol track.
 
