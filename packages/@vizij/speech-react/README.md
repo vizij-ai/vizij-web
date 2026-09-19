@@ -1,5 +1,12 @@
 # @vizij/speech-react
 
+**Deprecated.** Speech is the device's: `@vizij/runtime` 3 speaks through
+the `say` skill (`device.spawnSkill("say", { text })`), the lips follow the
+device's viseme players, and the page plays the audio through the runtime's
+own hook. The speech-to-text and conversation halves live as source in
+[`apps/vizij-standalone/src/agent`](../../../apps/vizij-standalone/src/agent).
+This package is no longer published; nothing in this repository depends on it.
+
 `@vizij/speech-react` packages the speech-facing hooks used by Vizij React apps: speech-to-text, lightweight conversation state, TTS/viseme playback, and a few pose/path helpers that line up with `@vizij/runtime-react`.
 
 This package is not a standalone face runtime. It assumes your app already has a Vizij runtime surface and wants to layer speech behavior on top.
