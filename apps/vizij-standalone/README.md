@@ -1,9 +1,9 @@
 # Vizij Standalone
 
-The face page: one face on the Bevy view, run by its own Arora device, and a
+The face page: one face on the Bevy view, run by its own Arora runtime, and a
 voice agent talking through it. Everything the page needs is
 [`@vizij/runtime`](https://github.com/vizij-ai/vizij-rs/tree/main/npm/@vizij/runtime)
-— the view and the device in one wasm module — plus the agent's two
+— the view and the face's Arora in one wasm module — plus the agent's two
 services. A Tauri shell (`src-tauri`) wraps the same page on the desktop
 until the native [`vizij`](https://github.com/vizij-ai/vizij-rs/tree/main/crates/vizij)
 binary ships installers.
@@ -14,9 +14,9 @@ binary ships installers.
   open or drop, else the shipped `public/faces/Quori_Current_Extended.glb`
   (Quori with its standard viseme adaptation, so the lips follow speech) —
   and shows it: `mount`, `loadFace`, `placeFaceIn`, `whenReady`, `run`.
-- Speaks: a `say` run on the device (`device.spawnSkill("say", { text })`),
+- Speaks: a `say` run on the runtime (`runtime.spawnSkill("say", { text })`),
   its audio played by the runtime's Web Audio player, its lips driven by the
-  device's viseme players. `stop` halts the run; the audio cuts within
+  runtime's viseme players. `stop` halts the run; the audio cuts within
   250 ms.
 - Listens and thinks: the microphone streamed to Deepgram (`src/agent/listen.ts`),
   each utterance answered by OpenAI (`src/agent/think.ts`) with the text to

@@ -1,7 +1,7 @@
 /**
- * The page: a face in the Bevy view over its own Arora device, and an agent
+ * The page: a face in the Bevy view over its own Arora runtime, and an agent
  * talking through it — the ear (Deepgram), the mind (OpenAI), the mouth (the
- * device's `say` skill, lips driven by its viseme players). The agent writes
+ * runtime's `say` skill, lips driven by its viseme players). The agent writes
  * nothing but standard names: the ROS4HRI expression the mind chose and the
  * `say` run; the face's own rig paths are its own business.
  */
