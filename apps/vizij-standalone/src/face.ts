@@ -6,11 +6,11 @@
  */
 import {
   init,
-  loadFace,
+  loadVizij,
   mount,
-  placeFaceIn,
+  placeVizijIn,
   runStatus,
-  unloadFace,
+  unloadVizij,
   unlockAudio,
   whenReady,
   type Runtime,
@@ -63,10 +63,10 @@ export async function showFace(
 ): Promise<FaceHandle> {
   if (!mounted) throw new Error("mount the canvas first");
   const canvas = mounted;
-  const runtime = await loadFace(FACE, glb, {
+  const runtime = await loadVizij(FACE, glb, {
     speechApiUrl: options.speechApiUrl ?? undefined,
   });
-  placeFaceIn(FACE, slot, canvas);
+  placeVizijIn(FACE, slot, canvas);
   await whenReady(FACE);
   void runtime.run();
   return {
@@ -78,10 +78,10 @@ export async function showFace(
       return status !== undefined && status !== "running";
     },
     express: (name) => runtime.setValue(EXPRESSION_NAME, { text: name }),
-    place: (element) => placeFaceIn(FACE, element, canvas),
+    place: (element) => placeVizijIn(FACE, element, canvas),
     unload: () => {
       runtime.stop();
-      unloadFace(FACE);
+      unloadVizij(FACE);
       runtime.dispose();
     },
   };
