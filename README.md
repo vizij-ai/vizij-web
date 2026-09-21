@@ -53,19 +53,18 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via th
 
 ### Apps
 
-| App                            | Path                                | Purpose                                                                 | Typical scripts                        |
-| ------------------------------ | ----------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
-| `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                | `dev`, `build`, `typecheck`, `preview` |
-| `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                               | `dev`, `build`, `typecheck`, `preview` |
-| `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.           | `dev`, `build`, `typecheck`, `preview` |
-| `demo-vizij-player`            | `apps/demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.      | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).       | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour). | `dev`, `build`, `typecheck`, `preview` |
-| `tutorial-fullscreen-face`     | `apps/tutorial-fullscreen-face`     | Runtime tutorial app built on `@vizij/runtime-react`.                   | `dev`, `build`, `typecheck`            |
-| `tutorial-agent-face`          | `apps/tutorial-agent-face`          | Tutorial/demo app with agent-facing interaction flow.                   | `dev`, `build`, `typecheck`            |
-| `vizij-showcase`               | `apps/vizij-showcase`               | Shareable fullscreen showcase with runtime, voice, and staging helpers. | `dev`, `build`, `typecheck`            |
-| `vizij-standalone`             | `apps/vizij-standalone`             | Tauri standalone application surface.                                   | `dev`, `build`, `preview`              |
+| App                            | Path                                | Purpose                                                                                         | Typical scripts                        |
+| ------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                                        | `dev`, `build`, `typecheck`, `preview` |
+| `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                                                       | `dev`, `build`, `typecheck`, `preview` |
+| `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.                                   | `dev`, `build`, `typecheck`, `preview` |
+| `demo-vizij-player`            | `apps/demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.                              | `dev`, `build`, `typecheck`, `preview` |
+| `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                                        | `dev`, `build`, `typecheck`, `preview` |
+| `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).                               | `dev`, `build`, `typecheck`, `preview` |
+| `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour).                         | `dev`, `build`, `typecheck`, `preview` |
+| `tutorial-fullscreen-face`     | `apps/tutorial-fullscreen-face`     | Runtime tutorial app built on `@vizij/runtime-react`.                                           | `dev`, `build`, `typecheck`            |
+| `vizij-showcase`               | `apps/vizij-showcase`               | Shareable fullscreen showcase with runtime, voice, and staging helpers.                         | `dev`, `build`, `typecheck`            |
+| `vizij-standalone`             | `apps/vizij-standalone`             | The face page: a face on the Bevy view (`@vizij/runtime`) with a voice agent, in a Tauri shell. | `dev`, `vite`, `build`, `test`         |
 
 There is also an `apps/vizij-ws-app` directory in the repo, but it is not part of the primary current pnpm app map or root command aliases. Treat it as a transitional implementation surface while the standalone/protocol story is normalized.
 

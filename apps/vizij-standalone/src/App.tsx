@@ -1,987 +1,343 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
+/**
+ * The page: a face in the Bevy view over its own Arora runtime, and an agent
+ * talking through it — the ear (Deepgram), the mind (OpenAI), the mouth (the
+ * runtime's `say` skill, lips driven by its viseme players). The agent writes
+ * nothing but standard names: the ROS4HRI expression the mind chose and the
+ * `say` run; the face's own rig paths are its own business.
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Conversation, type State } from "./agent/conversation";
+import { loadKeys, saveKeys, type AgentKeys } from "./agent/keys";
 import {
-  VizijRuntimeProvider,
-  VizijRuntimeFace,
-  useVizijRuntime,
-  type VizijAssetBundle,
-} from "@vizij/runtime-react";
-import type { VizijSpeechConfig } from "@vizij/render";
-import { useWebSocketSync } from "./hooks/useWebSocketSync";
-import { useSpeechController } from "./hooks/useSpeechController";
-import { EndpointsPanel } from "./components/EndpointsPanel";
-import { saveModel, loadSavedModel, getSavedModelMeta } from "./lib/modelStore";
+  DEFAULT_SYSTEM_PROMPT,
+  EXPRESSIONS,
+  Thinker,
+  type Reply,
+} from "./agent/think";
+import { mountCanvas, showFace, unlockAudio, type FaceHandle } from "./face";
+import { fileGlb, initialGlb, type GlbSource } from "./glb";
 
-const NAMESPACE = "vizij-standalone";
+const AGENT_NAME = "Vizij";
 
-// Persist the background color chosen for a given model, keyed by its identity
-// (file name or URL), so reopening the same GLB restores its background.
-const BG_STORAGE_PREFIX = "vizij-standalone:bg:";
-const DEFAULT_BG_COLOR = "#737373";
+export default function App() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const faceRef = useRef<FaceHandle | null>(null);
+  const conversationRef = useRef<Conversation | null>(null);
 
-function loadStoredBgColor(modelKey: string | null): string | null {
-  if (!modelKey) return null;
-  try {
-    return localStorage.getItem(BG_STORAGE_PREFIX + modelKey);
-  } catch {
-    return null;
-  }
-}
-
-function storeBgColor(modelKey: string | null, color: string): void {
-  if (!modelKey) return;
-  try {
-    localStorage.setItem(BG_STORAGE_PREFIX + modelKey, color);
-  } catch {
-    // Storage unavailable/full — the color just won't be remembered.
-  }
-}
-
-type StandaloneTransportEntry = {
-  id: string;
-  label: string;
-  state: "playing" | "paused" | "stopped";
-};
-
-type StandaloneTransportCatalog = {
-  animations: StandaloneTransportEntry[];
-  programs: StandaloneTransportEntry[];
-};
-
-type StopAnimationEventPayload = {
-  id: string;
-  clearOutputs?: boolean;
-};
-
-type StopProgramEventPayload = {
-  id: string;
-  resetOutputs?: boolean;
-};
-
-function App() {
-  const [assetBundle, setAssetBundle] = useState<VizijAssetBundle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [keys, setKeys] = useState<AgentKeys | null>(null);
+  const [faceName, setFaceName] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("loading");
+  const [state, setState] = useState<State>("idle");
+  const [transcript, setTranscript] = useState<{
+    text: string;
+    final: boolean;
+  } | null>(null);
+  const [replies, setReplies] = useState<Reply[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [bgColor, setBgColor] = useState(DEFAULT_BG_COLOR);
-  const [modelName, setModelName] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [typed, setTyped] = useState("");
 
-  // Restore the background remembered for the active model (or the default when
-  // none was saved). Runs whenever the model changes.
+  // Show a face: the previous one goes, the agent is rebuilt over the new one.
+  const show = useCallback(async (source: GlbSource, current: AgentKeys) => {
+    const slot = slotRef.current;
+    if (!slot) return;
+    conversationRef.current?.dispose();
+    conversationRef.current = null;
+    faceRef.current?.unload();
+    faceRef.current = null;
+    setStatus(`loading ${source.name}`);
+    setError(null);
+    try {
+      const face = await showFace(source.bytes, slot, {
+        speechApiUrl: current.speechApiUrl,
+      });
+      faceRef.current = face;
+      setFaceName(source.name);
+      const thinker = current.openai
+        ? new Thinker(
+            current.openai,
+            DEFAULT_SYSTEM_PROMPT.replace("{{name}}", AGENT_NAME),
+          )
+        : null;
+      const conversation = new Conversation(
+        face,
+        thinker,
+        {
+          onState: setState,
+          onTranscript: (text, final) => setTranscript({ text, final }),
+          onReply: (reply) => setReplies((all) => [...all.slice(-9), reply]),
+          onError: setError,
+        },
+        current.deepgram,
+      );
+      conversationRef.current = conversation;
+      setStatus("ready");
+      if (current.autoMic && conversation.canListen) {
+        await unlockAudio();
+        await conversation.listen();
+      }
+    } catch (err) {
+      setStatus("failed");
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  // Boot: the canvas, the keys, the first face.
   useEffect(() => {
-    setBgColor(loadStoredBgColor(modelName) ?? DEFAULT_BG_COLOR);
-  }, [modelName]);
-
-  // Change the background AND remember it for the active model.
-  const handleSetBgColor = useCallback(
-    (color: string) => {
-      setBgColor(color);
-      storeBgColor(modelName, color);
-    },
-    [modelName],
-  );
-  const hasCheckedCliSource = useRef(false);
-
-  // Load GLB from URL
-  const loadFromUrl = useCallback(async (url: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const bundle: VizijAssetBundle = {
-        namespace: NAMESPACE,
-        glb: { kind: "url", src: url },
-      };
-      setAssetBundle(bundle);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Load GLB from file
-  const loadFromFile = useCallback(async (file: File) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const bundle: VizijAssetBundle = {
-        namespace: NAMESPACE,
-        glb: { kind: "blob", blob: file },
-      };
-      setAssetBundle(bundle);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Handle file dialog
-  const handleOpenFile = useCallback(async () => {
-    const selectedFile = await open({
-      multiple: false,
-      filters: [{ name: "GLB/GLTF Files", extensions: ["gltf", "glb"] }],
-    });
-
-    if (selectedFile && typeof selectedFile === "string") {
+    let cancelled = false;
+    (async () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      await mountCanvas(canvas);
+      const loaded = await loadKeys();
+      if (cancelled) return;
+      setKeys(loaded);
       try {
-        const fileContents = await readFile(selectedFile);
-        const fileName =
-          selectedFile.split("/").pop() ||
-          selectedFile.split("\\").pop() ||
-          "model.glb";
-        const mimeType = fileName.toLowerCase().endsWith(".glb")
-          ? "model/gltf-binary"
-          : "model/gltf+json";
-        const file = new File([fileContents], fileName, { type: mimeType });
-        await loadFromFile(file);
-        // Persist the picked model so it auto-loads on the next launch.
-        try {
-          const meta = await saveModel(selectedFile);
-          setModelName(meta.fileName);
-        } catch (persistErr) {
-          console.warn(
-            "[vizij-standalone] Failed to persist model:",
-            persistErr,
-          );
-        }
+        const source = await initialGlb();
+        if (!cancelled) await show(source, loaded);
       } catch (err) {
-        console.error("[vizij-standalone] Error reading file:", err);
+        setStatus("no face");
         setError(err instanceof Error ? err.message : String(err));
       }
-    }
-  }, [loadFromFile]);
-
-  // Check for CLI source on mount
-  useEffect(() => {
-    if (hasCheckedCliSource.current) return;
-    hasCheckedCliSource.current = true;
-
-    const checkCliSource = async () => {
-      try {
-        const source = await invoke<string | null>("get_glb_source");
-        if (source) {
-          console.log("[vizij-standalone] Loading from CLI source:", source);
-          if (source.startsWith("http://") || source.startsWith("https://")) {
-            setModelName(source);
-            await loadFromUrl(source);
-          } else {
-            const fileName =
-              source.split("/").pop() ||
-              source.split("\\").pop() ||
-              "model.glb";
-            const fileContents = await readFile(source);
-            const mimeType = fileName.toLowerCase().endsWith(".glb")
-              ? "model/gltf-binary"
-              : "model/gltf+json";
-            const file = new File([fileContents], fileName, { type: mimeType });
-            setModelName(fileName);
-            await loadFromFile(file);
-          }
-        } else {
-          // No CLI source — fall back to a previously-saved model.
-          const savedFile = await loadSavedModel();
-          if (savedFile) {
-            const meta = await getSavedModelMeta();
-            setModelName(meta?.fileName ?? savedFile.name);
-            await loadFromFile(savedFile);
-          } else {
-            setLoading(false);
-          }
-        }
-      } catch (err) {
-        console.error("[vizij-standalone] Error checking CLI source:", err);
-        setLoading(false);
-      }
+    })();
+    return () => {
+      cancelled = true;
     };
+  }, [show]);
 
-    checkCliSource();
-  }, [loadFromFile, loadFromUrl]);
-
-  // Ensure the WebSocket server is running (the Rust setup starts it too; this
-  // is a fallback). Its address and live status are shown by <EndpointsPanel>,
-  // which polls the Rust side directly.
+  // The face follows its slot when the window resizes.
   useEffect(() => {
-    const startServer = async () => {
-      try {
-        const running = await invoke<boolean>("is_ws_running");
-        if (!running) {
-          console.log("[vizij-standalone] Starting WebSocket server...");
-          await invoke("start_ws_server");
-        }
-      } catch (err) {
-        console.error("[vizij-standalone] WebSocket server error:", err);
-      }
+    const onResize = () => {
+      const slot = slotRef.current;
+      if (slot) faceRef.current?.place(slot);
     };
-
-    startServer();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold">Vizij Standalone</h1>
-        <p className="text-neutral-400">Loading...</p>
-      </div>
-    );
-  }
+  const pick = async (file: File | undefined) => {
+    if (!file || !keys) return;
+    await show(await fileGlb(file), keys);
+  };
 
-  // Error state
-  if (error) {
-    return (
-      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold">Vizij Standalone</h1>
-        <p className="text-red-400">Error: {error}</p>
-        <button
-          onClick={() => {
-            setError(null);
-            handleOpenFile();
-          }}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
-        >
-          Try Another File
-        </button>
-      </div>
-    );
-  }
+  const toggleMic = async () => {
+    const conversation = conversationRef.current;
+    if (!conversation) return;
+    // The same gesture unlocks the page's audio.
+    await unlockAudio();
+    if (conversation.listening) conversation.mute();
+    else await conversation.listen();
+  };
 
-  // No model loaded - show file picker
-  if (!assetBundle) {
-    return (
-      <div className="h-screen w-full bg-neutral-800 text-neutral-100 flex flex-col items-center justify-center gap-4">
-        <h1 className="text-2xl font-bold">Vizij Standalone</h1>
-        <p className="text-neutral-400">No model loaded</p>
-        <button
-          onClick={handleOpenFile}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
-        >
-          Open GLB/GLTF File
-        </button>
-        <EndpointsPanel className="mt-8 max-w-md text-sm text-neutral-500" />
-        <p className="mt-4 text-xs text-neutral-600">
-          Tip: Use --glb &lt;path-or-url&gt; to load a model on startup
-        </p>
-      </div>
-    );
-  }
+  const sayTyped = async () => {
+    const conversation = conversationRef.current;
+    const text = typed.trim();
+    if (!conversation || !text) return;
+    setTyped("");
+    await unlockAudio();
+    await conversation.turn(text);
+  };
 
-  // Render with VizijRuntimeProvider
-  return (
-    <VizijRuntimeProvider
-      assetBundle={assetBundle}
-      namespace={NAMESPACE}
-      autostart={true}
-      driveRuntime={true}
-    >
-      <AppContent
-        bgColor={bgColor}
-        setBgColor={handleSetBgColor}
-        onBack={() => setAssetBundle(null)}
-        onSwitchModel={handleOpenFile}
-        modelName={modelName}
-      />
-    </VizijRuntimeProvider>
-  );
-}
-
-interface AppContentProps {
-  bgColor: string;
-  setBgColor: (color: string) => void;
-  onBack: () => void;
-  onSwitchModel: () => void | Promise<void>;
-  modelName: string | null;
-}
-
-function AppContent({
-  bgColor,
-  setBgColor,
-  onBack,
-  onSwitchModel,
-  modelName,
-}: AppContentProps) {
-  const runtime = useVizijRuntime();
-  const [controlsVisible, setControlsVisible] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Hook that syncs WebSocket updates using same pattern as useMouseGaze:
-  // setInput(`rig/${faceId}/${path}`, { float: value });
-  const { inputConstraints, namespace, faceId } = useWebSocketSync();
-
-  // Load CLI/env overrides for speech settings
-  const [autoMicOverride, setAutoMicOverride] = useState<boolean | undefined>(
-    undefined,
-  );
-  const [speechModeOverride, setSpeechModeOverride] = useState<
-    "echo" | "conversation" | undefined
-  >(undefined);
-  const [silenceMsOverride, setSilenceMsOverride] = useState<
-    number | undefined
-  >(undefined);
-  useEffect(() => {
-    invoke<Record<string, string>>("get_speech_keys")
-      .then((keys) => {
-        if (keys.autoMic !== undefined) {
-          setAutoMicOverride(keys.autoMic === "true");
-        }
-        if (keys.speechMode === "echo" || keys.speechMode === "conversation") {
-          setSpeechModeOverride(keys.speechMode);
-        }
-        if (keys.silenceMs !== undefined) {
-          setSilenceMsOverride(Number(keys.silenceMs));
-        }
-      })
-      .catch(() => {
-        // Tauri command not available
-      });
-  }, []);
-
-  // Extract speech config from the loaded bundle's metadata
-  const speechConfig = useMemo<VizijSpeechConfig | null>(() => {
-    const meta = runtime.assetBundle?.bundle?.metadata;
-    if (!meta || typeof meta !== "object") return null;
-    const sc = (meta as Record<string, unknown>).speechConfig;
-    if (!sc || typeof sc !== "object") return null;
-    return sc as VizijSpeechConfig;
-  }, [runtime.assetBundle?.bundle?.metadata]);
-
-  // Auto-play the motion graph that was active when the GLB was exported
-  const autoPlayTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (!runtime.ready || runtime.loading) return;
-    if (autoPlayTriggeredRef.current) return;
-    const meta = runtime.assetBundle?.bundle?.metadata as
-      | Record<string, unknown>
-      | undefined;
-    const activeId: string | undefined =
-      typeof meta?.activeMotionGraphId === "string"
-        ? meta.activeMotionGraphId
-        : Array.isArray(meta?.activeMotionGraphIds) &&
-            typeof (meta.activeMotionGraphIds as unknown[])[0] === "string"
-          ? ((meta.activeMotionGraphIds as unknown[])[0] as string)
-          : undefined;
-    if (!activeId) return;
-    const match = (runtime.assetBundle?.programs ?? []).find(
-      (p) => p.id === activeId,
-    );
-    if (!match) return;
-    try {
-      runtime.playProgram(activeId);
-      autoPlayTriggeredRef.current = true;
-    } catch {
-      // will retry on next render cycle
-    }
-  }, [
-    runtime.ready,
-    runtime.loading,
-    runtime.assetBundle,
-    runtime.playProgram,
-  ]);
-
-  // Extract pose data for viseme/emotion group resolution
-  const poses = useMemo(
-    () => runtime.assetBundle?.pose?.config?.poses ?? [],
-    [runtime.assetBundle?.pose?.config?.poses],
-  );
-
-  const poseGroups = useMemo(
-    () => runtime.assetBundle?.pose?.config?.poseGroups ?? [],
-    [runtime.assetBundle?.pose?.config?.poseGroups],
-  );
-  const bundledPrograms = useMemo(() => {
-    if (
-      Array.isArray(runtime.assetBundle?.programs) &&
-      runtime.assetBundle.programs.length > 0
-    ) {
-      return runtime.assetBundle.programs;
-    }
-    return (runtime.assetBundle?.bundle?.graphs ?? [])
-      .filter(
-        (entry) =>
-          entry &&
-          typeof entry.id === "string" &&
-          typeof entry.kind === "string" &&
-          entry.kind.toLowerCase() === "motiongraph",
-      )
-      .map((entry) => ({
-        id: entry.id,
-        label: typeof entry.label === "string" ? entry.label : entry.id,
-      }));
-  }, [runtime.assetBundle?.bundle?.graphs, runtime.assetBundle?.programs]);
-
-  const [transportCatalog, setTransportCatalog] =
-    useState<StandaloneTransportCatalog>({
-      animations: [],
-      programs: [],
-    });
-
-  useEffect(() => {
-    const updateCatalog = () => {
-      const animations = (runtime.assetBundle?.animations ?? []).map(
-        (entry) => {
-          const playback = runtime.getAnimationState(entry.id);
-          return {
-            id: entry.id,
-            label:
-              (typeof entry.clip?.name === "string" &&
-                entry.clip.name.trim()) ||
-              entry.id,
-            state: playback
-              ? playback.playing
-                ? "playing"
-                : "paused"
-              : "stopped",
-          } satisfies StandaloneTransportEntry;
-        },
-      );
-
-      const programs = bundledPrograms.map((entry) => {
-        const playback = runtime.getProgramState(entry.id);
-        return {
-          id: entry.id,
-          label:
-            (typeof entry.label === "string" && entry.label.trim()) || entry.id,
-          state: playback?.state ?? "stopped",
-        } satisfies StandaloneTransportEntry;
-      });
-
-      setTransportCatalog((previous) => {
-        const sameAnimations =
-          previous.animations.length === animations.length &&
-          previous.animations.every(
-            (entry, index) =>
-              entry.id === animations[index]?.id &&
-              entry.label === animations[index]?.label &&
-              entry.state === animations[index]?.state,
-          );
-        const samePrograms =
-          previous.programs.length === programs.length &&
-          previous.programs.every(
-            (entry, index) =>
-              entry.id === programs[index]?.id &&
-              entry.label === programs[index]?.label &&
-              entry.state === programs[index]?.state,
-          );
-        return sameAnimations && samePrograms
-          ? previous
-          : {
-              animations,
-              programs,
-            };
-      });
-    };
-
-    updateCatalog();
-    const intervalId = window.setInterval(updateCatalog, 200);
-    return () => window.clearInterval(intervalId);
-  }, [
-    runtime,
-    bundledPrograms,
-    runtime.assetBundle?.animations,
-    runtime.controllers,
-    runtime.ready,
-  ]);
-
-  useEffect(() => {
-    invoke("set_transport_catalog", { catalog: transportCatalog }).catch(() => {
-      // Tauri command not available
-    });
-  }, [transportCatalog]);
-
-  // Initialize speech controller (no-op when speechConfig is null)
-  const speech = useSpeechController({
-    speechConfig,
-    faceId: faceId || "face",
-    poses,
-    poseGroups,
-    setInput: runtime.setInput,
-    animateValue: runtime.animateValue,
-    ready: runtime.ready,
-    autoMicOverride,
-    speechModeOverride,
-    silenceMsOverride,
-  });
-
-  // Listen for mute-microphone events from WebSocket methods (via Tauri)
-  useEffect(() => {
-    const unlisten = listen<boolean>("mute-microphone", (event) => {
-      speech.setMicMuted(event.payload);
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [speech.setMicMuted]);
-
-  // Listen for speak events from WebSocket methods (via Tauri)
-  useEffect(() => {
-    const unlisten = listen<string>("speak", (event) => {
-      speech.speak(event.payload);
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [speech.speak]);
-
-  // Listen for interrupt events from WebSocket methods (via Tauri)
-  useEffect(() => {
-    const unlisten = listen("interrupt-speech", () => {
-      speech.interrupt();
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [speech.interrupt]);
-
-  useEffect(() => {
-    const unlisten = listen<string>("animation-play", (event) => {
-      void runtime.playAnimation(event.payload).catch((error) => {
-        console.error("[vizij-standalone] Failed to play animation:", error);
-      });
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [runtime]);
-
-  useEffect(() => {
-    const unlisten = listen<string>("animation-pause", (event) => {
-      runtime.pauseAnimation(event.payload);
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [runtime]);
-
-  useEffect(() => {
-    const unlisten = listen<StopAnimationEventPayload>(
-      "animation-stop",
-      (event) => {
-        runtime.stopAnimation(event.payload.id, {
-          clearOutputs: event.payload.clearOutputs,
-        });
-      },
-    );
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [runtime]);
-
-  useEffect(() => {
-    const unlisten = listen<string>("program-play", (event) => {
-      try {
-        runtime.playProgram(event.payload);
-      } catch (error) {
-        console.error("[vizij-standalone] Failed to play program:", error);
-      }
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [runtime]);
-
-  useEffect(() => {
-    const unlisten = listen<string>("program-pause", (event) => {
-      runtime.pauseProgram(event.payload);
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [runtime]);
-
-  useEffect(() => {
-    const unlisten = listen<StopProgramEventPayload>(
-      "program-stop",
-      (event) => {
-        runtime.stopProgram(event.payload.id, {
-          resetOutputs: event.payload.resetOutputs,
-        });
-      },
-    );
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, [runtime]);
-
-  // Sync mic state back to Rust AppState so get_mic_muted returns the correct value
-  useEffect(() => {
-    invoke("set_mic_muted_state", { muted: !speech.listening }).catch(() => {
-      // Tauri command not available
-    });
-  }, [speech.listening]);
-
-  const constraintCount = Object.keys(inputConstraints).length;
-  const transportCount =
-    transportCatalog.animations.length + transportCatalog.programs.length;
+  const express = (name: string) => faceRef.current?.express(name);
 
   return (
     <div
-      className="h-screen w-full relative"
-      style={{ backgroundColor: bgColor }}
-      onClick={() => setControlsVisible((v) => !v)}
+      className="relative h-full w-full bg-neutral-950 text-neutral-100"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        void pick(e.dataTransfer.files[0]);
+      }}
     >
-      <VizijRuntimeFace />
+      {/* The one canvas of the page; the face draws in its slot. */}
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      <div ref={slotRef} className="absolute inset-0" />
 
-      {/* Hidden audio element for TTS playback */}
-      <audio
-        ref={speech.audioRef}
-        style={{ display: "none" }}
-        onPlay={speech.handleAudioPlay}
-        onPause={speech.handleAudioPause}
-        onEnded={speech.handleAudioEnded}
-      />
-
-      {/* Tap-revealed controls (tap anywhere on the face to toggle) */}
-      {controlsVisible && (
-        <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onBack();
-            }}
-            className="absolute top-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
-          >
-            Back
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSettingsOpen(true);
-            }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-sm font-medium shadow-lg transition-colors"
-          >
-            Switch model
-          </button>
-        </>
-      )}
-
-      {/* Settings panel — dev only */}
-      {import.meta.env.DEV && (
-        <div className="absolute top-2 right-2 p-3 bg-black/50 rounded-lg text-white text-sm">
-          <div className="mb-2">
-            <label className="block text-xs text-neutral-400 mb-1">
-              Background
-            </label>
+      <header className="pointer-events-none absolute left-0 top-0 flex w-full items-center justify-between p-3 text-sm">
+        <div className="pointer-events-auto flex items-center gap-3">
+          <span className="font-semibold">{faceName ?? "Vizij"}</span>
+          <span className="text-neutral-400">{status}</span>
+          <label className="cursor-pointer rounded bg-neutral-800 px-2 py-1 hover:bg-neutral-700">
+            open a face…
             <input
-              type="color"
-              value={bgColor}
-              onChange={(e) => setBgColor(e.target.value)}
-              className="w-full h-8 rounded cursor-pointer"
+              type="file"
+              accept=".glb"
+              className="hidden"
+              onChange={(e) => void pick(e.target.files?.[0])}
             />
-          </div>
-          <div className="text-xs text-neutral-400">
-            <EndpointsPanel className="max-w-xs" />
-            <p className="mt-2">
-              Runtime:{" "}
-              <span
-                className={
-                  runtime.ready
-                    ? "text-green-400"
-                    : runtime.loading
-                      ? "text-yellow-400"
-                      : "text-red-400"
-                }
-              >
-                {runtime.ready
-                  ? "ready"
-                  : runtime.loading
-                    ? "loading"
-                    : "error"}
-              </span>
-            </p>
-            {runtime.errors.length > 0 && (
-              <details className="mt-1 text-red-400">
-                <summary className="cursor-pointer">
-                  {runtime.errors.length} error
-                  {runtime.errors.length > 1 ? "s" : ""}
-                </summary>
-                <ul className="ml-2 mt-1 text-[10px] text-red-300">
-                  {runtime.errors.map((err, i) => (
-                    <li key={i}>
-                      {err.phase && (
-                        <span className="text-red-500">[{err.phase}] </span>
-                      )}
-                      {err.message}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            {runtime.ready && (
-              <>
-                <p>Face ID: {faceId}</p>
-                <p>Constraints: {constraintCount}</p>
-                <p>Outputs: {runtime.outputPaths.length}</p>
-                <p>Transport: {transportCount}</p>
-                <p className="mt-1">FPS: {runtime.stepHz?.toFixed(0) ?? "-"}</p>
-                {speech.enabled && (
-                  <p className="mt-1">
-                    Speech:{" "}
-                    <span
-                      className={
-                        speech.status === "listening"
-                          ? "text-red-400"
-                          : speech.status === "thinking"
-                            ? "text-yellow-400"
-                            : speech.status === "speaking"
-                              ? "text-purple-400"
-                              : "text-neutral-400"
-                      }
-                    >
-                      {speech.status}
-                    </span>
-                    {!speech.keysConfigured && (
-                      <span className="text-yellow-400"> (keys missing)</span>
-                    )}
-                  </p>
-                )}
-                <p className="mt-1 text-[10px] text-neutral-500">
-                  Path: rig/{faceId}/&lt;path&gt;
-                </p>
-                {transportCatalog.animations.length > 0 && (
-                  <div className="mt-3 border-t border-white/10 pt-2">
-                    <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                      Animations
-                    </p>
-                    <div className="space-y-2">
-                      {transportCatalog.animations.map((entry) => (
-                        <div
-                          key={`anim-${entry.id}`}
-                          className="rounded bg-white/5 p-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-[11px] text-white">
-                              {entry.label}
-                            </span>
-                            <span
-                              className={
-                                entry.state === "playing"
-                                  ? "text-[10px] text-green-400"
-                                  : entry.state === "paused"
-                                    ? "text-[10px] text-yellow-400"
-                                    : "text-[10px] text-neutral-400"
-                              }
-                            >
-                              {entry.state}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex gap-1">
-                            <button
-                              onClick={() => {
-                                void runtime
-                                  .playAnimation(entry.id)
-                                  .catch((error) => {
-                                    console.error(
-                                      "[vizij-standalone] Failed to play animation:",
-                                      error,
-                                    );
-                                  });
-                              }}
-                              className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
-                            >
-                              Play
-                            </button>
-                            <button
-                              onClick={() => runtime.pauseAnimation(entry.id)}
-                              className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
-                            >
-                              Pause
-                            </button>
-                            <button
-                              onClick={() => runtime.stopAnimation(entry.id)}
-                              className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
-                            >
-                              Stop
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {transportCatalog.programs.length > 0 && (
-                  <div className="mt-3 border-t border-white/10 pt-2">
-                    <p className="mb-1 text-[10px] uppercase tracking-[0.12em] text-neutral-500">
-                      Programs
-                    </p>
-                    <div className="space-y-2">
-                      {transportCatalog.programs.map((entry) => (
-                        <div
-                          key={`program-${entry.id}`}
-                          className="rounded bg-white/5 p-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-[11px] text-white">
-                              {entry.label}
-                            </span>
-                            <span
-                              className={
-                                entry.state === "playing"
-                                  ? "text-[10px] text-green-400"
-                                  : entry.state === "paused"
-                                    ? "text-[10px] text-yellow-400"
-                                    : "text-[10px] text-neutral-400"
-                              }
-                            >
-                              {entry.state}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex gap-1">
-                            <button
-                              onClick={() => {
-                                try {
-                                  runtime.playProgram(entry.id);
-                                } catch (error) {
-                                  console.error(
-                                    "[vizij-standalone] Failed to play program:",
-                                    error,
-                                  );
-                                }
-                              }}
-                              className="rounded bg-green-600 px-2 py-1 text-[10px] text-white hover:bg-green-700"
-                            >
-                              Play
-                            </button>
-                            <button
-                              onClick={() => runtime.pauseProgram(entry.id)}
-                              className="rounded bg-yellow-600 px-2 py-1 text-[10px] text-white hover:bg-yellow-700"
-                            >
-                              Pause
-                            </button>
-                            <button
-                              onClick={() => runtime.stopProgram(entry.id)}
-                              className="rounded bg-red-600 px-2 py-1 text-[10px] text-white hover:bg-red-700"
-                            >
-                              Stop
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          </label>
         </div>
-      )}
-
-      {/* Mic toggle button (only when speech is configured in the bundle) */}
-      {speech.enabled && speech.keysConfigured && (
         <button
-          onClick={speech.toggleMic}
-          className={`absolute bottom-2 right-2 px-4 py-3 rounded-full text-white text-sm font-medium transition-colors ${
-            speech.listening
-              ? "bg-red-600 hover:bg-red-700"
-              : speech.status === "thinking"
-                ? "bg-yellow-600"
-                : speech.status === "speaking"
-                  ? "bg-purple-600"
-                  : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          title={`Speech: ${speech.status}${speech.error ? ` — ${speech.error}` : ""}`}
+          className="pointer-events-auto rounded bg-neutral-800 px-2 py-1 hover:bg-neutral-700"
+          onClick={() => setSettingsOpen((open) => !open)}
         >
-          {speech.listening
-            ? "Stop"
-            : speech.status === "thinking"
-              ? "Thinking..."
-              : speech.status === "speaking"
-                ? "Speaking..."
-                : "Mic"}
+          keys
         </button>
-      )}
+      </header>
 
-      {/* Debug button (dev only) */}
-      {import.meta.env.DEV && controlsVisible && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            console.log("[vizij-standalone] Runtime:", runtime);
-            console.log("[vizij-standalone] Namespace:", namespace);
-            console.log(
-              "[vizij-standalone] Constraint count:",
-              constraintCount,
-            );
-            console.log(
-              "[vizij-standalone] Sample constraints:",
-              Object.keys(inputConstraints).slice(0, 20),
-            );
-            console.log(
-              "[vizij-standalone] Output paths:",
-              runtime.outputPaths.slice(0, 20),
-            );
-            console.log("[vizij-standalone] Speech config:", speechConfig);
-            console.log("[vizij-standalone] Speech status:", speech.status);
-            console.log(
-              "[vizij-standalone] Bundle metadata:",
-              runtime.assetBundle?.bundle?.metadata ?? null,
-            );
-            const bundleGraphs = runtime.assetBundle?.bundle?.graphs ?? [];
-            console.log(
-              "[vizij-standalone] Bundle graphs (" + bundleGraphs.length + "):",
-              bundleGraphs.map((g) => g.kind + ":" + g.id).join(", "),
-            );
-            const programs = runtime.assetBundle?.programs ?? [];
-            console.log(
-              "[vizij-standalone] Programs (" + programs.length + "):",
-              programs.map((p) => p.id).join(", "),
-            );
-            const meta = runtime.assetBundle?.bundle?.metadata;
+      <footer className="pointer-events-none absolute bottom-0 left-0 flex w-full flex-col gap-2 p-3 text-sm">
+        {error && (
+          <div className="pointer-events-auto rounded bg-red-900/80 px-3 py-2">
+            {error}
+          </div>
+        )}
+        {transcript && (
+          <div
+            className={`px-3 ${transcript.final ? "text-neutral-100" : "text-neutral-400"}`}
+          >
+            {transcript.text}
+          </div>
+        )}
+        {replies.length > 0 && (
+          <div className="px-3 text-emerald-200">
+            {replies[replies.length - 1].text}
+          </div>
+        )}
+        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+          <button
+            className={`rounded px-3 py-1 ${
+              state === "listening" ? "bg-emerald-700" : "bg-neutral-800"
+            } hover:bg-neutral-700 disabled:opacity-40`}
+            disabled={!conversationRef.current?.canListen || status !== "ready"}
+            onClick={() => void toggleMic()}
+            title={
+              keys?.deepgram
+                ? "microphone"
+                : "a Deepgram key is needed to listen"
+            }
+          >
+            {state === "listening"
+              ? "listening…"
+              : state === "thinking"
+                ? "thinking…"
+                : "mic"}
+          </button>
+          <form
+            className="flex flex-1 gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sayTyped();
+            }}
+          >
+            <input
+              className="min-w-40 flex-1 rounded bg-neutral-800 px-3 py-1 outline-none"
+              placeholder={
+                keys?.openai ? "say something to the agent" : "text to say"
+              }
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              disabled={status !== "ready"}
+            />
+            <button
+              className="rounded bg-neutral-800 px-3 py-1 hover:bg-neutral-700"
+              type="submit"
+            >
+              {keys?.openai ? "ask" : "say"}
+            </button>
+          </form>
+          {state === "speaking" && (
+            <button
+              className="rounded bg-neutral-800 px-3 py-1 hover:bg-neutral-700"
+              onClick={() => void conversationRef.current?.interrupt()}
+            >
+              stop
+            </button>
+          )}
+        </div>
+        <div className="pointer-events-auto flex flex-wrap gap-1">
+          {EXPRESSIONS.map((name) => (
+            <button
+              key={name}
+              className="rounded bg-neutral-800/70 px-2 py-0.5 text-xs hover:bg-neutral-700"
+              onClick={() => express(name)}
+              disabled={status !== "ready"}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      </footer>
+
+      {settingsOpen && keys && (
+        <Settings
+          keys={keys}
+          onClose={() => setSettingsOpen(false)}
+          onSave={(next) => {
+            saveKeys(next);
+            setKeys(next);
+            setSettingsOpen(false);
           }}
-          className="absolute bottom-2 left-2 px-3 py-2 bg-black/50 hover:bg-black/70 text-white rounded-lg text-sm transition-colors"
-        >
-          Debug
-        </button>
-      )}
-
-      {/* Settings screen — opened from the "Switch model" control */}
-      {settingsOpen && (
-        <div
-          className="absolute inset-0 z-20 flex flex-col bg-neutral-900/95 text-neutral-100"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between border-b border-white/10 p-4">
-            <h2 className="text-lg font-semibold">Settings</h2>
-            <button
-              onClick={() => setSettingsOpen(false)}
-              className="rounded-lg bg-black/40 px-3 py-2 text-sm hover:bg-black/60"
-            >
-              Close
-            </button>
-          </div>
-          <div className="flex flex-col gap-6 overflow-auto p-6">
-            <div>
-              <p className="mb-1 text-xs uppercase tracking-wide text-neutral-400">
-                Current model
-              </p>
-              <p className="text-sm">{modelName ?? "Unknown"}</p>
-            </div>
-            <button
-              onClick={async () => {
-                await onSwitchModel();
-                setSettingsOpen(false);
-              }}
-              className="self-start rounded-lg bg-blue-600 px-6 py-3 font-medium transition-colors hover:bg-blue-700"
-            >
-              Open GLB/GLTF File
-            </button>
-            <div>
-              <label className="mb-2 block text-xs uppercase tracking-wide text-neutral-400">
-                Background
-              </label>
-              <input
-                type="color"
-                value={bgColor}
-                onChange={(e) => setBgColor(e.target.value)}
-                className="h-10 w-24 cursor-pointer rounded"
-              />
-            </div>
-          </div>
-        </div>
+        />
       )}
     </div>
   );
 }
 
-export default App;
+function Settings({
+  keys,
+  onSave,
+  onClose,
+}: {
+  keys: AgentKeys;
+  onSave: (keys: AgentKeys) => void;
+  onClose: () => void;
+}) {
+  const [deepgram, setDeepgram] = useState(keys.deepgram ?? "");
+  const [openai, setOpenai] = useState(keys.openai ?? "");
+  const [speechApiUrl, setSpeechApiUrl] = useState(keys.speechApiUrl ?? "");
+  const field = (
+    label: string,
+    value: string,
+    set: (v: string) => void,
+    placeholder: string,
+  ) => (
+    <label className="flex flex-col gap-1 text-xs text-neutral-300">
+      {label}
+      <input
+        className="rounded bg-neutral-800 px-2 py-1 text-sm text-neutral-100 outline-none"
+        type="password"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => set(e.target.value)}
+      />
+    </label>
+  );
+  return (
+    <div className="absolute right-3 top-12 flex w-80 flex-col gap-3 rounded bg-neutral-900 p-4 text-sm shadow-lg">
+      {field("Deepgram API key (the ear)", deepgram, setDeepgram, "dg_…")}
+      {field("OpenAI API key (the mind)", openai, setOpenai, "sk-…")}
+      {field(
+        "TTS deployment (the runtime's default when empty)",
+        speechApiUrl,
+        setSpeechApiUrl,
+        "https://…",
+      )}
+      <p className="text-xs text-neutral-500">
+        Kept in this browser only. A new face picks them up; the current one
+        keeps the ones it started with.
+      </p>
+      <div className="flex justify-end gap-2">
+        <button
+          className="rounded px-3 py-1 hover:bg-neutral-800"
+          onClick={onClose}
+        >
+          cancel
+        </button>
+        <button
+          className="rounded bg-emerald-700 px-3 py-1 hover:bg-emerald-600"
+          onClick={() =>
+            onSave({
+              ...keys,
+              deepgram: deepgram.trim() || null,
+              openai: openai.trim() || null,
+              speechApiUrl: speechApiUrl.trim() || null,
+            })
+          }
+        >
+          save
+        </button>
+      </div>
+    </div>
+  );
+}
