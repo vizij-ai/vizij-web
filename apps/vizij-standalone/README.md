@@ -13,7 +13,7 @@ binary ships installers.
 - Loads a face GLB — the page's `?glb=` URL, the shell's `--glb`, a file you
   open or drop, else the shipped `public/faces/Quori_Current_Extended.glb`
   (Quori with its standard viseme adaptation, so the lips follow speech) —
-  and shows it: `mount`, `loadFace`, `placeFaceIn`, `whenReady`, `run`.
+  and shows it: `mount`, `loadVizij`, `placeVizijIn`, `whenReady`, `run`.
 - Speaks: a `say` run on the runtime (`runtime.spawnSkill("say", { text })`),
   its audio played by the runtime's Web Audio player, its lips driven by the
   runtime's viseme players. `stop` halts the run; the audio cuts within
