@@ -1,0 +1,89 @@
+# Deploys vizij-authoring to the live Firebase Hosting channel on every push to
+# main.
+#
+# Before this existed, nothing deployed main: preview-authoring.yml only builds
+# throwaway `pr-N` channels, and ci.yml never talks to Firebase. The live site
+# therefore sat on a hand-deployed July build while ~185 commits landed on the
+# app, and nothing in CI said so.
+#
+# The config is the one the previews already use —
+# apps/vizij-authoring/{firebase.json,.firebaserc}: project `semio-vizij`, site
+# `vizij-workspace`, SPA rewrites, and the COOP/COEP headers the WASM runtime
+# requires. A preview and production differ only in which channel they land on.
+
+name: deploy (vizij-authoring)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/vizij-authoring/**"
+      # The same five workspace packages the preview watches. A fix in
+      # @vizij/render changes what the deployed app does, so filtering on the
+      # app folder alone would let real changes skip production.
+      - "packages/@vizij/render/**"
+      - "packages/@vizij/utils/**"
+      - "packages/@vizij/runtime-react/**"
+      - "packages/@vizij/node-graph-react/**"
+      - "packages/@vizij/node-graph-authoring/**"
+      # Also the only thing that moves an external dependency such as @semio/ui.
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-authoring.yml"
+  # For redeploying the current main without an empty commit — a reverted
+  # deploy, or the first run after the service-account secret is provisioned.
+  workflow_dispatch:
+
+concurrency:
+  # Never cancel a deploy already talking to Firebase; queue behind it instead,
+  # so the last push to finish is the one that is live.
+  group: deploy-authoring
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only the workspace packages. firebase.json carries
+      #   "predeploy": ["pnpm --filter vizij-authoring build"]
+      # and `firebase deploy` runs predeploy hooks, so building the app here too
+      # would just build it twice.
+      - run: pnpm run build:packages
+
+      # Deliberately a hard failure, unlike the preview's warn-and-skip. A
+      # production deploy that quietly does nothing is precisely how the live
+      # site went two months stale without anyone noticing; a red main is the
+      # signal that production is not being updated.
+      - name: Require the deploy credential
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ }}" ]; then
+            echo "::error::No FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ secret, so vizij-authoring cannot be deployed. Add a Firebase service-account JSON for project semio-vizij with the Hosting Admin role as a repository secret."
+            exit 1
+          fi
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ }}
+          projectId: semio-vizij
+          target: vizij-workspace
+          # `live` is the production channel, not a dated preview.
+          channelId: live
+          # firebase.json and .firebaserc live in the app, not at the repo root,
+          # and the action runs the CLI from this directory.
+          entryPoint: apps/vizij-authoring
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks

@@ -1,0 +1,72 @@
+# Keeps the "Version Packages" PR up to date.
+#
+# `changeset version` applies every pending .changeset/*.md: it bumps each
+# affected package, cascades patch bumps to workspace dependents, writes the
+# CHANGELOG.md entries, and deletes the changesets it consumed. Doing that by
+# hand was the documented flow, and in practice it stopped happening —
+# changesets sat unreleased on main, and `changeset version` was in fact broken
+# outright, so nobody could have run it even deliberately.
+#
+# This workflow versions only; it does not publish. Publishing stays in
+# publish-npm.yml, which decides per package against the npm registry and
+# authenticates over OIDC trusted publishing. Merging the Version Packages PR
+# bumps the versions, which is exactly the trigger publish-npm.yml already
+# watches for — so the two halves compose without ever sharing a token.
+#
+# Two repository settings this depends on:
+#   - Settings → Actions → General → "Allow GitHub Actions to create and approve
+#     pull requests" must be enabled, or the action cannot open the PR.
+#   - PRs opened by GITHUB_TOKEN do not trigger other workflows, so `ci` will not
+#     run on the Version Packages PR itself. It runs on the merge commit; the PR
+#     only ever contains version fields and changelog prose.
+
+name: release (version packages)
+
+on:
+  push:
+    branches: [main]
+  # For refreshing the PR after editing a changeset by hand.
+  workflow_dispatch:
+
+permissions:
+  contents: write # pushes the changeset-release/main branch
+  pull-requests: write # opens and updates the PR
+
+concurrency:
+  # Two runs racing would fight over the same branch. Queue rather than cancel,
+  # so the PR ends up reflecting the newest main.
+  group: release-version
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # changesets reads history to work out what is already released.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      # No `publish:` input, so the action stops after versioning: it opens (or
+      # updates) the PR and leaves npm to publish-npm.yml. `ci:version` runs
+      # `changeset version` and then the repo formatters, because generated
+      # CHANGELOG.md files are covered by `format:check` and an unformatted one
+      # would turn main red the moment the PR merged.
+      - uses: changesets/action@v1
+        with:
+          version: pnpm run ci:version
+          title: "chore(release): version packages"
+          commit: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

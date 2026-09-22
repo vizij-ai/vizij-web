@@ -44,7 +44,7 @@
     "version:packages": "changeset version",
     "verify:packages": "pnpm run build:packages && pnpm -r --filter \"@vizij/*\" run --if-present lint && pnpm -r --filter \"@vizij/*\" run --if-present test",
     "publish:packages": "pnpm exec changeset publish",
-    "ci:version": "pnpm run version:packages",
+    "ci:version": "pnpm run version:packages && pnpm run format",
     "ci:publish": "node ./scripts/ci-publish.mjs",
     "publish:unpublished": "node ./scripts/publish-unpublished.mjs",
     "release:ci": "pnpm run verify:packages && pnpm run ci:publish",

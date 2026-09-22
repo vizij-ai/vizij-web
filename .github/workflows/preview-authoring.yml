@@ -80,6 +80,11 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ }}
           projectId: semio-vizij
           target: vizij-workspace
+          # firebase.json and .firebaserc live in the app, not at the repo root,
+          # and the action runs the CLI from this directory. Without this the
+          # deploy fails with "Not in a Firebase app directory" — latent until
+          # now only because the missing service account skipped the step.
+          entryPoint: apps/vizij-authoring
           channelId: pr-${{ github.event.number }}
           # Long enough to outlive a slow review. Channels auto-delete, so this
           # is the whole cleanup story.
