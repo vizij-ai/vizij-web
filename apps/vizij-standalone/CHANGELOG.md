@@ -1,5 +1,14 @@
 # vizij-standalone
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [64bbc65]
+- Updated dependencies [556b721]
+  - @vizij/runtime-react@0.4.0
+  - @vizij/speech-react@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
