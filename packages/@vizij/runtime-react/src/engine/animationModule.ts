@@ -2,8 +2,9 @@
  * Bindings to `@vizij/animation-module` — vizij-animation-core packaged as an
  * Arora wasm module — as consumed by the runtime's Arora device.
  *
- * The module's declared ABI (ids from its `module.yaml` and type records,
- * version 0.2.0) is mirrored here as constants:
+ * The module's declared ABI (its Rust declaration, shipped as the package's
+ * header) is mirrored here as constants; `animationModuleHeader.test.ts`
+ * checks them against that header:
  * - setup — `load_animation` / `create_player` / `add_instance`;
  * - per tick — `step(dt_ns)` (fed the runtime's built-in `arora/dt`),
  *   returning `[TrackOutput]`: per-track identity plus the track's authored
@@ -28,7 +29,7 @@
  */
 import type { GraphSource } from "../utils/composeGraph";
 
-// --- declared function + parameter ids (module.yaml) -------------------------
+// --- declared function + parameter ids --------------------------------------
 export const ANIMATION_MODULE_FN = {
   loadAnimation: "76697a69-6a00-0000-0f00-000000000001",
   createPlayer: "76697a69-6a00-0000-0f00-000000000002",
@@ -67,7 +68,7 @@ export const ANIMATION_MODULE_PARAM = {
   removeInstance: "76697a69-6a00-0000-0f0c-000000000002",
 } as const;
 
-// --- declared structure ids (records/structure/*.yaml) -----------------------
+// --- declared structure and field ids (the module's type records) -----------
 export const ANIMATION_MODULE_TYPE = {
   clip: "76697a69-6a00-0000-0000-000000000100",
   track: "76697a69-6a00-0000-0000-000000000101",
