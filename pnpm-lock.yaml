@@ -916,8 +916,8 @@ importers:
   packages/@vizij/runtime-react:
     dependencies:
       '@vizij/animation-module':
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^1.0.0
+        version: 1.0.0
       '@vizij/node-graph-authoring':
         specifier: workspace:^
         version: link:../node-graph-authoring
@@ -3581,8 +3581,8 @@ packages:
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
 
-  '@vizij/animation-module@0.2.0':
-    resolution: {integrity: sha512-r2CQSteOTi9DyxMPckgO6cIHeIVxRHADdBezuk57kzYPruaHSLJY3QnaUACj9jG+ymBocZD95QDbyB6luz/Z3g==}
+  '@vizij/animation-module@1.0.0':
+    resolution: {integrity: sha512-+5LaPfDCvm/Jz+RIqwThJ7zQeY06lg+VUIGHoLsB+hZAxVdoIWsjnsKqxhbCquG5A9/Lh+CHVS1awtVU5LjS4Q==}
 
   '@vizij/animation@0.4.0':
     resolution: {integrity: sha512-0yOCMbq2bGxL2TiiiLhMw5wWJtQnU7a46bnQqEwaeUomGIvOitqGw6qhlJ1xqVNLO6wletrV3daIMpcYruso/Q==}
@@ -4252,6 +4252,7 @@ packages:
   eslint@9.39.1:
     resolution: {integrity: sha512-BhHmn2yNOFA9H9JmmIVKJmd288g9hrVRDkdoIgRCRuSySRUHH7r/DI6aAXW9T1WwUuY3DFgrcaqB+deURBLR5g==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -9077,7 +9078,7 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@vizij/animation-module@0.2.0': {}
+  '@vizij/animation-module@1.0.0': {}
 
   '@vizij/animation@0.4.0':
     dependencies:

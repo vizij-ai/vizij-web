@@ -38,7 +38,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint"
   },
   "dependencies": {
-    "@vizij/animation-module": "^0.2.0",
+    "@vizij/animation-module": "^1.0.0",
     "@vizij/node-graph-authoring": "workspace:^",
     "@vizij/render": "workspace:^",
     "@vizij/runtime": "^2.4.0",
