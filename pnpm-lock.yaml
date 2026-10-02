@@ -486,8 +486,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^2.4.0
-        version: 2.4.0
+        specifier: ^3.0.0
+        version: 3.0.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -3592,6 +3592,9 @@ packages:
 
   '@vizij/runtime@2.4.0':
     resolution: {integrity: sha512-+BA6bxpvjOvHueZyRgHo6Z8f+9fbK2xuVgPiwXaE+fZQVE02Qf8gKkpWWQpUrWXphVK5JlwRtbdOLigVz8RClw==}
+
+  '@vizij/runtime@3.0.0':
+    resolution: {integrity: sha512-JKOEquvxuOlUMb9Z5NucL+lD1jAOi6CSF6ahwI2hAtOy/k1cEv3puYs55/FvE1jzp17MIliZlB+qZZwmfxabjQ==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
@@ -9091,6 +9094,11 @@ snapshots:
       '@vizij/wasm-loader': 0.1.5
 
   '@vizij/runtime@2.4.0':
+    dependencies:
+      '@vizij/value-json': 0.2.0
+      '@vizij/wasm-loader': 0.1.5
+
+  '@vizij/runtime@3.0.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5

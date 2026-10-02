@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { composeFace, startRuntime } from "@vizij/runtime";
+import { composeVizij, startRuntime } from "@vizij/runtime";
 import { bootAuthoring, expectDownload, loadMainPreset } from "./helpers";
 import {
   closeMenus,
@@ -106,10 +106,10 @@ test("profile JSON round-trip: export, edit, replace, deploy @workflow", async (
     `rig/${faceId}/standard/vizij/expression/happy`,
   );
 
-  // Deploy the authored GLB on the wasm runtime: composeFace applies the
+  // Deploy the authored GLB on the wasm runtime: composeVizij applies the
   // embedded-overrides-built-in precedence, and the edited mapping drives
   // the face — the built-in would have one-hotted "sad" (happy ≈ 0).
-  const spec = (await composeFace(gltf, { program: "none" })) as object;
+  const spec = (await composeVizij(gltf, { program: "none" })) as object;
   const runtime = await startRuntime();
   await runtime.loadGraph(spec);
   runtime.setValue("standard/ros4hri/expression/name", { text: "sad" });
