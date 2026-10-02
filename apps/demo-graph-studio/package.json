@@ -22,7 +22,7 @@
     "@eslint/plugin-kit": "0.4.0",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph": "^0.7.0",
+    "@vizij/node-graph": "^0.9.0",
     "@vizij/value-json": "^0.2.0",
     "@vizij/utils": "workspace:*",
     "react": "^19.2.3",
