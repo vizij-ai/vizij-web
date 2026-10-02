@@ -622,60 +622,21 @@ importers:
 
   apps/vizij-standalone:
     dependencies:
-      '@react-three/drei':
-        specifier: ^10.7.7
-        version: 10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@types/react@19.2.9)(@types/three@0.170.0)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
-      '@react-three/fiber':
-        specifier: ^9.5.0
-        version: 9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
+      '@deepgram/sdk':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@tauri-apps/api':
         specifier: 2.10.1
         version: 2.10.1
-      '@tauri-apps/plugin-dialog':
-        specifier: 2.6.0
-        version: 2.6.0
-      '@tauri-apps/plugin-fs':
-        specifier: 2.4.5
-        version: 2.4.5
-      '@tauri-apps/plugin-log':
-        specifier: 2.8.0
-        version: 2.8.0
-      '@vizij/node-graph':
-        specifier: ^0.7.0
-        version: 0.7.0
-      '@vizij/node-graph-authoring':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/node-graph-authoring
-      '@vizij/node-graph-react':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/node-graph-react
-      '@vizij/render':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^2.4.0
-        version: 2.4.0
-      '@vizij/runtime-react':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/runtime-react
-      '@vizij/speech-react':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/speech-react
-      '@vizij/utils':
-        specifier: workspace:*
-        version: link:../../packages/@vizij/utils
-      '@vizij/value-json':
-        specifier: ^0.2.0
-        version: 0.2.0
+        specifier: ^3.0.0
+        version: 3.0.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
       react-dom:
         specifier: ^19.2.3
         version: 19.2.3(react@19.2.3)
-      three:
-        specifier: ^0.170.0
-        version: 0.170.0
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.1.3
@@ -689,9 +650,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.9)
-      '@types/three':
-        specifier: ^0.170.0
-        version: 0.170.0
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@6.4.3(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
@@ -713,6 +671,12 @@ importers:
       '@playwright/test':
         specifier: ^1.49.0
         version: 1.58.2
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
 
   packages/@vizij/animation-react:
     dependencies:
@@ -3224,15 +3188,6 @@ packages:
     engines: {node: '>= 10'}
     hasBin: true
 
-  '@tauri-apps/plugin-dialog@2.6.0':
-    resolution: {integrity: sha512-q4Uq3eY87TdcYzXACiYSPhmpBA76shgmQswGkSVio4C82Sz2W4iehe9TnKYwbq7weHiL88Yw19XZm7v28+Micg==}
-
-  '@tauri-apps/plugin-fs@2.4.5':
-    resolution: {integrity: sha512-dVxWWGE6VrOxC7/jlhyE+ON/Cc2REJlM35R3PJX3UvFw2XwYhLGQVAIyrehenDdKjotipjYEVc4YjOl3qq90fA==}
-
-  '@tauri-apps/plugin-log@2.8.0':
-    resolution: {integrity: sha512-a+7rOq3MJwpTOLLKbL8d0qGZ85hgHw5pNOWusA9o3cf7cEgtYHiGY/+O8fj8MvywQIGqFv0da2bYQDlrqLE7rw==}
-
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
@@ -3430,6 +3385,9 @@ packages:
   '@types/offscreencanvas@2019.7.3':
     resolution: {integrity: sha512-ieXiYmgSRXUDeOntE1InxjWyvEelZGP63M+cGuquuRLuIKKT1osnkXjxev9B7d1nXSug5vpunx+gNlbVxMlC9A==}
 
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
+
   '@types/prismjs@1.26.6':
     resolution: {integrity: sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw==}
 
@@ -3592,6 +3550,9 @@ packages:
 
   '@vizij/runtime@2.4.0':
     resolution: {integrity: sha512-+BA6bxpvjOvHueZyRgHo6Z8f+9fbK2xuVgPiwXaE+fZQVE02Qf8gKkpWWQpUrWXphVK5JlwRtbdOLigVz8RClw==}
+
+  '@vizij/runtime@3.0.0':
+    resolution: {integrity: sha512-JKOEquvxuOlUMb9Z5NucL+lD1jAOi6CSF6ahwI2hAtOy/k1cEv3puYs55/FvE1jzp17MIliZlB+qZZwmfxabjQ==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
@@ -5470,6 +5431,10 @@ packages:
     resolution: {integrity: sha512-vA30H8Nvkq/cPBnNw4Q8TWz1EJyqgpuinBcHET0YVJVFldr8JDNiU9LaWAE1KqSkRYazuaBhTpB5ZzShOezQ6A==}
     engines: {node: '>=18'}
     hasBin: true
+
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -8627,18 +8592,6 @@ snapshots:
       '@tauri-apps/cli-win32-ia32-msvc': 2.10.0
       '@tauri-apps/cli-win32-x64-msvc': 2.10.0
 
-  '@tauri-apps/plugin-dialog@2.6.0':
-    dependencies:
-      '@tauri-apps/api': 2.10.1
-
-  '@tauri-apps/plugin-fs@2.4.5':
-    dependencies:
-      '@tauri-apps/api': 2.10.1
-
-  '@tauri-apps/plugin-log@2.8.0':
-    dependencies:
-      '@tauri-apps/api': 2.10.1
-
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.27.1
@@ -8862,6 +8815,10 @@ snapshots:
       undici-types: 6.21.0
 
   '@types/offscreencanvas@2019.7.3': {}
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 22.19.1
 
   '@types/prismjs@1.26.6': {}
 
@@ -9091,6 +9048,11 @@ snapshots:
       '@vizij/wasm-loader': 0.1.5
 
   '@vizij/runtime@2.4.0':
+    dependencies:
+      '@vizij/value-json': 0.2.0
+      '@vizij/wasm-loader': 0.1.5
+
+  '@vizij/runtime@3.0.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
@@ -11210,6 +11172,8 @@ snapshots:
       playwright-core: 1.58.2
     optionalDependencies:
       fsevents: 2.3.2
+
+  pngjs@7.0.0: {}
 
   possible-typed-array-names@1.1.0: {}
 
