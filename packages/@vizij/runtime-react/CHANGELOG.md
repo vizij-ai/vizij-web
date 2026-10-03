@@ -1,5 +1,13 @@
 # @vizij/runtime-react
 
+## 0.4.1
+
+### Patch Changes
+
+- adf2502: Depend on `@vizij/animation-module` 1: its header is written from the module's Rust declaration. A test checks the animation module ids mirrored in `animationModule.ts` against that header.
+- Updated dependencies [8360291]
+  - @vizij/node-graph-authoring@0.2.2
+
 ## 0.4.0
 
 ### Minor Changes

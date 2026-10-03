@@ -1,5 +1,15 @@
 # vizij-standalone
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [adf2502]
+- Updated dependencies [8360291]
+  - @vizij/runtime-react@0.4.1
+  - @vizij/node-graph-react@0.2.2
+  - @vizij/node-graph-authoring@0.2.2
+
 ## 0.1.3
 
 ### Patch Changes
