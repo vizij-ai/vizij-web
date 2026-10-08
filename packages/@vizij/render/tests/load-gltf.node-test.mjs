@@ -68,14 +68,13 @@ test("loadGLTFWithBundle falls back to GLB JSON chunk when loader parser JSON is
 
   const asset = await loadGLTFWithBundle(
     "https://example.com/reference-face.glb",
-    ["default"],
   );
 
   assert.equal(fetchMock.mock.calls.length, 1);
   assert.equal(asset.bundle?.metadata?.source, "url-fallback");
 });
 
-test("loadGLTFFromBlobWithBundle recovers parser JSON from blob bytes when parser JSON is missing", async (t) => {
+test("loadGLTFFromBlobWithBundle parses the blob bytes and recovers parser JSON from them when the loader omits it", async (t) => {
   const parserJson = {
     asset: { version: "2.0" },
     extensions: {
@@ -83,32 +82,6 @@ test("loadGLTFFromBlobWithBundle recovers parser JSON from blob bytes when parse
     },
   };
   const buffer = createGlbBuffer(parserJson);
-
-  const originalCreateObjectURL = URL.createObjectURL;
-  const originalRevokeObjectURL = URL.revokeObjectURL;
-  Object.defineProperty(URL, "createObjectURL", {
-    value: undefined,
-    configurable: true,
-    writable: true,
-  });
-  Object.defineProperty(URL, "revokeObjectURL", {
-    value: undefined,
-    configurable: true,
-    writable: true,
-  });
-
-  t.after(() => {
-    Object.defineProperty(URL, "createObjectURL", {
-      value: originalCreateObjectURL,
-      configurable: true,
-      writable: true,
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      value: originalRevokeObjectURL,
-      configurable: true,
-      writable: true,
-    });
-  });
 
   t.mock.method(GLTFLoader.prototype, "parse", (input, _path, onLoad) => {
     assert.ok(input instanceof ArrayBuffer);
@@ -119,7 +92,7 @@ test("loadGLTFFromBlobWithBundle recovers parser JSON from blob bytes when parse
   });
 
   const blob = new Blob([buffer], { type: "model/gltf-binary" });
-  const asset = await loadGLTFFromBlobWithBundle(blob, ["default"]);
+  const asset = await loadGLTFFromBlobWithBundle(blob);
 
   assert.equal(asset.bundle?.metadata?.source, "blob-fallback");
 });

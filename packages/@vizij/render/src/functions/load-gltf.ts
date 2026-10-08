@@ -27,11 +27,8 @@ export class EmptyModelError extends Error {
 
 type ParserJsonFallbackSource = {
   url?: string;
-  blob?: Blob;
   arrayBuffer?: ArrayBuffer;
 };
-
-type LoadSourceKind = "url" | "blob";
 
 export function parseGlbJsonChunk(buffer: ArrayBuffer): unknown | undefined {
   if (buffer.byteLength < GLB_HEADER_BYTES + GLB_CHUNK_HEADER_BYTES) {
@@ -81,21 +78,6 @@ async function resolveParserJson(
     }
   }
 
-  if (fallback.blob) {
-    try {
-      const blobBuffer =
-        typeof fallback.blob.arrayBuffer === "function"
-          ? await fallback.blob.arrayBuffer()
-          : await new Response(fallback.blob).arrayBuffer();
-      const fromBlob = parseGlbJsonChunk(blobBuffer);
-      if (fromBlob && typeof fromBlob === "object") {
-        return fromBlob;
-      }
-    } catch {
-      // Best-effort fallback only.
-    }
-  }
-
   if (fallback.url && typeof fetch === "function") {
     try {
       const response = await fetch(fallback.url);
@@ -116,90 +98,30 @@ async function resolveParserJson(
 
 export async function loadGLTF(
   url: string,
-  namespaces: string[],
   aggressiveImport = false,
   rootBounds?: {
     center: RawVector2;
     size: RawVector2;
   },
 ): Promise<[World, Record<string, AnimatableValue>, VizijAnimationClipData[]]> {
-  const asset = await loadGLTFWithBundleInternal(
-    url,
-    namespaces,
-    aggressiveImport,
-    rootBounds,
-    "url",
-  );
+  const asset = await loadGLTFWithBundle(url, aggressiveImport, rootBounds);
   return [asset.world, asset.animatables, asset.animations];
 }
 
 export async function loadGLTFFromBlob(
   blob: Blob,
-  namespaces: string[],
   aggressiveImport = false,
   rootBounds?: {
     center: RawVector2;
     size: RawVector2;
   },
 ): Promise<[World, Record<string, AnimatableValue>, VizijAnimationClipData[]]> {
-  const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
-
-  if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      const asset = await loadGLTFWithBundleInternal(
-        objectUrl,
-        actualizedNamespaces,
-        aggressiveImport,
-        rootBounds,
-        "blob",
-        { blob },
-      );
-      return [asset.world, asset.animatables, asset.animations];
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  }
-
-  const arrayBuffer =
-    typeof blob.arrayBuffer === "function"
-      ? await blob.arrayBuffer()
-      : await new Response(blob).arrayBuffer();
-
-  return new Promise((resolve, reject) => {
-    const loader = createTrackedGLTFLoader();
-
-    loader.parse(
-      arrayBuffer,
-      "",
-      async (gltf: GLTF) => {
-        try {
-          const parserJson = await resolveParserJson(
-            (gltf as any)?.parser?.json,
-            { arrayBuffer },
-          );
-          const asset = parseScene(
-            gltf.scene,
-            actualizedNamespaces,
-            aggressiveImport,
-            rootBounds,
-            parserJson,
-            gltf.animations,
-          );
-          resolve([asset.world, asset.animatables, asset.animations]);
-        } catch (error) {
-          if (error instanceof Error) {
-            reject(error);
-          } else {
-            reject(new Error(String(error)));
-          }
-        }
-      },
-      (error: ErrorEvent) => {
-        reject(new Error(`Error loading GLTF: ${error.message}`));
-      },
-    );
-  });
+  const asset = await loadGLTFFromBlobWithBundle(
+    blob,
+    aggressiveImport,
+    rootBounds,
+  );
+  return [asset.world, asset.animatables, asset.animations];
 }
 
 export type LoadedVizijAsset = {
@@ -212,7 +134,6 @@ export type LoadedVizijAsset = {
 
 function parseScene(
   scene: Group,
-  namespaces: string[],
   aggressiveImport: boolean,
   rootBounds?:
     | {
@@ -225,22 +146,11 @@ function parseScene(
 ): LoadedVizijAsset {
   const [world, animatables] = traverseThree(
     scene,
-    namespaces,
     aggressiveImport,
     rootBounds,
   );
   const bundle = extractVizijBundle(scene, parserJson);
   const animations = extractVizijAnimations(parserJson, clips);
-  // if (bundle) {
-  //   console.info("[vizij-render] Bundle extracted during GLTF load.", {
-  //     graphs: bundle.graphs?.length ?? 0,
-  //     poseCount: bundle.poses?.config?.poses?.length ?? 0,
-  //     animations: bundle.animations?.length ?? 0,
-  //     version: bundle.version,
-  //   });
-  // } else {
-  //   console.info("[vizij-render] No bundle extracted during GLTF load.");
-  // }
   return { world, animatables, bundle, animations, scene };
 }
 
@@ -252,35 +162,24 @@ function createTrackedGLTFLoader() {
   return modelLoader;
 }
 
-async function loadGLTFWithBundleInternal(
+export async function loadGLTFWithBundle(
   url: string,
-  namespaces: string[],
   aggressiveImport = false,
   rootBounds?: {
     center: RawVector2;
     size: RawVector2;
   },
-  sourceKind: LoadSourceKind = "url",
   parserJsonFallback?: ParserJsonFallbackSource,
 ): Promise<LoadedVizijAsset> {
-  if (sourceKind === "url") {
-    recordRenderCounter("gltfUrlLoadCount");
-  } else {
-    recordRenderCounter("gltfBlobLoadCount");
-  }
-
+  recordRenderCounter("gltfUrlLoadCount");
   const modelLoader = createTrackedGLTFLoader();
   const modelData = await modelLoader.loadAsync(url);
   const parserJson = await resolveParserJson((modelData as any)?.parser?.json, {
     url,
     ...parserJsonFallback,
   });
-
-  const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
-
   return parseScene(
     modelData.scene,
-    actualizedNamespaces,
     aggressiveImport,
     rootBounds,
     parserJson,
@@ -288,90 +187,36 @@ async function loadGLTFWithBundleInternal(
   );
 }
 
-export async function loadGLTFWithBundle(
-  url: string,
-  namespaces: string[],
-  aggressiveImport = false,
-  rootBounds?: {
-    center: RawVector2;
-    size: RawVector2;
-  },
-  parserJsonFallback?: ParserJsonFallbackSource,
-): Promise<LoadedVizijAsset> {
-  return loadGLTFWithBundleInternal(
-    url,
-    namespaces,
-    aggressiveImport,
-    rootBounds,
-    "url",
-    parserJsonFallback,
-  );
-}
-
+/**
+ * Load a GLB or self-contained glTF from `blob`.
+ *
+ * The bytes are read into memory and parsed there; nothing is fetched, so this
+ * runs the same in a browser and in Node.
+ */
 export async function loadGLTFFromBlobWithBundle(
   blob: Blob,
-  namespaces: string[],
   aggressiveImport = false,
   rootBounds?: {
     center: RawVector2;
     size: RawVector2;
   },
 ): Promise<LoadedVizijAsset> {
-  const actualizedNamespaces = namespaces.length > 0 ? namespaces : ["default"];
-
-  if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      return await loadGLTFWithBundleInternal(
-        objectUrl,
-        actualizedNamespaces,
-        aggressiveImport,
-        rootBounds,
-        "blob",
-        { blob },
-      );
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  }
-
-  const arrayBuffer =
-    typeof blob.arrayBuffer === "function"
-      ? await blob.arrayBuffer()
-      : await new Response(blob).arrayBuffer();
-
-  return new Promise((resolve, reject) => {
-    const loader = createTrackedGLTFLoader();
-
-    loader.parse(
-      arrayBuffer,
-      "",
-      async (gltf: GLTF) => {
-        try {
-          const parserJson = await resolveParserJson(
-            (gltf as any)?.parser?.json,
-            { arrayBuffer },
-          );
-          const asset = parseScene(
-            gltf.scene,
-            actualizedNamespaces,
-            aggressiveImport,
-            rootBounds,
-            parserJson,
-            gltf.animations,
-          );
-          resolve(asset);
-        } catch (error) {
-          if (error instanceof Error) {
-            reject(error);
-          } else {
-            reject(new Error(String(error)));
-          }
-        }
-      },
-      (error: ErrorEvent) => {
-        reject(new Error(`Error loading GLTF: ${error.message}`));
-      },
-    );
+  recordRenderCounter("gltfBlobLoadCount");
+  const arrayBuffer = await blob.arrayBuffer();
+  const loader = createTrackedGLTFLoader();
+  const gltf = await new Promise<GLTF>((resolve, reject) => {
+    loader.parse(arrayBuffer, "", resolve, (error: ErrorEvent) => {
+      reject(new Error(`Error loading GLTF: ${error.message}`));
+    });
   });
+  const parserJson = await resolveParserJson((gltf as any)?.parser?.json, {
+    arrayBuffer,
+  });
+  return parseScene(
+    gltf.scene,
+    aggressiveImport,
+    rootBounds,
+    parserJson,
+    gltf.animations,
+  );
 }

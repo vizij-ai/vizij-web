@@ -854,9 +854,6 @@ importers:
       immer:
         specifier: ^10.0.3
         version: 10.2.0
-      lodash:
-        specifier: ^4.18.1
-        version: 4.18.1
       react-error-boundary:
         specifier: ^4.0.13
         version: 4.1.2(react@19.2.3)
@@ -879,9 +876,6 @@ importers:
       '@types/deep-equal':
         specifier: ^1.0.4
         version: 1.0.4
-      '@types/lodash':
-        specifier: ^4.17.4
-        version: 4.17.23
       '@types/react':
         specifier: ^19.2.7
         version: 19.2.9
@@ -3411,9 +3405,6 @@ packages:
 
   '@types/katex@0.16.8':
     resolution: {integrity: sha512-trgaNyfU+Xh2Tc+ABIb44a5AYUpicB3uwirOioeOkNPPbmgRNtcWyDeeFRzjPZENO9Vq8gvVqfhaaXWLlevVwg==}
-
-  '@types/lodash@4.17.23':
-    resolution: {integrity: sha512-RDvF6wTulMPjrNdCoYRC8gNR880JNGT8uB+REUpC2Ns4pRqQJhGz90wh7rgdXDPpCczF3VGktDuFGVnz8zP7HA==}
 
   '@types/mdx@2.0.14':
     resolution: {integrity: sha512-T48PeuJtvLosNTPVhfnIp3i/n3a4g4Bad7YCq5k64D4u7NwDrAotikQ+5+sjtUvBmxCMlbo3dVL+C2dP0rWHzg==}
@@ -8851,8 +8842,6 @@ snapshots:
   '@types/json5@0.0.29': {}
 
   '@types/katex@0.16.8': {}
-
-  '@types/lodash@4.17.23': {}
 
   '@types/mdx@2.0.14': {}
 

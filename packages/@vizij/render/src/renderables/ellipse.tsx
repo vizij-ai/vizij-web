@@ -49,7 +49,9 @@ function InnerRenderedEllipse({
   const ellipse = useVizijStore(
     useShallow((state) => state.world[id] as Ellipse),
   );
-  const refIsNull = !ellipse.refs[namespace]?.current;
+  const refIsNull = useVizijStore(
+    (state) => !state.refs[id]?.[namespace]?.current,
+  );
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
 

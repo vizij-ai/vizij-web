@@ -1,4 +1,3 @@
-import { omit } from "lodash";
 import type { AnimatableValue } from "@vizij/utils";
 import { type Stored } from "../types/stored";
 import { type RenderableBase } from "../types/renderable-base";
@@ -9,10 +8,12 @@ export function createStoredRenderable<T extends RenderableBase>(
   data: T,
   animatableValues: Record<string, AnimatableValue>,
 ): Stored<T> {
-  const d = omit(data, "refs", "geometry");
+  const { geometry: _geometry, ...stored } = data as T & {
+    geometry?: unknown;
+  };
   const storedFeatures = createStoredFeatures(
     data.features as Record<string, Feature>,
     animatableValues,
   );
-  return { ...d, features: storedFeatures };
+  return { ...stored, features: storedFeatures };
 }

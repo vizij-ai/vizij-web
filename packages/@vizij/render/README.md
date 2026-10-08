@@ -23,7 +23,7 @@ This package exposes the `Vizij` canvas component along with hooks, stores, and 
 
 - `Vizij` renders a fully managed `@react-three/fiber` canvas with sensible defaults for orthographic cameras and safe-area overlays.
 - A Zustand-powered store (`useVizijStore`) tracks renderables, controllers, and transient state. Hooks let you read or mutate slices without re-rendering entire scenes.
-- Utilities (`loadGLTF`, `loadGLTFBlob`, export helpers) streamline loading rigged GLTF assets and exporting scene snapshots. The tuple helpers now return `[world, animatables, animations]`, where `animations` contains parsed clip metadata for any channels embedded in the GLB.
+- The loader (`loadGLTF`, `loadGLTFFromBlob` and their `WithBundle` forms) turns a rigged GLB into the world model; `buildSceneGraph` and `exportScene` turn the world model back into GLB bytes. Both run in Node as well as in a browser. The tuple helpers return `[world, animatables, animations]`, where `animations` contains parsed clip metadata for any channels embedded in the GLB.
 - Controllers wrap common behaviours (e.g., pointer interaction, safe-area visualisation) so you can compose features quickly.
 
 ---
@@ -96,8 +96,8 @@ The store tracks world graph entries, controllers, debug overlays, and renderabl
 ## Controllers & Helpers
 
 - Controllers under `src/controllers` encapsulate input handling, camera logic, and other behaviours. Compose them with your own React components.
-- `loadGLTF` / `loadGLTFBlob` simplify loading rig assets and extract animatable metadata used by `@vizij/runtime-react`.
-- `export` helpers produce snapshots of the current scene (useful for tooling or exporting frames).
+- `loadGLTF` / `loadGLTFFromBlob` load rig assets and extract the animatable metadata used by `@vizij/runtime-react`. A blob is parsed in memory, with nothing fetched.
+- `buildSceneGraph(world, animatables, rootId)` builds the three.js graph of a world element with no renderer, and `exportScene(root, { bundle, animations })` encodes a graph as GLB bytes. Saving or uploading the bytes is the caller's job.
 
 All exports are re-exported through `src/index.tsx`, so a simple `import { loadGLTF } from "@vizij/render"` works.
 
@@ -107,7 +107,8 @@ Vizij scenes persist authoring metadata inside GLBs so third-party tools see bak
 
 - Every renderable still carries a `RobotData` extension in `userData` describing features and animatable bindings.
 - The exporter now writes a root-level `extensions.VIZIJ_bundle` block following the schema in [`src/types/vizij-bundle.ts`](./src/types/vizij-bundle.ts). It contains rig graphs, pose configs, stored Vizij clips, and provenance hashes.
-- Use `exportScene(group, { bundle, animations })` to embed both the Vizij bundle and optional baked `THREE.AnimationClip` instances. The helper attaches the bundle only for the export call and restores the original object.
+- Use `exportScene(root, { bundle, animations })` to embed both the Vizij bundle and optional baked `THREE.AnimationClip` instances; it resolves to the GLB as an `ArrayBuffer`. The helper attaches the bundle only for the export call and restores the original object.
+- A graph from `buildSceneGraph` carries each element's authored values: node translation, rotation and scale, morph weights and material factors equal the `RobotData` defaults written beside them, not a runtime pose.
 - When loading assets, prefer `loadGLTFWithBundle` / `loadGLTFFromBlobWithBundle` to retrieve `{ world, animatables, bundle, animations }`. The legacy tuple helpers return `[world, animatables, animations]` if you only need the renderer state.
 - The new `animations` field exposes `VizijAnimationClipData[]`, which maps each glTF animation channel back to Vizij animatable ids (`RobotData.features.*.value.id`). Each track provides component-aware `times`/`values` arrays so runtimes can register clips without re-parsing the GLB.
 - `extractVizijBundle(scene)` and `applyVizijBundle(scene, bundle)` (under `src/functions/vizij-bundle.ts`) let advanced tooling inspect or mutate bundles without triggering a fresh export.

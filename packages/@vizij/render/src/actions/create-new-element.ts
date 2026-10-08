@@ -1,7 +1,3 @@
-import { createRef } from "react";
-import type { RefObject } from "react";
-import { mapValues } from "lodash";
-import type { Group as ThreeGroup } from "three";
 import { createDefaultGroup } from "../functions/create-world-element";
 import type { World } from "../types/world";
 import type { VizijData } from "../store-types";
@@ -22,14 +18,9 @@ export function createNewElement(
 
     if (Object.entries(state.world as World).length === 0) {
       const name = `New-Root`;
-      const refs = { default: createRef<ThreeGroup>() } as Record<
-        string,
-        RefObject<ThreeGroup>
-      >;
       const newElement: RenderGroup = createDefaultGroup({
         name,
         root: true,
-        refs,
       });
       state.world[newElement.id] = newElement;
       state.elementSelection = [buildSelection(newElement.id)];
@@ -41,10 +32,7 @@ export function createNewElement(
         return;
       }
       const name = `New-Body`;
-      const refs = mapValues(worldRootEntry.refs, () =>
-        createRef<ThreeGroup>(),
-      ) as Record<string, RefObject<ThreeGroup>>;
-      const newChild: RenderGroup = createDefaultGroup({ name, root, refs });
+      const newChild: RenderGroup = createDefaultGroup({ name, root });
       worldRootEntry.children.push(newChild.id);
       state.world[newChild.id] = newChild;
       state.elementSelection = [buildSelection(newChild.id)];
