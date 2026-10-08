@@ -12,7 +12,6 @@ function createWorld(): World {
       id: "group1",
       name: "Root",
       type: "group",
-      refs: {},
       tags: [],
       root: true,
       children: ["shape1"],
@@ -24,7 +23,6 @@ function createWorld(): World {
       id: "shape1",
       name: "Face",
       type: "shape",
-      refs: {},
       tags: [],
       features: {
         translation: { animated: true, value: "shape-translation" },

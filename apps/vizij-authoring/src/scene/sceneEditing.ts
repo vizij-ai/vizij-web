@@ -1,6 +1,4 @@
 // @ts-nocheck
-import { createRef } from "react";
-import type { RefObject } from "react";
 import { Euler, Matrix4, Quaternion, Vector3 } from "three";
 import type { BindingMap } from "@vizij/node-graph-authoring";
 import type {
@@ -87,7 +85,6 @@ type RenderableWithChildren = (Shape | Group | { children?: string[] }) & {
   id: string;
   name?: string;
   type?: string;
-  refs?: Record<string, RefObject<any>>;
   features?: Record<string, Feature | undefined>;
   children?: string[];
   root?: boolean;
@@ -406,15 +403,6 @@ function buildAnimatableUsage(world: World): Map<string, number> {
     });
   });
   return usage;
-}
-
-function cloneRefs<T>(
-  refs: Record<string, RefObject<T>>,
-): Record<string, RefObject<T>> {
-  return Object.keys(refs ?? {}).reduce(
-    (acc, ns) => ({ ...acc, [ns]: createRef<T>() }),
-    {} as Record<string, RefObject<T>>,
-  );
 }
 
 function renameText(
@@ -843,7 +831,6 @@ export function duplicateSceneNode(
       ...original,
       id: newId,
       name: newName,
-      refs: cloneRefs((original.refs ?? {}) as Record<string, RefObject<any>>),
       features: clonedFeatures,
       root: original.type === "group" ? false : (original as any).root,
     } as RenderableWithChildren;

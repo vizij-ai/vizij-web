@@ -33,7 +33,9 @@ function InnerRenderedGroup({
 }: RenderedGroupProps): ReactNode {
   const ref = useRef<THREE.Group>(null) as RefObject<THREE.Group>;
   const group = useVizijStore(useShallow((state) => state.world[id] as Group));
-  const refIsNull = !group.refs[namespace]?.current;
+  const refIsNull = useVizijStore(
+    (state) => !state.refs[id]?.[namespace]?.current,
+  );
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
   const setHoveredElement = useVizijStore(

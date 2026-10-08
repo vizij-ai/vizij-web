@@ -1,5 +1,3 @@
-import type { RefObject } from "react";
-import type { Mesh } from "three";
 import type { Feature } from "./feature";
 import type { Stored } from "./stored";
 import type { RenderableBase } from "./renderable-base";
@@ -11,13 +9,11 @@ import type { RenderableBase } from "./renderable-base";
  * @param name - The name of the ellipse
  * @param tags - The tags of the ellipse
  * @param type - Type flag
- * @param refs - The reference to the group[s] in the scene, for each namespace
  * @param features - The features of the ellipse (translation, rotation, and scale)
  * @param children - The children of the ellipse (list of ids for other bodies or shapes)
  */
 export interface Ellipse extends RenderableBase {
   type: "ellipse";
-  refs: Record<string, RefObject<Mesh>>;
 
   features: {
     height: Feature; // AnimatedNumber;

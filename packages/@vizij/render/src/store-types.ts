@@ -8,6 +8,11 @@ import type { World, Selection, RenderableFeature } from "./types";
 
 export interface VizijData {
   world: World;
+  /**
+   * The mounted three.js object of each world element, by element id and then
+   * namespace. It lives beside `world` so that the world stays plain data.
+   */
+  refs: Record<string, Record<string, RefObject<Group | Mesh | null>>>;
   animatables: Record<string, AnimatableValue>;
   values: Map<string, RawValue | undefined>;
   // Remove after control refactor
@@ -81,7 +86,7 @@ export interface VizijActions {
   setReference: (
     id: string,
     namespace: string,
-    object: RefObject<Group | Mesh>,
+    object: RefObject<Group | Mesh | null>,
   ) => void;
   createGroup: (root: boolean) => void;
   createAnimatable: (

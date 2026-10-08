@@ -9,7 +9,6 @@ describe("buildFeatureEntries", () => {
       name: "Face",
       type: "shape",
       tags: [],
-      refs: {},
       features: {
         translation: { animated: true, value: "anim-translation" },
         smile: { animated: true, value: "anim-smile" },

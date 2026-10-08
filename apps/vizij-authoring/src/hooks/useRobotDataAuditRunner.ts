@@ -3,6 +3,7 @@ import type { World } from "@vizij/render";
 import type { AnimatableValue } from "@vizij/utils";
 import {
   createRobotDataAuditTask,
+  type MountedRefs,
   type RobotDataAuditResult,
 } from "../utils/robotDataAudit";
 
@@ -11,6 +12,7 @@ type RobotDataAuditStatus = "idle" | "running" | "succeeded" | "error";
 interface UseRobotDataAuditRunnerOptions {
   namespace: string;
   world: World;
+  refs: MountedRefs;
   animatables: Record<string, AnimatableValue>;
   enabled: boolean;
 }
@@ -45,6 +47,7 @@ const STEP_BATCH_SIZE = 8;
 export function useRobotDataAuditRunner({
   namespace,
   world,
+  refs,
   animatables,
   enabled,
 }: UseRobotDataAuditRunnerOptions): RobotDataAuditRunnerControls {
@@ -145,7 +148,7 @@ export function useRobotDataAuditRunner({
       return;
     }
     cancelAudit();
-    const task = createRobotDataAuditTask(world, animatables, {
+    const task = createRobotDataAuditTask(world, refs, animatables, {
       namespace,
     });
     const sceneSnapshot = { world, animatables };
@@ -211,6 +214,7 @@ export function useRobotDataAuditRunner({
     enabled,
     finishWithResult,
     namespace,
+    refs,
     scheduleStep,
     world,
   ]);

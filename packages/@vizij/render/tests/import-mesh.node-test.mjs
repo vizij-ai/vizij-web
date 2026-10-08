@@ -12,7 +12,6 @@ import { importMesh } from "../src/functions/gltf-loading/import-mesh.ts";
 function importSingleMesh(mesh, colorLookup = {}) {
   const [world, animatables, shapeId, newColorLookup] = importMesh(
     mesh,
-    ["default"],
     colorLookup,
   );
   return { shape: world[shapeId], animatables, newColorLookup };

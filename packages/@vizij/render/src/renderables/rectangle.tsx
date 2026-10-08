@@ -49,7 +49,9 @@ function InnerRenderedRectangle({
   const rectangle = useVizijStore(
     useShallow((state) => state.world[id] as Rectangle),
   );
-  const refIsNull = !rectangle.refs[namespace]?.current;
+  const refIsNull = useVizijStore(
+    (state) => !state.refs[id]?.[namespace]?.current,
+  );
 
   const animatables = useVizijStore(useShallow((state) => state.animatables));
 

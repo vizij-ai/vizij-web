@@ -41,7 +41,6 @@ import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
 } from "../../poseRig/utils";
-import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
 import {
   RuntimeFaceControlsOverlay,
   type RuntimeFaceOverlayAction,
@@ -273,7 +272,7 @@ function FaceBoundsRuntimeBridge() {
       measureFaceGeometryBounds: rootId
         ? () => {
             const state = getVizijState();
-            const refs = Object.values(state.world[rootId]?.refs ?? {});
+            const refs = Object.values(state.refs[rootId] ?? {});
             const target = refs.find((ref) => ref?.current)?.current ?? null;
             return target
               ? deriveRootBounds(
@@ -336,34 +335,22 @@ function RuntimeExportBodyBridge({
   onRuntimeExportBodiesChange,
 }: RuntimeExportBodyBridgeProps) {
   const { rootId: runtimeRootId } = useVizijRuntime();
+  // Bodies resolve from the world's groups and their mounted objects, so they
+  // are recomputed whenever either changes.
   const world = useVizijStore((state) => state.world);
+  const refs = useVizijStore((state) => state.refs);
   const getExportableBodies = useVizijStore(
     (state) => state.getExportableBodies,
   );
-  const rootFilteredFromStore = useMemo(
-    () => getExportableBodies(targetRootId ? [targetRootId] : undefined),
-    [getExportableBodies, targetRootId, world],
-  );
-  const anyFromStore = useMemo(
-    () => getExportableBodies(),
-    [getExportableBodies, world],
-  );
   const rootFilteredBodies = useMemo(
-    () =>
-      rootFilteredFromStore.length > 0
-        ? rootFilteredFromStore
-        : resolveExportBodiesFromWorld(
-            world as Record<string, unknown>,
-            targetRootId ? [targetRootId] : undefined,
-          ),
-    [rootFilteredFromStore, targetRootId, world],
+    () => getExportableBodies(targetRootId ? [targetRootId] : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- world and refs are what the getter reads.
+    [getExportableBodies, targetRootId, world, refs],
   );
   const anyBodies = useMemo(
-    () =>
-      anyFromStore.length > 0
-        ? anyFromStore
-        : resolveExportBodiesFromWorld(world as Record<string, unknown>),
-    [anyFromStore, world],
+    () => getExportableBodies(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- world and refs are what the getter reads.
+    [getExportableBodies, world, refs],
   );
 
   useEffect(() => {

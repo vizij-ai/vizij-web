@@ -29,7 +29,8 @@ import {
   getLookup,
   cloneRawValue,
 } from "@vizij/utils";
-import { downloadGlbBuffer, patchVizijBundleMetadata } from "@vizij/render";
+import { patchVizijBundleMetadata } from "@vizij/render";
+import { downloadBlob } from "../utils/download";
 import { readGltfAnimationDocument } from "../animationImport/gltfAnimationDocument";
 import { gltfAnimationFingerprint } from "../animationImport/bakedAnimationProvenance";
 import {
@@ -1237,61 +1238,44 @@ export function useVizijExport(
       // second time to learn them froze the UI thread for seconds on real
       // assets. Instead the finished GLB is read back and its JSON chunk
       // patched, which is bytes of work rather than a full re-serialization.
-      const finishExport = (glb: ArrayBuffer) => {
-        let finalGlb = glb;
-        if (bundle && bakedClipOrder.length > 0) {
-          try {
-            const written = readGltfAnimationDocument(glb);
-            const fingerprintByIndex = new Map(
-              written.animations.map((animation) => [
-                animation.index,
-                gltfAnimationFingerprint(animation),
-              ]),
-            );
-            finalGlb = patchVizijBundleMetadata(glb, {
-              bakedAnimations: bakedClipOrder.map((entry, index) => ({
-                animationIndex: index,
-                animationName: entry.clipName,
-                clipId: entry.clipId,
-                ...(fingerprintByIndex.has(index)
-                  ? { fingerprint: fingerprintByIndex.get(index) }
-                  : {}),
-              })),
-            });
-          } catch (error) {
-            // Losing the fingerprints costs the edited-vs-identical
-            // distinction on re-import, not the export: the records already
-            // written still stop the duplicate-import bug.
-            logVizijExportDebug("export-glb:bake-fingerprint-failed", {
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+      const glb = await exportScene(exportableBodies[0], {
+        bundle,
+        animations: bakedAnimations as never,
+      });
+      let finalGlb = glb;
+      if (bundle && bakedClipOrder.length > 0) {
+        try {
+          const written = readGltfAnimationDocument(glb);
+          const fingerprintByIndex = new Map(
+            written.animations.map((animation) => [
+              animation.index,
+              gltfAnimationFingerprint(animation),
+            ]),
+          );
+          finalGlb = patchVizijBundleMetadata(glb, {
+            bakedAnimations: bakedClipOrder.map((entry, index) => ({
+              animationIndex: index,
+              animationName: entry.clipName,
+              clipId: entry.clipId,
+              ...(fingerprintByIndex.has(index)
+                ? { fingerprint: fingerprintByIndex.get(index) }
+                : {}),
+            })),
+          });
+        } catch (error) {
+          // Losing the fingerprints costs the edited-vs-identical
+          // distinction on re-import, not the export: the records already
+          // written still stop the duplicate-import bug.
+          logVizijExportDebug("export-glb:bake-fingerprint-failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-        downloadGlbBuffer(finalGlb, downloadName);
-        onExportGlbComplete?.();
-      };
-
-      exportScene(
-        exportableBodies[0],
-        bundle
-          ? {
-              fileName: downloadName,
-              bundle,
-              animations: bakedAnimations as never,
-              onBinary: finishExport,
-              onError: (error: Error) => {
-                void alertDialog(`GLB export failed: ${error.message}`);
-              },
-            }
-          : {
-              fileName: downloadName,
-              animations: bakedAnimations as never,
-              onBinary: finishExport,
-              onError: (error: Error) => {
-                void alertDialog(`GLB export failed: ${error.message}`);
-              },
-            },
+      }
+      downloadBlob(
+        new Blob([finalGlb], { type: "application/octet-stream" }),
+        downloadName,
       );
+      onExportGlbComplete?.();
     } catch (error) {
       logVizijExportDebug("export-glb:unhandled-error", {
         error: error instanceof Error ? error.message : String(error),

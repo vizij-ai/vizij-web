@@ -8,7 +8,6 @@ import type {
 } from "@vizij/utils";
 import { createBrowserSafeId } from "@vizij/utils";
 import type { World, Group as VizijGroup } from "../../types";
-import { namespaceArrayToRefs } from "../util";
 import { importMesh } from "./import-mesh";
 import type { MaterialAnimatableIds } from "./import-mesh";
 
@@ -16,7 +15,6 @@ Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export function importGroup(
   group: Group,
-  namespaces: string[],
   colorLookup: Record<string, MaterialAnimatableIds>,
   rootBounds?: {
     center: RawVector2;
@@ -80,7 +78,7 @@ export function importGroup(
   group.children.forEach((child) => {
     if ((child as Mesh).isMesh) {
       const [newWorldItems, newAnimatables, childId, newMeshColors] =
-        importMesh(child as Mesh, namespaces, {
+        importMesh(child as Mesh, {
           ...colorLookup,
           ...newColorLookup,
         });
@@ -90,7 +88,7 @@ export function importGroup(
       children.push(childId);
     } else if (shouldImportAsGroupChild(child)) {
       const [newWorldItems, newAnimatables, childId, newMeshColors] =
-        importGroup(child as Group, namespaces, {
+        importGroup(child as Group, {
           ...colorLookup,
           ...newColorLookup,
         });
@@ -114,7 +112,6 @@ export function importGroup(
     root: Boolean(rootBounds),
     rootBounds,
     children,
-    refs: namespaceArrayToRefs<Group>(namespaces),
   };
   world = { ...world, [newGroup.id]: newGroup };
 

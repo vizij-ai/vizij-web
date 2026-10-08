@@ -18,7 +18,6 @@ import type {
 import { createBrowserSafeId } from "@vizij/utils";
 import type { World, Shape } from "../../types";
 import { ShapeMaterial } from "../../types";
-import { namespaceArrayToRefs } from "../util";
 import { importGeometry } from "./import-geometry";
 import { importGroup } from "./import-group";
 
@@ -42,7 +41,6 @@ export interface MaterialAnimatableIds {
 
 export function importMesh(
   mesh: Mesh,
-  namespaces: string[],
   colorLookup: Record<string, MaterialAnimatableIds>,
 ): [
   World,
@@ -241,7 +239,7 @@ export function importMesh(
   mesh.children.forEach((child) => {
     if ((child as Mesh).isMesh) {
       const [newWorldItems, newAnimatables, childId, newMeshColors] =
-        importMesh(child as Mesh, namespaces, {
+        importMesh(child as Mesh, {
           ...colorLookup,
           ...newColorLookup,
         });
@@ -251,7 +249,7 @@ export function importMesh(
       children.push(childId);
     } else if (shouldImportAsGroupChild(child)) {
       const [newWorldItems, newAnimatables, childId, newMeshColors] =
-        importGroup(child as Group, namespaces, {
+        importGroup(child as Group, {
           ...colorLookup,
           ...newColorLookup,
         });
@@ -302,7 +300,6 @@ export function importMesh(
       ...geometryFeatures,
     },
     children: children.length > 0 ? children : undefined,
-    refs: namespaceArrayToRefs(namespaces),
   };
   world = { ...world, [newShape.id]: newShape };
 

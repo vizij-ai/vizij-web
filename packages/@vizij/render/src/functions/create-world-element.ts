@@ -1,5 +1,3 @@
-import type { RefObject } from "react";
-import type { Group as ThreeGroup } from "three";
 import { createBrowserSafeId } from "@vizij/utils";
 import type { Feature } from "../types/feature";
 import type { Group } from "../types/group";
@@ -20,7 +18,6 @@ export function createDefaultGroup(partialBody: Partial<Group>): Group {
     name: partialBody.name || "new-body",
     type: partialBody.type || "group",
     tags: partialBody.tags || [],
-    refs: partialBody.refs || ({} as Record<string, RefObject<ThreeGroup>>),
     features: { translation, rotation, scale },
     root: partialBody.root ?? false,
     children: partialBody.children || [],

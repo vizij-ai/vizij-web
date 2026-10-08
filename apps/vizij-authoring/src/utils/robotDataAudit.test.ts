@@ -1,11 +1,15 @@
-import type { RefObject } from "react";
 import { describe, expect, it } from "vitest";
 import type { World } from "@vizij/render";
 import type { AnimatableValue } from "@vizij/utils";
-import { auditRobotData, createRobotDataAuditTask } from "./robotDataAudit";
+import {
+  auditRobotData,
+  createRobotDataAuditTask,
+  type MountedRefs,
+} from "./robotDataAudit";
 
 function buildWorld(): {
   world: World;
+  refs: MountedRefs;
   animatables: Record<string, AnimatableValue>;
 } {
   const animatables: Record<string, AnimatableValue> = {
@@ -25,15 +29,6 @@ function buildWorld(): {
       name: "Node A",
       tags: [],
       type: "group",
-      refs: {
-        default: {
-          current: createSceneObject({
-            name: "Node A",
-            hasRobotData: true,
-            position: { x: 0, y: 0, z: 0 },
-          }),
-        } as RefObject<any>,
-      },
       root: true,
       features: {
         translation: { animated: false, value: { x: 0, y: 0, z: 0 } },
@@ -47,15 +42,6 @@ function buildWorld(): {
       name: "Node B",
       tags: [],
       type: "group",
-      refs: {
-        default: {
-          current: createSceneObject({
-            name: "Node B",
-            hasRobotData: false,
-            position: { x: 1, y: 0, z: 0 },
-          }),
-        } as RefObject<any>,
-      },
       root: false,
       features: {
         translation: { animated: false, value: { x: 0, y: 0, z: 0 } },
@@ -69,15 +55,6 @@ function buildWorld(): {
       name: "Node C",
       tags: [],
       type: "group",
-      refs: {
-        default: {
-          current: createSceneObject({
-            name: "Node C",
-            hasRobotData: true,
-            position: { x: 0, y: 2, z: 0 },
-          }),
-        } as RefObject<any>,
-      },
       root: false,
       features: {
         translation: { animated: true, value: "missing_anim" },
@@ -88,13 +65,43 @@ function buildWorld(): {
     },
   };
 
-  return { world, animatables };
+  const refs: MountedRefs = {
+    node_a: {
+      default: {
+        current: createSceneObject({
+          name: "Node A",
+          hasRobotData: true,
+          position: { x: 0, y: 0, z: 0 },
+        }),
+      },
+    },
+    node_b: {
+      default: {
+        current: createSceneObject({
+          name: "Node B",
+          hasRobotData: false,
+          position: { x: 1, y: 0, z: 0 },
+        }),
+      },
+    },
+    node_c: {
+      default: {
+        current: createSceneObject({
+          name: "Node C",
+          hasRobotData: true,
+          position: { x: 0, y: 2, z: 0 },
+        }),
+      },
+    },
+  };
+
+  return { world, refs, animatables };
 }
 
 describe("createRobotDataAuditTask", () => {
   it("matches the synchronous audit output when stepped", () => {
-    const { world, animatables } = buildWorld();
-    const task = createRobotDataAuditTask(world, animatables, {
+    const { world, refs, animatables } = buildWorld();
+    const task = createRobotDataAuditTask(world, refs, animatables, {
       namespace: "default",
     });
     expect(task.done).toBe(false);
@@ -102,7 +109,7 @@ describe("createRobotDataAuditTask", () => {
       task.step(1);
     }
     const incremental = task.result;
-    const synchronous = auditRobotData(world, animatables, {
+    const synchronous = auditRobotData(world, refs, animatables, {
       namespace: "default",
     });
     expect(incremental).toEqual(synchronous);
@@ -110,8 +117,8 @@ describe("createRobotDataAuditTask", () => {
   });
 
   it("updates processedNodes as batches advance", () => {
-    const { world, animatables } = buildWorld();
-    const task = createRobotDataAuditTask(world, animatables);
+    const { world, refs, animatables } = buildWorld();
+    const task = createRobotDataAuditTask(world, refs, animatables);
     task.step(1);
     const firstProcessed = task.processedNodes;
     task.step(1);

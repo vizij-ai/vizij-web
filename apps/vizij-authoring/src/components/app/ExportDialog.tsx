@@ -17,7 +17,6 @@ import {
   useAuthoringUiState,
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
-import { resolveExportBodiesFromWorld } from "../../utils/exportBodies";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
@@ -153,18 +152,9 @@ export function ExportDialog({
       ) {
         return runtimeExportBodies.anyBodies;
       }
-      const fromStore = getExportableBodies(filterIds);
-      if (fromStore.length > 0) {
-        return fromStore;
-      }
-      return resolveExportBodiesFromWorld(runtimeWorld, filterIds);
+      return getExportableBodies(filterIds);
     },
-    [
-      canUseRuntimeSnapshot,
-      getExportableBodies,
-      runtimeExportBodies,
-      runtimeWorld,
-    ],
+    [canUseRuntimeSnapshot, getExportableBodies, runtimeExportBodies],
   );
 
   const uiState = useAuthoringUiState();

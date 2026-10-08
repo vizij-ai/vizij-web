@@ -10,7 +10,7 @@ export * from "./hooks/use-vizij-store-setter";
 export * from "./hooks/use-vizij-store-getter";
 export * from "./functions/load-gltf";
 export { deriveRootBounds } from "./functions/gltf-loading/traverse-three";
-export * from "./functions/load-gltf-blob";
 export * from "./functions/export";
+export { buildSceneGraph } from "./functions/build-scene-graph";
 export * from "./functions/vizij-bundle";
 export * from "./functions/gltf-loading/morph-keys";

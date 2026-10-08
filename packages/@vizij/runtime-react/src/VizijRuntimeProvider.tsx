@@ -2346,7 +2346,6 @@ function VizijRuntimeProviderInner({
         if (glbAsset.kind === "url") {
           const loaded = await loadGLTFWithBundle(
             glbAsset.src,
-            [namespace],
             glbAsset.aggressiveImport ?? false,
             glbAsset.rootBounds,
           );
@@ -2357,7 +2356,6 @@ function VizijRuntimeProviderInner({
         } else if (glbAsset.kind === "blob") {
           const loaded = await loadGLTFFromBlobWithBundle(
             glbAsset.blob,
-            [namespace],
             glbAsset.aggressiveImport ?? false,
             glbAsset.rootBounds,
           );

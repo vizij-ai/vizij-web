@@ -23,9 +23,13 @@ type SceneObject = {
   material?: unknown;
 };
 
-type Renderable = World[string] & {
-  refs: Record<string, RefObject<SceneObject | null>>;
-};
+type Renderable = World[string];
+
+/** Mounted scene objects by element id and then namespace. */
+export type MountedRefs = Record<
+  string,
+  Record<string, RefObject<SceneObject | null>>
+>;
 
 interface ValueSummary {
   type: "number" | "vector" | "color" | "unknown";
@@ -77,17 +81,17 @@ interface AuditOptions {
   epsilon?: number;
 }
 
-function getObjectForRenderable(
-  renderable: Renderable,
+function getMountedObject(
+  refs: MountedRefs[string] | undefined,
   namespace?: string,
 ): SceneObject | null {
-  if (!renderable?.refs) {
+  if (!refs) {
     return null;
   }
-  if (namespace && renderable.refs[namespace]?.current) {
-    return renderable.refs[namespace]!.current;
+  if (namespace && refs[namespace]?.current) {
+    return refs[namespace]!.current;
   }
-  const firstRef = Object.values(renderable.refs).find((ref) => ref?.current);
+  const firstRef = Object.values(refs).find((ref) => ref?.current);
   return firstRef?.current ?? null;
 }
 
@@ -269,10 +273,11 @@ function computeDelta(a: ValueSummary, b: ValueSummary): number {
 
 export function auditRobotData(
   world: World,
+  refs: MountedRefs,
   animatables: Record<string, AnimatableValue>,
   options: AuditOptions = {},
 ): RobotDataAuditResult {
-  const task = createRobotDataAuditTask(world, animatables, options);
+  const task = createRobotDataAuditTask(world, refs, animatables, options);
   if (!task.done) {
     task.step(task.totalNodes || 1);
   }
@@ -290,6 +295,7 @@ export interface RobotDataAuditTask {
 
 export function createRobotDataAuditTask(
   world: World,
+  refs: MountedRefs,
   animatables: Record<string, AnimatableValue>,
   options: AuditOptions = {},
 ): RobotDataAuditTask {
@@ -316,7 +322,7 @@ export function createRobotDataAuditTask(
   let index = 0;
 
   const processNode = (renderable: Renderable) => {
-    const object = getObjectForRenderable(renderable, namespace);
+    const object = getMountedObject(refs[renderable.id], namespace);
     if (!object) {
       refsUnavailable.push(renderable.id);
       return;

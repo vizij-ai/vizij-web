@@ -1,4 +1,3 @@
-import { createRef } from "react";
 import * as THREE from "three";
 import type { Group, Mesh, Material, Object3D } from "three";
 import type { AnimatableValue, RawVector2 } from "@vizij/utils";
@@ -21,7 +20,6 @@ THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export function traverseThree(
   group: Group,
-  namespaces: string[],
   aggressiveImport = false,
   rootBounds?: {
     center: RawVector2;
@@ -57,10 +55,6 @@ export function traverseThree(
           case "group":
             loadedData = {
               ...data,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Group>() }),
-                {},
-              ),
             } as VizijGroup;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isGroupFeatures(mappedFeatures);
@@ -72,10 +66,6 @@ export function traverseThree(
             loadedData = {
               ...data,
               geometry: (child as Mesh).geometry,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
-                {},
-              ),
             } as Shape;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isShapeFeatures(mappedFeatures);
@@ -86,10 +76,6 @@ export function traverseThree(
           case "ellipse":
             loadedData = {
               ...data,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
-                {},
-              ),
             } as Ellipse;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isEllipseFeatures(mappedFeatures);
@@ -100,10 +86,6 @@ export function traverseThree(
           case "rectangle":
             loadedData = {
               ...data,
-              refs: namespaces.reduce(
-                (acc, ns) => ({ ...acc, [ns]: createRef<Mesh>() }),
-                {},
-              ),
             } as Rectangle;
             [mappedFeatures, animatableValues] = mapFeatures(data.features);
             isRectangleFeatures(mappedFeatures);
@@ -128,7 +110,6 @@ export function traverseThree(
 
     const [newWorldData, newAnimatableData] = importScene(
       group,
-      namespaces,
       derivedRootBounds,
     );
     Object.assign(worldData, newWorldData);

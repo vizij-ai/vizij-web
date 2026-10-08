@@ -26,7 +26,6 @@ describe("sceneEditing", () => {
         id: "root",
         name: "Root",
         type: "group",
-        refs: {},
         tags: [],
         root: true,
         children: ["parent", "child"],
@@ -38,7 +37,6 @@ describe("sceneEditing", () => {
         id: "parent",
         name: "Parent",
         type: "group",
-        refs: {},
         tags: [],
         children: [],
         features: {
@@ -49,7 +47,6 @@ describe("sceneEditing", () => {
         id: "child",
         name: "Child",
         type: "shape",
-        refs: {},
         tags: [],
         features: {
           translation: { animated: true, value: "child-t" },
@@ -104,7 +101,6 @@ describe("sceneEditing", () => {
         id: "parentA",
         name: "A",
         type: "group",
-        refs: {},
         tags: [],
         children: ["child"],
         features: {
@@ -116,7 +112,6 @@ describe("sceneEditing", () => {
         id: "parentB",
         name: "B",
         type: "group",
-        refs: {},
         tags: [],
         children: [],
         features: {
@@ -128,7 +123,6 @@ describe("sceneEditing", () => {
         id: "child",
         name: "Child",
         type: "shape",
-        refs: {},
         tags: [],
         features: {
           translation: { animated: true, value: "child-t" },
@@ -177,7 +171,6 @@ describe("sceneEditing", () => {
         id: "root",
         name: "Root",
         type: "group",
-        refs: {},
         tags: [],
         children: ["shape"],
         features: {},
@@ -186,7 +179,6 @@ describe("sceneEditing", () => {
         id: "shape",
         name: "Shape",
         type: "shape",
-        refs: {},
         tags: [],
         features: {
           translation: { animated: true, value: "anim-t" },
@@ -242,7 +234,6 @@ describe("sceneEditing", () => {
         id: "shape",
         name: "Shape",
         type: "shape",
-        refs: {},
         tags: [],
         features: {
           translation: { animated: true, value: "anim-t" },
@@ -305,7 +296,6 @@ describe("sceneEditing", () => {
         id: "shape",
         name: "Shape",
         type: "shape",
-        refs: {},
         tags: [],
         features: {
           translation: { animated: true, value: "anim-t" },

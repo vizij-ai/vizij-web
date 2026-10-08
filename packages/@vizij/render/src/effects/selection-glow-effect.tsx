@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef } from "react";
-import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useShallow } from "zustand/react/shallow";
 import type {
@@ -30,7 +29,6 @@ interface SelectionGlowEffectProps {
 
 type RenderableWithGeometry = {
   geometry?: BufferGeometry;
-  refs?: Record<string, RefObject<Object3D>>;
 };
 
 export function SelectionGlowEffect({
@@ -82,7 +80,7 @@ function SelectionOutline({
       const entry = state.world[selection.id] as
         | RenderableWithGeometry
         | undefined;
-      const ref = entry?.refs?.[selection.namespace];
+      const ref = state.refs[selection.id]?.[selection.namespace];
       const geometry = entry?.geometry ?? null;
       return { ref, geometry } as const;
     }),

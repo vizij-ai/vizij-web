@@ -1,5 +1,5 @@
 import { GLTFExporter } from "three-stdlib";
-import type { AnimationClip, Group } from "three";
+import type { AnimationClip } from "three";
 import * as THREE from "three";
 import type { VizijBundleExtension } from "../types";
 import { applyVizijBundle } from "./vizij-bundle";
@@ -7,22 +7,10 @@ import { applyVizijBundle } from "./vizij-bundle";
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export type ExportSceneOptions = {
-  fileName?: string;
+  /** Written into the GLB as the `VIZIJ_bundle` extension of the root node. */
   bundle?: VizijBundleExtension | null;
+  /** Baked clips, written as glTF animations. */
   animations?: AnimationClip[];
-  binary?: boolean;
-  onError?: (error: Error) => void;
-  onComplete?: () => void;
-  /**
-   * Receives the finished GLB instead of it being downloaded.
-   *
-   * Exists so a caller can inspect what was actually written before writing
-   * the real file — notably to fingerprint the baked animation channels, which
-   * cannot be predicted from the input: `GLTFExporter` merges morph tracks
-   * into one `weights` channel per mesh, and every value round-trips through
-   * float32. When present, no download is triggered.
-   */
-  onBinary?: (glb: ArrayBuffer) => void;
 };
 
 function normalizeExportError(error: unknown): Error {
@@ -33,19 +21,6 @@ function normalizeExportError(error: unknown): Error {
     return new Error(error);
   }
   return new Error("Failed to export scene.");
-}
-
-function triggerBlobDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  // Delay revocation so browsers finish resolving the download URL.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 const GLB_MAGIC = 0x46546c67;
@@ -342,34 +317,20 @@ export function patchVizijBundleMetadata(
   });
 }
 
-/** Save a finished GLB, for callers that took it via `onBinary`. */
-export function downloadGlbBuffer(glb: ArrayBuffer, fileName: string): void {
-  const trimmed = fileName.trim();
-  const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";
-  const downloadName = safeFileName.toLowerCase().endsWith(".glb")
-    ? safeFileName
-    : `${safeFileName}.glb`;
-  triggerBlobDownload(
-    new Blob([glb], { type: "application/octet-stream" }),
-    downloadName,
-  );
-}
-
-export function exportScene(
-  data: Group,
-  fileNameOrOptions: string | ExportSceneOptions = "scene.glb",
-): void {
-  const options: ExportSceneOptions =
-    typeof fileNameOrOptions === "string"
-      ? { fileName: fileNameOrOptions }
-      : (fileNameOrOptions ?? {});
-
-  const fileName = options.fileName ?? "scene.glb";
-  const animationClips = Array.isArray(options.animations)
-    ? options.animations.filter(Boolean)
-    : [];
-  const shouldAttachBundle = Boolean(options.bundle);
-
+/**
+ * Encode `root` and its descendants as a GLB.
+ *
+ * Every node is written with its local translation, rotation and scale, every
+ * mesh with its morph weights, and each object's `userData` as glTF
+ * extensions and extras, which is where `RobotData` travels. A root that is
+ * not a `Scene` is cloned into one, so the caller's graph is left as it was.
+ *
+ * Only textures need a DOM; a scene without images encodes in Node.
+ */
+export async function exportScene(
+  root: THREE.Object3D,
+  options: ExportSceneOptions = {},
+): Promise<ArrayBuffer> {
   const exporter = new GLTFExporter();
   exporter.register(() => ({
     writeMesh(mesh, meshDef) {
@@ -381,78 +342,39 @@ export function exportScene(
     },
   }));
 
-  const sourceRoot = data as unknown as THREE.Object3D;
-  const exportRoot =
-    sourceRoot instanceof THREE.Scene ? sourceRoot : sourceRoot.clone(true);
+  const exportRoot = root instanceof THREE.Scene ? root : root.clone(true);
   const exportTarget =
     exportRoot instanceof THREE.Scene
       ? exportRoot
       : (() => {
           const scene = new THREE.Scene();
-          scene.name = data.name?.trim() || "Scene";
+          scene.name = root.name?.trim() || "Scene";
           scene.add(exportRoot);
           return scene;
         })();
 
-  const detachBundle =
-    shouldAttachBundle && options.bundle
-      ? applyVizijBundle(exportRoot, options.bundle)
-      : () => {};
+  const detachBundle = options.bundle
+    ? applyVizijBundle(exportRoot, options.bundle)
+    : () => {};
 
-  const binary = options.binary ?? true;
-  const exporterOptions: Record<string, unknown> = {
-    trs: true,
-    onlyVisible: false,
-    binary,
-    includeCustomExtensions: true,
-  };
+  const animations = (options.animations ?? []).filter(Boolean);
 
-  if (animationClips.length > 0) {
-    exporterOptions.animations = animationClips;
-  }
-
+  let gltf: unknown;
   try {
-    exporter.parse(
-      exportTarget,
-      (gltf) => {
-        detachBundle();
-        if (!(gltf instanceof ArrayBuffer)) {
-          const error = new Error("Failed to export scene.");
-          options.onError?.(error);
-          return;
-        }
-        const sanitizedGltf = sanitizeExportedGlb(
-          gltf,
-          data.name?.trim() || undefined,
-        );
-        if (options.onBinary) {
-          options.onBinary(sanitizedGltf);
-          options.onComplete?.();
-          return;
-        }
-        const trimmed = fileName.trim();
-        const safeFileName = trimmed.length > 0 ? trimmed : "scene.glb";
-        const downloadName = safeFileName.toLowerCase().endsWith(".glb")
-          ? safeFileName
-          : `${safeFileName}.glb`;
-        triggerBlobDownload(
-          new Blob([sanitizedGltf], {
-            type: "application/octet-stream",
-          }),
-          downloadName,
-        );
-        options.onComplete?.();
-      },
-      (error) => {
-        detachBundle();
-        options.onError?.(normalizeExportError(error));
-      },
-      exporterOptions,
-    );
+    gltf = await exporter.parseAsync(exportTarget, {
+      trs: true,
+      onlyVisible: false,
+      binary: true,
+      includeCustomExtensions: true,
+      ...(animations.length > 0 ? { animations } : {}),
+    });
   } catch (error) {
+    throw normalizeExportError(error);
+  } finally {
     detachBundle();
-    const normalizedError = normalizeExportError(error);
-    options.onError?.(normalizedError);
-    throw normalizedError;
   }
+  if (!(gltf instanceof ArrayBuffer)) {
+    throw new Error("Failed to export scene.");
+  }
+  return sanitizeExportedGlb(gltf, root.name?.trim() || undefined);
 }

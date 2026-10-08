@@ -16,14 +16,11 @@ import type {
   StandardRigInput,
 } from "@vizij/utils";
 import type { GraphSpec } from "@vizij/node-graph";
-import {
-  downloadGlbBuffer,
-  exportScene,
-  patchVizijBundleMetadata,
-} from "@vizij/render";
+import { exportScene, patchVizijBundleMetadata } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
+import { downloadBlob } from "../../utils/download";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import {
@@ -40,10 +37,13 @@ import { makeSingleChannelGlb } from "../../animationImport/__tests__/makeGlb";
 
 vi.mock("@vizij/render", () => ({
   exportScene: vi.fn(),
-  // The hook takes the finished GLB via `onBinary`, amends its JSON chunk and
-  // saves it itself, so both helpers are on the export path now.
+  // The hook takes the GLB `exportScene` returns, amends its JSON chunk and
+  // downloads it itself.
   patchVizijBundleMetadata: vi.fn((glb: ArrayBuffer) => glb),
-  downloadGlbBuffer: vi.fn(),
+}));
+
+vi.mock("../../utils/download", () => ({
+  downloadBlob: vi.fn(),
 }));
 
 vi.mock("@vizij/node-graph-authoring", async () => {
@@ -138,7 +138,7 @@ vi.mock("../../utils/bundleAudit", () => ({
 
 const mockedExportScene = vi.mocked(exportScene);
 const mockedPatchBundleMetadata = vi.mocked(patchVizijBundleMetadata);
-const mockedDownloadGlb = vi.mocked(downloadGlbBuffer);
+const mockedDownloadGlb = vi.mocked(downloadBlob);
 const mockedNormalizeGraphSpec = vi.mocked(normalizeGraphSpec);
 const mockedBuildRigGraphSpec = vi.mocked(buildRigGraphSpec);
 const mockedPoseGraphService = vi.mocked(PoseGraphService);
@@ -273,6 +273,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  mockedExportScene.mockResolvedValue(new ArrayBuffer(0));
   mockedAuditBundleGraphs.mockResolvedValue([]);
   useAnimationStore.getState().reset();
 });
@@ -363,8 +364,11 @@ describe("useVizijExport", () => {
     );
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
     const exportArgs = mockedExportScene.mock.calls[0];
+    expect(mockedDownloadGlb).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "scene.glb",
+    );
     expect(exportArgs?.[1]).toMatchObject({
-      fileName: "scene.glb",
       bundle: {
         graphs: [
           {
@@ -389,20 +393,6 @@ describe("useVizijExport", () => {
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
     const onExportGlbComplete = vi.fn();
-    // Export now takes the finished GLB via `onBinary` and downloads it
-    // itself, so completion is signalled from there rather than by
-    // `onComplete` — modelling the old contract here would assert against a
-    // path the hook no longer uses.
-    mockedExportScene.mockImplementation((_body, options) => {
-      if (typeof options === "string") {
-        return;
-      }
-      if (options?.onBinary) {
-        options.onBinary(new ArrayBuffer(0));
-        return;
-      }
-      options?.onComplete?.();
-    });
 
     const hook = renderHook(
       createOptions({
@@ -2168,27 +2158,20 @@ describe("useVizijExport GLB animation baking", () => {
   beforeEach(() => {
     mockedPatchBundleMetadata.mockClear();
     mockedDownloadGlb.mockClear();
-    // Export runs once and hands the finished GLB back via `onBinary`; the
-    // hook fingerprints it and patches the metadata into that same buffer.
-    // A real GLB, not an empty buffer: fingerprinting has to actually parse
-    // it, and skipping the patch on unreadable bytes is deliberate behaviour
-    // this test would otherwise exercise by accident.
-    mockedExportScene.mockImplementation(((
-      _root: unknown,
-      opts: { onBinary?: (glb: ArrayBuffer) => void } | string | undefined,
-    ) => {
-      if (opts && typeof opts === "object" && opts.onBinary) {
-        opts.onBinary(
-          makeSingleChannelGlb({
-            nodeName: "L_Lid",
-            path: "translation",
-            times: [0, 1],
-            values: [0, 0, 0, 0, 0.02, 0],
-            animationName: "Blink",
-          }),
-        );
-      }
-    }) as never);
+    // Export runs once and returns the finished GLB; the hook fingerprints
+    // it and patches the metadata into that same buffer. A real GLB, not an
+    // empty buffer: fingerprinting has to actually parse it, and skipping the
+    // patch on unreadable bytes is deliberate behaviour this test would
+    // otherwise exercise by accident.
+    mockedExportScene.mockResolvedValue(
+      makeSingleChannelGlb({
+        nodeName: "L_Lid",
+        path: "translation",
+        times: [0, 1],
+        values: [0, 0, 0, 0, 0.02, 0],
+        animationName: "Blink",
+      }),
+    );
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: rigSpecWithOutput(),
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },

@@ -1,4 +1,4 @@
-import type { MutableRefObject, RefObject } from "react";
+import type { RefObject } from "react";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { produce, enableMapSet } from "immer";
@@ -28,6 +28,7 @@ enableMapSet();
 export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   // worldRef: createRef<THREE.Group>(),
   world: {},
+  refs: {},
   animatables: {},
   values: new Map(),
   renderHit: false,
@@ -128,16 +129,12 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       >,
       filterIds,
     );
+    const refs = get().refs;
     return candidateGroups.flatMap((entry) => {
-      const refs = Object.values(
-        (
-          entry as {
-            refs?: Record<string, { current?: Group | null }>;
-          }
-        ).refs ?? {},
-      );
-      const resolved = refs.find((ref) => ref?.current)?.current ?? null;
-      return resolved ? [resolved] : [];
+      const mounted = Object.values(refs[entry.id] ?? {})
+        .map((ref) => ref.current)
+        .find((object): object is Group => Boolean(object));
+      return mounted ? [mounted] : [];
     });
   },
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => {
@@ -397,18 +394,14 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   setReference: (
     id: string,
     namespace: string,
-    ref: RefObject<Group | Mesh>,
+    ref: RefObject<Group | Mesh | null>,
   ) => {
-    set(
-      produce((state: VizijData) => {
-        (state.world[id].refs[namespace] as MutableRefObject<Group>).current =
-          ref.current as Group;
-        if (ref.current?.children && state.world[id].refs[namespace].current) {
-          state.world[id].refs[namespace].current.children =
-            ref.current.children;
-        }
-      }),
-    );
+    set((state) => ({
+      refs: {
+        ...state.refs,
+        [id]: { ...state.refs[id], [namespace]: ref },
+      },
+    }));
   },
 });
 

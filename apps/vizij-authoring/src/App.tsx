@@ -709,11 +709,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         const file = new File([blob], filename, { type: "model/gltf-binary" });
 
         await capturePendingAnimationImport(file);
-        await loadFromFile(
-          file,
-          () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
-          { sessionToken },
-        );
+        await loadFromFile(file, () => loadGLTFFromBlobWithBundle(file, true), {
+          sessionToken,
+        });
       } catch (err) {
         if (
           controller.signal.aborted ||
@@ -4299,11 +4297,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       skipNextDiscrepancyCheck.current = false;
 
       await capturePendingAnimationImport(file);
-      await loadFromFile(
-        file,
-        () => loadGLTFFromBlobWithBundle(file, [DEFAULT_NAMESPACE], true),
-        { sessionToken },
-      );
+      await loadFromFile(file, () => loadGLTFFromBlobWithBundle(file, true), {
+        sessionToken,
+      });
       event.target.value = "";
     },
     [

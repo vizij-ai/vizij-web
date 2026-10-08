@@ -8,7 +8,6 @@ Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export function importScene(
   scene: Group,
-  namespaces: string[],
   rootBounds: {
     center: RawVector2;
     size: RawVector2;
@@ -19,7 +18,6 @@ export function importScene(
 
   const [newWorldItems, newAnimatables] = importGroup(
     scene as Group,
-    namespaces,
     {},
     rootBounds,
   );
