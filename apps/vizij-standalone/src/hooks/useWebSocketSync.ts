@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import { valueAsNumber, type AroraValueJSON } from "@vizij/value-json";
 import type { AroraType, NodeInfo } from "./aroraWsProtocol";
+import { toStoreKey } from "./storeKey";
 
 /**
  * Hook that syncs WebSocket updates to the runtime.
@@ -43,13 +44,7 @@ export function useWebSocketSync() {
   const inputValuesRef = useRef<Record<string, number>>({});
 
   const normalizeSlotPath = useCallback(
-    (path: string): string => {
-      const removedSlashes = path.replace(/^\/+/, "").replace(/\/+/g, "/");
-      if (!namespace) return removedSlashes;
-      return removedSlashes.startsWith(`${namespace}/`)
-        ? removedSlashes.slice(namespace.length + 1)
-        : removedSlashes;
-    },
+    (path: string): string => toStoreKey(path, namespace),
     [namespace],
   );
 
@@ -213,10 +208,10 @@ export function useWebSocketSync() {
     const constraintKeys = Object.keys(inputConstraints);
     if (constraintKeys.length === 0) return;
 
-    // Register each input under its canonical store key. The constraint map
-    // holds ~4 aliases per input (raw, namespaced, and slash-prefixed variants);
-    // normalizeSlotPath collapses them to one clean key, so the seeded catalog
-    // matches what pushValues publishes and carries no empty chunks.
+    // Register each input once, under its store key (see `toStoreKey`). The
+    // constraint map lists an input under several spellings (raw, namespaced,
+    // slash-prefixed); those differing only in slashes or the namespace share
+    // a store key, which is the key the store mirror below publishes.
     const seenPaths = new Set<string>();
     const nodes: NodeInfo[] = [];
     for (const path of constraintKeys) {
@@ -367,9 +362,7 @@ export function useWebSocketSync() {
 
     // Internal keys stay device-side: arora's built-in keys (`arora/…`) and the
     // animation module's per-tick out-blob. Everything else publishes under
-    // the canonical store key (leading slash stripped, "//" collapsed,
-    // namespace dropped) — raw aliases yield empty Zenoh chunks once the
-    // bridge prepends "state/{uid}/".
+    // its store key (see `toStoreKey`).
     const stage = (path: string, value: unknown) => {
       if (value === null || value === undefined) return;
       if (path.startsWith("arora/") || path === "vizij/animations/out") return;
