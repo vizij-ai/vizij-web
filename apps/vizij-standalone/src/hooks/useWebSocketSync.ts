@@ -263,7 +263,7 @@ export function useWebSocketSync() {
     //    `inputConstraints`, e.g. "standard/vizij/mouth/morph/jaw_open"):
     //    numeric-only, routed through setRigValue (rig/{faceId}/ prefix).
     //  - Everything else is a FULL device-store path exactly as consumers read
-    //    it (e.g. Studio writing back "rig/{faceId}/…" or "background/color"):
+    //    it (e.g. Studio writing back "rig/{faceId}/…", or a skill run's keys):
     //    applied verbatim via setInput. Values pass through untouched — the
     //    device normalizes canonical arora serde forms itself — so structured
     //    values work, not just scalars.

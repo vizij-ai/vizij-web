@@ -10,29 +10,29 @@ use tokio_util::sync::CancellationToken;
 #[cfg(feature = "studio-bridge")]
 use arora_bridge::Bridge;
 use arora_bridge_ws::bridge::WsBridge;
-use arora_bridge_ws::{
-    AroraWSServer, InvokeResult, KeyInfo, MethodInfo, MethodParam, ServerConfig, Type, Value,
-};
+use arora_bridge_ws::{AroraWSServer, ServerConfig};
 use arora_simple_data_store::SimpleDataStore;
-use arora_types::data::{DataStore, Key, StateChange};
+use arora_types::data::{DataStore, Key, KeyMeta, StateChange};
+use arora_types::value::{Type, Value};
 
 #[cfg(feature = "studio-bridge")]
 mod host;
+mod methods;
 mod skills;
 
 /// Application state.
 ///
 /// The heart is the shared [`SimpleDataStore`] blackboard. The WebSocket server
-/// lives for the process; several `arora_bridge::Bridge` pumps (WS + optional
-/// ROS 2 + optional Studio) attach to the store and run under cancellation
-/// tokens. The webview mirrors its live values into the store (via
-/// `publish_values`) and applies inbound writes it receives as `update-values`.
+/// lives for the process; the device run owns the WS and optional ROS 2 bridges
+/// and answers the optional Studio connection's commands. The webview mirrors
+/// its live values into the store (via `publish_values`) and applies inbound
+/// writes it receives as `update-values`.
 struct AppState {
     /// The one shared blackboard every bridge reads/writes. Clones share storage.
     store: SimpleDataStore,
-    /// The WebSocket server (`arora-bridge-ws`), created once for the process. Its
-    /// registry (advertised keys + methods) is updated live; the serve loop is
-    /// started/stopped under `cancel_token`.
+    /// The WebSocket server (`arora-bridge-ws`), created once for the process. It
+    /// lists the keys the store holds and describes, and the run's methods; the
+    /// serve loop is started/stopped under `cancel_token`.
     ws_server: Arc<AroraWSServer>,
     /// Governs the WS serve loop and the device run (the start/stop lifecycle).
     /// `Some` iff the host is running.
@@ -46,7 +46,7 @@ struct AppState {
     #[cfg(feature = "ros2")]
     ros2_namespace: String,
     /// The latest key catalog the webview advertised (via `set_slots`).
-    keys: StdMutex<Vec<KeyInfo>>,
+    keys: StdMutex<Vec<Slot>>,
     port: u16,
     web_port: Option<u16>,
     glb_source: Option<String>,
@@ -79,6 +79,11 @@ struct StudioBridgeState {
     /// Display string for the bridge router endpoint: the `STUDIO_BRIDGE_ENDPOINT`
     /// override, or a label for the baked-in production bridge when unset.
     endpoint: String,
+    /// The inbound channel of the device run in place, which Studio's commands
+    /// are forwarded to; `None` while the host is stopped.
+    run_tx: tokio::sync::watch::Sender<
+        Option<tokio::sync::mpsc::UnboundedSender<arora_bridge::Inbound>>,
+    >,
 }
 
 /// Reported to the frontend by `studio_bridge_owner_status`. `active` = the app
@@ -290,287 +295,49 @@ fn list_displays() {
 }
 
 // =============================================================================
-// WebSocket method surface
+// Key catalog
 // =============================================================================
 
-/// Register the RPC methods on the WS server's registry. Each handler keeps
-/// emitting the exact same Tauri event the pre-migration `ConnectionManager`
-/// did, so the webview and speech controller are unaffected. Methods live on the
-/// registry (read live at invoke time), so registering them once is enough.
-///
-/// These stay on the WS (and Studio) bridge only: `arora-bridge-ros2` carries
-/// data topics with no method/service surface (ARORA-62 tracks parity).
-async fn register_ws_methods(server: &Arc<AroraWSServer>, app: &AppHandle) {
-    let registry = server.registry();
-
-    // reset — reset all values to defaults.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "reset".to_string(),
-                params: vec![],
-                return_type: None,
-                description: Some("Reset all values to defaults".to_string()),
-            },
-            move |_args| match app_h.emit("reset", ()) {
-                Ok(()) => InvokeResult::ok(),
-                Err(e) => InvokeResult::err(format!("Failed to emit reset: {}", e)),
-            },
-        )
-        .await;
-
-    // mute_microphone — mute/unmute the mic.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "mute_microphone".to_string(),
-                params: vec![MethodParam {
-                    name: "muted".to_string(),
-                    param_type: Type::Boolean,
-                    required: true,
-                    default_value: None,
-                    description: Some("True to mute, false to unmute".to_string()),
-                }],
-                return_type: None,
-                description: Some("Mute or unmute the microphone".to_string()),
-            },
-            move |args| {
-                let muted = match args.get("muted") {
-                    Some(Value::Boolean(b)) => *b,
-                    _ => true,
-                };
-                *app_h.state::<AppState>().mic_muted.lock().unwrap() = muted;
-                match app_h.emit("mute-microphone", muted) {
-                    Ok(()) => InvokeResult::ok(),
-                    Err(e) => InvokeResult::err(format!("Failed to emit mute-microphone: {}", e)),
-                }
-            },
-        )
-        .await;
-
-    // get_mic_muted — query current mic state.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "get_mic_muted".to_string(),
-                params: vec![],
-                return_type: Some(Type::Boolean),
-                description: Some("Get current microphone muted state".to_string()),
-            },
-            move |_args| {
-                let muted = *app_h.state::<AppState>().mic_muted.lock().unwrap();
-                InvokeResult::ok_with_value(Value::Boolean(muted))
-            },
-        )
-        .await;
-
-    // speak — send text to TTS.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "speak".to_string(),
-                params: vec![MethodParam {
-                    name: "text".to_string(),
-                    param_type: Type::String,
-                    required: true,
-                    default_value: None,
-                    description: Some("Text to speak via TTS".to_string()),
-                }],
-                return_type: None,
-                description: Some("Speak the given text via TTS".to_string()),
-            },
-            move |args| {
-                let text = match args.get("text") {
-                    Some(Value::String(s)) => s.clone(),
-                    _ => return InvokeResult::err("Missing 'text' parameter".to_string()),
-                };
-                match app_h.emit("speak", &text) {
-                    Ok(()) => InvokeResult::ok(),
-                    Err(e) => InvokeResult::err(format!("Failed to emit speak: {}", e)),
-                }
-            },
-        )
-        .await;
-
-    // interrupt — stop any ongoing speech.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "interrupt".to_string(),
-                params: vec![],
-                return_type: None,
-                description: Some("Interrupt any ongoing speech playback".to_string()),
-            },
-            move |_args| match app_h.emit("interrupt-speech", ()) {
-                Ok(()) => InvokeResult::ok(),
-                Err(e) => InvokeResult::err(format!("Failed to emit interrupt-speech: {}", e)),
-            },
-        )
-        .await;
-
-    // transport/list — list bundled animations and procedural programs.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "transport/list".to_string(),
-                params: vec![],
-                return_type: None,
-                description: Some("List bundled animations and procedural programs".to_string()),
-            },
-            move |_args| {
-                let catalog = app_h
-                    .state::<AppState>()
-                    .transport_catalog
-                    .lock()
-                    .unwrap()
-                    .clone();
-                match serde_json::to_string(&catalog) {
-                    Ok(serialized) => InvokeResult::ok_with_value(Value::String(serialized)),
-                    Err(error) => InvokeResult::err(format!(
-                        "Failed to serialize transport catalog: {}",
-                        error
-                    )),
-                }
-            },
-        )
-        .await;
-
-    // transport/play.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "transport/play".to_string(),
-                params: transport_kind_id_params(),
-                return_type: None,
-                description: Some("Play a bundled animation or procedural program".to_string()),
-            },
-            move |args| transport_emit(&app_h, &args, "play"),
-        )
-        .await;
-
-    // transport/pause.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "transport/pause".to_string(),
-                params: transport_kind_id_params(),
-                return_type: None,
-                description: Some("Pause a bundled animation or procedural program".to_string()),
-            },
-            move |args| transport_emit(&app_h, &args, "pause"),
-        )
-        .await;
-
-    // transport/stop.
-    let app_h = app.clone();
-    registry
-        .register_method_fn(
-            MethodInfo {
-                path: "transport/stop".to_string(),
-                params: transport_kind_id_params(),
-                return_type: None,
-                description: Some("Stop a bundled animation or procedural program".to_string()),
-            },
-            move |args| transport_stop(&app_h, &args),
-        )
-        .await;
+/// One key the webview advertises (`set_slots`), in the shape it sends: an
+/// `input` is a control a remote may write, of `value_type`, over `[min, max]`,
+/// resting at `default_value`.
+#[derive(Debug, Clone, Deserialize)]
+struct Slot {
+    path: String,
+    kind: Option<String>,
+    value_type: Option<Type>,
+    min: Option<f64>,
+    max: Option<f64>,
+    default_value: Option<Value>,
 }
 
-fn transport_kind_id_params() -> Vec<MethodParam> {
-    vec![
-        MethodParam {
-            name: "kind".to_string(),
-            param_type: Type::String,
-            required: true,
-            default_value: None,
-            description: Some("Either 'animation' or 'program'".to_string()),
-        },
-        MethodParam {
-            name: "id".to_string(),
-            param_type: Type::String,
-            required: true,
-            default_value: None,
-            description: Some("Transport identifier".to_string()),
-        },
-    ]
-}
-
-/// Emit a `{animation,program}-{play,pause}` event for a transport method.
-fn transport_emit(app: &AppHandle, args: &HashMap<String, Value>, action: &str) -> InvokeResult {
-    let id = match args.get("id") {
-        Some(Value::String(id)) => id.clone(),
-        _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
-    };
-    let kind = match args.get("kind") {
-        Some(Value::String(kind)) => kind.clone(),
-        _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
-    };
-    let event_name = match (kind.as_str(), action) {
-        ("animation", "play") => "animation-play",
-        ("animation", "pause") => "animation-pause",
-        ("program", "play") => "program-play",
-        ("program", "pause") => "program-pause",
-        _ => return InvokeResult::err("Invalid 'kind' parameter".to_string()),
-    };
-    match app.emit(event_name, &id) {
-        Ok(()) => InvokeResult::ok(),
-        Err(e) => InvokeResult::err(format!("Failed to emit {}: {}", event_name, e)),
+impl Slot {
+    /// What the store says of the key: an input is open to remote writers and
+    /// states its type, so the run refuses a write of another type.
+    fn meta(&self) -> KeyMeta {
+        let mut meta = KeyMeta::new();
+        if self.kind.as_deref() == Some("input") {
+            meta = meta.editable();
+        }
+        if let Some(ty) = &self.value_type {
+            meta = meta.of_type(ty.clone());
+        }
+        meta.min = self.min;
+        meta.max = self.max;
+        meta.default = self.default_value.clone();
+        meta
     }
-}
-
-/// Emit the `{animation,program}-stop` event (with its clear/reset payload).
-fn transport_stop(app: &AppHandle, args: &HashMap<String, Value>) -> InvokeResult {
-    let id = match args.get("id") {
-        Some(Value::String(id)) => id.clone(),
-        _ => return InvokeResult::err("Missing 'id' parameter".to_string()),
-    };
-    let kind = match args.get("kind") {
-        Some(Value::String(kind)) => kind.clone(),
-        _ => return InvokeResult::err("Missing 'kind' parameter".to_string()),
-    };
-    if kind == "animation" {
-        let clear_outputs = matches!(args.get("clear_outputs"), Some(Value::Boolean(false)))
-            .then_some(false)
-            .unwrap_or(true);
-        return match app.emit(
-            "animation-stop",
-            serde_json::json!({ "id": id, "clearOutputs": clear_outputs }),
-        ) {
-            Ok(()) => InvokeResult::ok(),
-            Err(e) => InvokeResult::err(format!("Failed to emit animation-stop: {}", e)),
-        };
-    }
-    if kind == "program" {
-        let reset_outputs = matches!(args.get("reset_outputs"), Some(Value::Boolean(false)))
-            .then_some(false)
-            .unwrap_or(true);
-        return match app.emit(
-            "program-stop",
-            serde_json::json!({ "id": id, "resetOutputs": reset_outputs }),
-        ) {
-            Ok(()) => InvokeResult::ok(),
-            Err(e) => InvokeResult::err(format!("Failed to emit program-stop: {}", e)),
-        };
-    }
-    InvokeResult::err("Invalid 'kind' parameter".to_string())
 }
 
 // =============================================================================
 // Bridge host lifecycle
 // =============================================================================
 
-/// Start the bridge host: register the WS methods, bind + serve the WS server,
-/// and spawn the WS pump (plus the ROS 2 pump). Idempotent — returns `Ok` if the
-/// host is already running. The Studio bridge is independent (its own thread) and
-/// not governed here.
+/// Start the bridge host: bind + serve the WS server and spawn the device run,
+/// which owns the WS bridge (plus the ROS 2 bridge) and answers the Studio
+/// connection's commands — refused while no run is in place. Idempotent —
+/// returns `Ok` if the host is already running. The Studio connection itself
+/// (its own thread, its registration) outlives the run.
 async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
     // Reserve the running slot up front so a concurrent start (setup + the
     // webview's start_ws_server) cannot double-bind the port.
@@ -588,8 +355,6 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
         let state = app.state::<AppState>();
         (state.ws_server.clone(), state.port)
     };
-
-    register_ws_methods(&ws_server, app).await;
 
     // The WS bridge registers the server's write/read handlers; it MUST exist
     // before the serve loop, which snapshots those handlers once at startup.
@@ -629,15 +394,28 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
     }
 
     // The device: ONE arora run owns the interpreter (the look_at fragment),
-    // the gaze module, the built-in keys, and every bridge pump — the engine
-    // seams this host used to hand-roll. Built inside its own thread (an
-    // `Arora` is single-owner and not `Send`), stopped through the host's
-    // cancel token.
+    // the app's methods, the say module, the built-in keys, and every bridge
+    // pump. Built inside its own thread (an `Arora` is single-owner and not
+    // `Send`), stopped through the host's cancel token.
     {
         let store = app.state::<AppState>().store.clone();
         let catalog = app.state::<AppState>().keys.lock().unwrap().clone();
         // The face the webview advertised namespaces the profile's outputs.
         let rig_prefix = skills::rig_prefix_of(catalog.iter().map(|key| key.path.clone()));
+        let app_methods = app.clone();
+        // The say module's deployment: the TTS service the webview uses.
+        let api_base = app
+            .state::<AppState>()
+            .api_url
+            .clone()
+            .unwrap_or_else(|| vizij_arora_tts::DEFAULT_API_BASE.to_string());
+        // Studio's commands reach this run through its relay from now on.
+        #[cfg(feature = "studio-bridge")]
+        let studio_relay = {
+            let (relay, tx) = host::StudioRelay::new();
+            app.state::<AppState>().studio.run_tx.send_replace(Some(tx));
+            relay
+        };
         #[cfg(feature = "ros2")]
         let ros2_parts = {
             let state = app.state::<AppState>();
@@ -655,33 +433,37 @@ async fn start_host(app: &AppHandle, emit_started: bool) -> Result<(), String> {
                     Err(e) => return log::error!("device runtime: {e}"),
                 };
                 rt.block_on(async move {
-                    #[cfg_attr(not(feature = "ros2"), allow(unused_mut))]
+                    #[cfg_attr(
+                        not(any(feature = "ros2", feature = "studio-bridge")),
+                        allow(unused_mut)
+                    )]
                     let mut builder = arora::Arora::builder()
                         .with_data_store(Box::new(store))
-                        .with_host_module(skills::gaze_module())
-                        .with_host_module(vizij_arora_tts::host_module())
+                        .with_host_module(methods::host_module(app_methods))
+                        .with_host_module(vizij_arora_tts::host_module(vizij_arora_tts::Config {
+                            api_base,
+                        }))
                         .with_behavior_interpreter(Box::new(skills::interpreter(&rig_prefix)))
                         .with_bridge(Box::new(ws_bridge));
+                    #[cfg(feature = "studio-bridge")]
+                    {
+                        builder = builder.with_bridge(Box::new(studio_relay));
+                    }
                     #[cfg(feature = "ros2")]
                     {
                         use arora_bridge_ros2::{ExposureProfile, Ros2Bridge, Ros2BridgeConfig};
                         let (namespace, domain_id) = ros2_parts;
-                        let keys = &catalog;
                         // The ROS4HRI exposure preset: the typed face topics
                         // and the /skill/look_at action binding, resolved
                         // against this device's described methods at startup.
-                        let mut config = Ros2BridgeConfig::new(namespace, domain_id)
+                        // The input topics are the keys the store opens,
+                        // asked of the device at startup.
+                        let config = Ros2BridgeConfig::new(namespace, domain_id)
                             .with_profile(ExposureProfile::ros4hri());
-                        let mut declared = 0usize;
-                        for key in keys {
-                            // Only input keys accept inbound commands (become
-                            // subscribed topics); outputs publish on demand.
-                            if key.kind.as_deref() == Some("input") {
-                                let value_type = key.value_type.clone().unwrap_or(Type::F64);
-                                config = config.with_input(key.path.clone(), value_type);
-                                declared += 1;
-                            }
-                        }
+                        let declared = catalog
+                            .iter()
+                            .filter(|key| key.kind.as_deref() == Some("input"))
+                            .count();
                         // The webview advertises its keys as f64: the input
                         // topics subscribe std_msgs/Float64 (`ros2 topic info -v`
                         // shows each topic's type).
@@ -738,6 +520,8 @@ async fn stop_host(app: &AppHandle) -> Result<(), String> {
         return Err("Connection servers are not running".to_string());
     };
     token.cancel();
+    #[cfg(feature = "studio-bridge")]
+    app.state::<AppState>().studio.run_tx.send_replace(None);
     info!("Bridge host stop requested");
     // Wait for the device to be gone — its arora, WS bridge, and ROS 2
     // participant drop with the thread — so a rebuild starts from nothing.
@@ -921,11 +705,11 @@ fn write_studio_refresh_token(
     std::fs::write(token_path, blob).map_err(|e| e.to_string())
 }
 
-/// The Studio bridge pump. Registers the device, serves access requests, and —
-/// the VIZ-67 close — shares the SAME store as the WS/ROS2 bridges: it fans the
-/// store's live changes out to Studio (`try_send`) and applies Studio's inbound
-/// commands back into the store (mirroring writes to the webview). Owner changes
-/// from the in-UI prompt re-register the device live under the same name.
+/// The Studio bridge pump. Registers the device, serves access requests, fans
+/// the shared store's live changes out to Studio (`try_send`), and forwards
+/// Studio's commands to the device run in place, which answers them as it does
+/// every bridge's. Owner changes from the in-UI prompt re-register the device
+/// live under the same name.
 ///
 /// Runs on the studio thread's private runtime, so its Zenoh session and this
 /// loop live for the process (independent of the WS `start/stop`).
@@ -937,15 +721,16 @@ async fn run_studio_pump(
     owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
     device_name: String,
     initial_owners: Vec<String>,
+    run: host::RunInbound,
 ) {
     // Production wiring for the injectable core: surface failures as a Tauri event
-    // and route inbound events through the real store/webview handler. The core
-    // itself is Tauri-free so it can run against a mock bridge under test.
+    // and forward inbound events to the device run. The core itself is
+    // Tauri-free so it can run against a mock bridge under test.
     let error_app = app.clone();
     let on_error = move |message: String| {
         let _ = error_app.emit(STUDIO_BRIDGE_ERROR_EVENT, message);
     };
-    let on_inbound = move |store: &SimpleDataStore, event| host::handle_inbound(store, event);
+    let on_inbound = move |event| host::handle_inbound(&run, event);
     run_studio_pump_core(
         store,
         bridge,
@@ -962,8 +747,8 @@ async fn run_studio_pump(
 ///
 /// Takes the bridge (the real `ZenohDeviceClient` in production, a mock in tests)
 /// plus two sinks: `on_error` for a surfaced failure message (production emits a
-/// Tauri event) and `on_inbound` for an inbound event (production applies it to
-/// the store + webview). Registers the device, keeps it registered as owners
+/// Tauri event) and `on_inbound` for an inbound event (production forwards it
+/// to the device run). Registers the device, keeps it registered as owners
 /// change, and fans store changes out to the bridge — with no dependency on a
 /// running Tauri app, so the registration mechanics are testable with a mock.
 #[cfg(feature = "studio-bridge")]
@@ -974,7 +759,7 @@ async fn run_studio_pump_core(
     device_name: String,
     initial_owners: Vec<String>,
     mut on_error: impl FnMut(String),
-    mut on_inbound: impl FnMut(&SimpleDataStore, arora_bridge::Inbound),
+    mut on_inbound: impl FnMut(arora_bridge::Inbound),
 ) {
     use futures_util::StreamExt;
 
@@ -1021,7 +806,7 @@ async fn run_studio_pump_core(
                 None => break,
             },
             maybe_event = inbound.next() => match maybe_event {
-                Some(event) => on_inbound(&store, event),
+                Some(event) => on_inbound(event),
                 None => break, // endpoint disconnected
             },
             changed = owners_rx.changed() => {
@@ -1050,8 +835,8 @@ async fn run_studio_pump_core(
 
 /// Connect this standalone to the Semio Studio Bridge (opt-in `studio-bridge`
 /// feature) and hand its `ZenohDeviceClient` (an `arora_bridge::Bridge`) to
-/// [`run_studio_pump`], sharing the given store. Runs on its own thread with a
-/// private Tokio runtime.
+/// [`run_studio_pump`], publishing the given store and forwarding commands to
+/// the run `run` names. Runs on its own thread with a private Tokio runtime.
 ///
 /// Zero-config: the published client crate bakes in the public Firebase config
 /// and production bridge endpoint. Runtime overrides for testing/ownership:
@@ -1064,6 +849,7 @@ fn spawn_studio_bridge(
     owners_rx: tokio::sync::watch::Receiver<Vec<String>>,
     initial_owners: Vec<String>,
     device_name: String,
+    run: host::RunInbound,
 ) {
     use arora_studio_bridge_client::firestore_support::options::{
         FirebaseEmulatorOptions, FirebaseOptions,
@@ -1159,7 +945,8 @@ fn spawn_studio_bridge(
                     }
                 };
                 let bridge: Box<dyn Bridge> = Box::new(client);
-                run_studio_pump(store, app, bridge, owners_rx, device_name, initial_owners).await;
+                run_studio_pump(store, app, bridge, owners_rx, device_name, initial_owners, run)
+                    .await;
             });
         })
         .expect("failed to spawn studio-bridge thread");
@@ -1199,23 +986,33 @@ async fn get_port(app_handle: AppHandle) -> u16 {
     app_handle.state::<AppState>().port
 }
 
-/// Publish the key catalog into the store/registry.
+/// Publish the key catalog into the store.
 ///
-/// The webview calls this once its model loads: it advertises the keys on the WS
-/// registry (driving `list_keys` and, since these are `input` keys, the
-/// `validate_paths` allow-list) and seeds their default values into the store so
-/// reads and live-data have something before the first mirror push. When ROS 2
-/// is enabled the pump is rebuilt so the input keys become subscribed topics.
+/// The webview calls this once its model loads: the store describes each key
+/// (every bridge lists it with that meta, and an `input` is open to remote
+/// writers of its type) and holds its default value, so reads and live data
+/// have something before the first mirror push. A key of the previous catalog
+/// that this one leaves out is closed again. The run is rebuilt so the
+/// profile's rig prefix and, under ROS 2, the input topics follow the catalog.
 #[tauri::command]
-async fn set_slots(app_handle: AppHandle, slots: Vec<KeyInfo>) -> Result<(), String> {
+async fn set_slots(app_handle: AppHandle, slots: Vec<Slot>) -> Result<(), String> {
     let count = slots.len();
-    let (ws_server, store) = {
+    let (store, previous) = {
         let state = app_handle.state::<AppState>();
-        (state.ws_server.clone(), state.store.clone())
+        let previous = state.keys.lock().unwrap().clone();
+        (state.store.clone(), previous)
     };
 
-    // Advertise the catalog on the WS registry (live: list_keys + validate_paths).
-    ws_server.registry().set_keys(slots.clone()).await;
+    let mut meta: HashMap<Key, KeyMeta> = previous
+        .iter()
+        .map(|slot| (Key::from(slot.path.clone()), KeyMeta::new()))
+        .collect();
+    meta.extend(
+        slots
+            .iter()
+            .map(|slot| (Key::from(slot.path.clone()), slot.meta())),
+    );
+    store.set_meta(meta).map_err(|e| format!("{e:?}"))?;
 
     // Seed default values into the store.
     let mut seed = StateChange::new();
@@ -1498,10 +1295,9 @@ pub fn run() {
             // the process; served under the host lifecycle).
             let serve_web_control = !cli.no_web_control;
             let store = SimpleDataStore::new();
+            skills::open_ros4hri_inputs(&store);
             let ws_server = Arc::new(AroraWSServer::new(
-                ServerConfig::with_port(port)
-                    .validate_paths(true)
-                    .serve_control_panel(serve_web_control),
+                ServerConfig::with_port(port).serve_control_panel(serve_web_control),
             ));
 
             let web_port = if serve_web_control { Some(port) } else { None };
@@ -1541,7 +1337,13 @@ pub fn run() {
             // set up the channel the in-UI owner prompt uses to re-register live.
             // Precedence: `DEVICE_OWNERS` env → a persisted choice → empty + prompt.
             #[cfg(feature = "studio-bridge")]
-            let (studio_state, studio_owners_rx, studio_initial_owners, studio_device_name) = {
+            let (
+                studio_state,
+                studio_owners_rx,
+                studio_initial_owners,
+                studio_device_name,
+                studio_run,
+            ) = {
                 let handle = app.handle();
                 let env_owners = std::env::var("DEVICE_OWNERS")
                     .ok()
@@ -1571,6 +1373,7 @@ pub fn run() {
                     .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
                     .filter(|s| !s.is_empty())
                     .unwrap_or_else(|| "Semio Studio (baked-in bridge)".to_string());
+                let (run_tx, run_rx) = tokio::sync::watch::channel(None);
                 (
                     StudioBridgeState {
                         owners_tx,
@@ -1578,10 +1381,12 @@ pub fn run() {
                         owners: StdMutex::new(initial_owners.clone()),
                         device_name: device_name.clone(),
                         endpoint,
+                        run_tx,
                     },
                     owners_rx,
                     initial_owners,
                     device_name,
+                    run_rx,
                 )
             };
 
@@ -1657,9 +1462,9 @@ pub fn run() {
                 }
             });
 
-            // Opt-in: attach the Studio bridge to the SAME store so a Studio can
-            // view/drive this app's live data (VIZ-67). Off unless built with
-            // `--features studio-bridge`.
+            // Opt-in: connect to Studio, publishing the SAME store and handing
+            // its commands to the run, so a Studio can view/drive this app's
+            // live data (VIZ-67). Off unless built with `--features studio-bridge`.
             #[cfg(feature = "studio-bridge")]
             spawn_studio_bridge(
                 store,
@@ -1667,6 +1472,7 @@ pub fn run() {
                 studio_owners_rx,
                 studio_initial_owners,
                 studio_device_name,
+                studio_run,
             );
 
             info!("Vizij Standalone App initialized with WS port {}", port);
@@ -1859,7 +1665,7 @@ mod studio_bridge_tests {
             "vizij-test".to_string(),
             Vec::new(),
             move |message| errors_sink.lock().unwrap().push(message),
-            |_store, _event: Inbound| {},
+            |_event: Inbound| {},
         ));
         (owners_tx, updates_rx, errors, handle)
     }
