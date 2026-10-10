@@ -851,32 +851,28 @@ importers:
         version: 5.0.9(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
 
   packages/@vizij/runtime-react:
-    dependencies:
-      '@vizij/animation-module':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@vizij/node-graph-authoring':
-        specifier: workspace:^
-        version: link:../node-graph-authoring
-      '@vizij/render':
-        specifier: workspace:^
-        version: link:../render
-      '@vizij/runtime':
-        specifier: ^2.4.0
-        version: 2.4.0
-      '@vizij/utils':
-        specifier: workspace:^
-        version: link:../utils
-      '@vizij/value-json':
-        specifier: ^0.2.0
-        version: 0.2.0
     devDependencies:
+      '@testing-library/dom':
+        specifier: ^10.4.1
+        version: 10.4.1
+      '@testing-library/react':
+        specifier: ^16.3.1
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@types/react':
         specifier: ^19.2.7
         version: 19.2.9
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.9)
+      '@vizij/render':
+        specifier: workspace:^
+        version: link:../render
+      '@vizij/runtime':
+        specifier: ^6.0.0
+        version: 6.0.0
+      jsdom:
+        specifier: ^24.1.3
+        version: 24.1.3
       prettier:
         specifier: ^3.4.2
         version: 3.6.2
@@ -3506,17 +3502,11 @@ packages:
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
 
-  '@vizij/animation-module@1.0.0':
-    resolution: {integrity: sha512-+5LaPfDCvm/Jz+RIqwThJ7zQeY06lg+VUIGHoLsB+hZAxVdoIWsjnsKqxhbCquG5A9/Lh+CHVS1awtVU5LjS4Q==}
-
   '@vizij/animation@0.4.0':
     resolution: {integrity: sha512-0yOCMbq2bGxL2TiiiLhMw5wWJtQnU7a46bnQqEwaeUomGIvOitqGw6qhlJ1xqVNLO6wletrV3daIMpcYruso/Q==}
 
   '@vizij/node-graph@0.9.0':
     resolution: {integrity: sha512-rO3KXqWg8GSE03vM77QG7JhksWlm3z120QlRfxvMlD6Ehotjf7iYmCy4DEBJAvMaoJKRBbE1CXeAcNE0zLne4w==}
-
-  '@vizij/runtime@2.4.0':
-    resolution: {integrity: sha512-+BA6bxpvjOvHueZyRgHo6Z8f+9fbK2xuVgPiwXaE+fZQVE02Qf8gKkpWWQpUrWXphVK5JlwRtbdOLigVz8RClw==}
 
   '@vizij/runtime@3.0.0':
     resolution: {integrity: sha512-JKOEquvxuOlUMb9Z5NucL+lD1jAOi6CSF6ahwI2hAtOy/k1cEv3puYs55/FvE1jzp17MIliZlB+qZZwmfxabjQ==}
@@ -8993,19 +8983,12 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@vizij/animation-module@1.0.0': {}
-
   '@vizij/animation@0.4.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
   '@vizij/node-graph@0.9.0':
-    dependencies:
-      '@vizij/value-json': 0.2.0
-      '@vizij/wasm-loader': 0.1.5
-
-  '@vizij/runtime@2.4.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
