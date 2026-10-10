@@ -1,28 +1,15 @@
-import type { RefObject } from "react";
 import type * as THREE from "three";
-import type { Group, Mesh } from "three";
-import type { ThreeEvent } from "@react-three/fiber";
-import type { MouseEvent as ReactMouseEvent } from "react";
 import type { RawValue, AnimatableValue } from "@vizij/utils";
 import type { World, Selection, RenderableFeature } from "./types";
 
 export interface VizijData {
   world: World;
-  /**
-   * The mounted three.js object of each world element, by element id and then
-   * namespace. It lives beside `world` so that the world stays plain data.
-   */
-  refs: Record<string, Record<string, RefObject<Group | Mesh | null>>>;
   animatables: Record<string, AnimatableValue>;
   values: Map<string, RawValue | undefined>;
-  // Remove after control refactor
-  renderHit: boolean;
   preferences: {
     damping: boolean;
   };
   elementSelection: Selection[];
-  hoveredElement: Selection | null;
-  slotConfig: Record<string, string>;
 }
 
 export interface VizijActions {
@@ -43,28 +30,13 @@ export interface VizijActions {
     scene: World,
     animatables: Record<string, AnimatableValue>,
   ) => void;
-  setSlot: (
-    parentId: string,
-    parentNamespace: string,
-    childId: string,
-    childNamespace: string,
-  ) => void;
-  setSlots: (slots: Record<string, string>, replace?: boolean) => void;
-  clearSlot: (parentId: string, parentNamespace: string) => void;
   addWorldElements: (
     world: World,
     animatables: Record<string, AnimatableValue>,
     replace?: boolean,
   ) => void;
   setPreferences: (preferences: Partial<VizijData["preferences"]>) => void;
-  getExportableBodies: (filterIds?: string[]) => Group[];
   updateElementSelection: (selection: Selection, chain: string[]) => void;
-  setHoveredElement: (selection: Selection | null) => void;
-  onElementClick: (
-    selection: Selection,
-    chain: string[],
-    event: ThreeEvent<ReactMouseEvent>,
-  ) => void;
   clearSelection: () => void;
   setOrigin: (
     id: string,
@@ -83,11 +55,6 @@ export interface VizijActions {
   setChildren: (id: string, children: string[]) => void;
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => void;
   setMaterial: (id: string, material: string) => void;
-  setReference: (
-    id: string,
-    namespace: string,
-    object: RefObject<Group | Mesh | null>,
-  ) => void;
   createGroup: (root: boolean) => void;
   createAnimatable: (
     elementId: string,
