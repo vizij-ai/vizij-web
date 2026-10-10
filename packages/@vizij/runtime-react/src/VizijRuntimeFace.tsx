@@ -1,23 +1,12 @@
-import { memo } from "react";
-import { Vizij } from "@vizij/render";
-import { useVizijRuntime } from "./hooks/useVizijRuntime";
-import type { VizijRuntimeFaceProps } from "./types";
+import type { ReactNode } from "react";
+import { Vizij, type VizijProps } from "@vizij/render";
+import { useVizijRuntime } from "./hooks";
 
-function VizijRuntimeFaceInner({
-  namespaceOverride,
-  ...props
-}: VizijRuntimeFaceProps) {
-  const { rootId, namespace } = useVizijRuntime();
-  if (!rootId) {
-    return null;
-  }
-  return (
-    <Vizij
-      {...props}
-      rootId={rootId}
-      namespace={namespaceOverride ?? namespace}
-    />
-  );
+export type VizijRuntimeFaceProps = Omit<VizijProps, "vizijId">;
+
+/** `<Vizij>` bound to the nearest provider's face: where it draws on the
+ * page's canvas. */
+export function VizijRuntimeFace(props: VizijRuntimeFaceProps): ReactNode {
+  const { vizijId } = useVizijRuntime();
+  return <Vizij {...props} vizijId={vizijId} />;
 }
-
-export const VizijRuntimeFace = memo(VizijRuntimeFaceInner);
