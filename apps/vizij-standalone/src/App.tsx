@@ -2,8 +2,8 @@
  * The page: a face in the Bevy view over its own Arora runtime, and an agent
  * talking through it — the ear (Deepgram), the mind (OpenAI), the mouth (the
  * runtime's `say` skill, lips driven by its viseme players). The agent writes
- * nothing but standard names: the ROS4HRI expression the mind chose and the
- * `say` run; the face's own rig paths are its own business.
+ * nothing but the face standard: the expression the mind chose and the `say`
+ * run; the face's own rig paths are its own business.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Conversation, type State } from "./agent/conversation";
