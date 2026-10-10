@@ -79,12 +79,16 @@ To disable the panel, launch with `--no-web-control`.
 
 ## Local Control Surface
 
-The app hosts a small **multi-bridge host**: one shared `arora_simple_data_store::SimpleDataStore`
-blackboard with several `arora_bridge::Bridge` endpoints attached to it — a
-WebSocket bridge ([`arora-bridge-ws`]), an optional ROS 2 data-topic bridge
-([`arora-bridge-ros2`]), and (opt-in) the Studio Zenoh bridge. All share the
-**same** store, so a value written on any bridge fans out to every other and to
-Studio's live-data view.
+The app hosts one arora device over a shared `arora_simple_data_store::SimpleDataStore`
+blackboard. Its run owns a WebSocket bridge ([`arora-bridge-ws`]) and an
+optional ROS 2 bridge ([`arora-bridge-ros2`]), and answers the commands of the
+opt-in Studio connection. Every bridge reads the **same** store, so a value
+written on any bridge fans out to every other and to Studio's live-data view.
+
+A remote write reaches only the keys the store opens — the webview's `input`
+keys, and the ROS4HRI profile's `standard/ros4hri/*` inputs — and only with a
+value of the type the key states (`f64` for the webview's keys; the ROS4HRI
+inputs state none): the run refuses any other write whole, naming the key.
 
 The app starts the WebSocket endpoint on `ws://127.0.0.1:<port>` and, unless
 disabled, serves the browser control panel on `http://127.0.0.1:<port>/`.
@@ -92,8 +96,9 @@ disabled, serves the browser control panel on `http://127.0.0.1:<port>/`.
 The webview runtime:
 
 - advertises its **key catalog** (from `inputConstraints`) via the `set_slots`
-  Tauri command — the host mirrors it onto the WS registry (driving `list_keys`
-  and the `write_values` allow-list) and seeds default values into the store;
+  Tauri command — the host states each key's meta in the store (its type, its
+  range, its default, whether it is an input), which every bridge lists, and
+  seeds default values into the store;
 - **continuously mirrors** its live values into the store via the
   `publish_values` command (10 Hz), which is what feeds live data out to WS,
   ROS 2, and Studio;
@@ -103,12 +108,17 @@ The webview runtime:
 The WebSocket wire vocabulary is the `arora-bridge-ws` data layer: clients
 `write_values` / `read_values` at **keys**, `list_keys`, `list_methods`, and
 `invoke` methods; the server pushes live state as unsolicited `values_changed`.
-(This is the current vocabulary — the older `set_slot_values` / `SlotInfo`
-naming is gone.)
+
+The app's own methods — `reset`, `speak`, `interrupt`, `mute_microphone`,
+`get_mic_muted`, `transport/list`, `transport/play`, `transport/pause`,
+`transport/stop` — are a module of the device
+([`src-tauri/src/methods.rs`](./src-tauri/src/methods.rs)), so every bridge
+lists and calls them like any other method.
 
 For protocol details, inspect:
 
-- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs) — the device run, the Tauri commands + WS method surface
+- [`src-tauri/src/lib.rs`](./src-tauri/src/lib.rs) — the device run and the Tauri commands
+- [`src-tauri/src/methods.rs`](./src-tauri/src/methods.rs) — the app's methods
 - [`src-tauri/src/skills.rs`](./src-tauri/src/skills.rs) — what the run composes (the ROS4HRI profile, the gaze contract)
 - [`src-tauri/src/host.rs`](./src-tauri/src/host.rs) — the Studio pump's plumbing
 
@@ -127,26 +137,27 @@ The server binds loopback by default; expose it only on trusted networks.
 ## ROS2 Control Surface
 
 When built with the `ros2` feature, the device's arora run attaches an
-`arora-bridge-ros2` bridge (5.x) with the **ROS4HRI exposure preset** —
+`arora-bridge-ros2` bridge (10.x) with the **ROS4HRI exposure preset** —
 the standalone joins the ROS graph as a ROS4HRI face renderer:
 
-- **typed face topics** — `/robot_face/{expression,look_at,tts}` and
-  `/expressive_face/{look_at,speech}` land on the profile's
-  `standard/ros4hri/*` keys; the ROS4HRI profile graph runs **in the device**
-  and turns them into the face's standard controls (the webview only renders)
+- **typed face topics** — `/robot_face/look_at` (PAL's name),
+  `/skill/set_expression` (`interaction_skills/SetExpression`), and
+  `/tts/viseme` / `/tts/visemes` land on the profile's `standard/ros4hri/*`
+  inputs; the ROS4HRI profile graph runs **in the device** and turns them into
+  the face's standard controls (the webview only renders)
 - **actions** — `/skill/look_at` (`interaction_skills/LookAt`: track / glance /
-  reset, priorities, standard error codes) and the device's described task-run
-  methods (e.g. `say`) under `/{namespace}/actions/...`
+  reset, priorities, standard error codes), `/skill/say`, and the device's
+  described task-run methods under `/{namespace}/actions/...`
 - **data topics** — every key under `/{namespace}/keys/...`: the device
-  publishes each changed key and subscribes to the **input** keys the webview
-  advertised (declared up front from the key catalog; a changed catalog
-  rebuilds the run). Advertised keys are `f64`, so their input topics are
+  publishes each changed key and subscribes to the keys the store opens — the
+  **input** keys the webview advertised (asked of the device when the run
+  starts; a changed catalog rebuilds the run). Advertised keys are `f64`, so
+  their input topics are
   `std_msgs/msg/Float64` — `ros2 topic info -v <topic>` shows each topic's
   type and the bridge's subscription; a publisher of another type
   (e.g. `Float32`) never matches
-- the `reset` / `speak` / `mute` / `transport` app methods stay on the
-  WebSocket (and Studio) bridge — they are WS-registry methods, not device
-  methods
+- the app's methods (`reset`, `speak`, …) are device methods, served as
+  services like any described method
 - the namespace defaults to `vizij`; the DDS domain defaults to `0`
 - a `ros2-zenoh` build reaches the rmw_zenoh router through the Zenoh session
   config, e.g. `ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/localhost:7447"]'`
@@ -158,8 +169,8 @@ keys nobody else owns:
 
 - keys the device's **ROS4HRI profile** writes every step — the
   `standard/vizij/*` expressions, gaze, lids, visemes, muscle tier — cannot be
-  driven directly; drive them through the ROS4HRI topics
-  (`/robot_face/expression`, `/robot_face/look_at`, …) that feed the profile;
+  driven directly; drive them through the ROS4HRI inputs
+  (`/skill/set_expression`, `/robot_face/look_at`, …) that feed the profile;
 - keys the face's **autoplaying program** writes every frame (on the reference
   Quori face: the `standard/vizij/mouth|*_eye*|*_brow*|*_eyelid*` controls)
   are the program's outputs; drive its **inputs** instead
@@ -168,8 +179,11 @@ keys nobody else owns:
   output paths;
 - `propsrig/*` are the rig's computed actuation values, not inputs.
 
-A key nobody drives — a face input control the program leaves alone — takes
-a remote write and holds it.
+Only an open key takes a remote write at all: the webview's catalog — its
+`inputConstraints` — and the ROS4HRI inputs. A key in neither (a program input
+the catalog does not list, `background/color`) is refused, naming the key. A
+catalog key nobody drives — a face input control the program leaves alone —
+takes a remote write and holds it.
 
 Relevant files:
 
@@ -218,17 +232,21 @@ it. The choice is remembered (persisted app-side), so it asks only once. Setting
 the `DEVICE_OWNERS` env var overrides the prompt entirely (see below).
 
 The public Firebase config and the production bridge endpoint are **baked into
-`arora-studio-bridge-client` (v3.1+)** itself, so the feature is **zero-config** —
+`arora-studio-bridge-client`** itself, so the feature is **zero-config** —
 there is nothing to set up to reach production Studio. Runtime env still
 overrides: `STUDIO_BRIDGE_ENDPOINT` for a non-production bridge, `FIREBASE_*` for
 a different project/emulator.
 
 > Status: the bridge connects, the device registers (an owning Studio user can
-> see and claim it), **and it now streams live data**. The Studio bridge is a
-> third `arora_bridge::Bridge` sharing the multi-bridge host's `SimpleDataStore`,
-> so the webview's mirrored values (via `publish_values`) fan out to Studio like
-> any other bridge, and Studio's writes flow back into the webview — closing the
-> VIZ-67 live-data gap.
+> see and claim it), and it streams live data: the webview's mirrored values
+> (via `publish_values`) are published to Studio, each key under its own path
+> as the device wrote it (`arora-studio-bridge-client` 10, protocol 3), and
+> Studio's commands are answered by the device run like any bridge's — its
+> writes to the input keys flow back into the webview. A Studio on a studio
+> client older than 10 reads a key holding both a `/` and a `.` as another
+> key, and this device refuses its commands touching a key that holds a `.`
+> or an empty segment. A router keeps the keys a device published in the
+> earlier form until it restarts.
 
 ### Running with the feature
 
