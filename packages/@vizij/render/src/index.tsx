@@ -1,11 +1,13 @@
-export * from "./vizij";
+export { VizijCanvas, canvasMounted } from "./page/canvas";
+export type { VizijCanvasProps } from "./page/canvas";
+export { Vizij } from "./page/vizij";
+export type { VizijProps } from "./page/vizij";
 export * from "./store";
 export * from "./store-types";
 export * from "./types";
 export * from "./context";
 export * from "./hooks/use-vizij-store";
 export * from "./hooks/use-vizij-store-subscription";
-export * from "./hooks/use-features";
 export * from "./hooks/use-vizij-store-setter";
 export * from "./hooks/use-vizij-store-getter";
 export * from "./functions/load-gltf";

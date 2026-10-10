@@ -1,119 +1,148 @@
 # @vizij/render
 
-> Three.js + React renderer, scene store, and helper controllers for Vizij faces.
-
-This package exposes the `Vizij` canvas component along with hooks, stores, and GLTF helpers that power Vizij’s real-time character visualisation. It is the foundation that other packages (`@vizij/runtime-react`, etc.) build upon.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Installation](#installation)
-3. [Usage](#usage)
-4. [Store & Hooks](#store--hooks)
-5. [Controllers & Helpers](#controllers--helpers)
-6. [Development & Testing](#development--testing)
-7. [Publishing](#publishing)
-8. [Related Packages](#related-packages)
+> Vizij faces on a page — the page's canvas and the face slots over
+> [`@vizij/runtime`](https://www.npmjs.com/package/@vizij/runtime)'s Bevy view —
+> and the GLB loader, exporter and world model the authoring app edits.
 
 ---
 
 ## Overview
 
-- `Vizij` renders a fully managed `@react-three/fiber` canvas with sensible defaults for orthographic cameras and safe-area overlays.
-- A Zustand-powered store (`useVizijStore`) tracks renderables, controllers, and transient state. Hooks let you read or mutate slices without re-rendering entire scenes.
-- The loader (`loadGLTF`, `loadGLTFFromBlob` and their `WithBundle` forms) turns a rigged GLB into the world model; `buildSceneGraph` and `exportScene` turn the world model back into GLB bytes. Both run in Node as well as in a browser. The tuple helpers return `[world, animatables, animations]`, where `animations` contains parsed clip metadata for any channels embedded in the GLB.
-- Controllers wrap common behaviours (e.g., pointer interaction, safe-area visualisation) so you can compose features quickly.
+- **The page's canvas, `<VizijCanvas>`.** `@vizij/runtime` runs one Bevy App
+  per page, on one canvas. `<VizijCanvas>` renders it and mounts it once;
+  while it is shown, one animation-frame loop places each face over its slot
+  and hands each pointer pick to the slot it names.
+- **A face slot, `<Vizij>`.** A `<div>` marking where one face draws on that
+  canvas. It renders no canvas of its own, so a page shows any number of faces
+  for the cost of one App.
+- **The loader and the exporter.** `loadGLTF`, `loadGLTFFromBlob` and their
+  `WithBundle` forms turn a rigged GLB into the world model; `buildSceneGraph`
+  and `exportScene` turn the world model back into GLB bytes. Both run in Node
+  as well as in a browser.
+- **The world model and its store.** `useVizijStore` and its hooks hold the
+  world, its animatables and the element selection: the document the authoring
+  app edits.
+
+A face's device — loading it, writing its keys, calling its methods — is
+`@vizij/runtime`'s `Runtime`; [`@vizij/runtime-react`](../runtime-react/README.md)
+binds one to a React tree.
 
 ---
 
 ## Installation
 
 ```bash
-# pnpm
-pnpm add @vizij/render three @react-three/fiber @react-three/drei zustand @vizij/utils
-
-# npm
-npm install @vizij/render three @react-three/fiber @react-three/drei zustand @vizij/utils
-
-# yarn
-yarn add @vizij/render three @react-three/fiber @react-three/drei zustand @vizij/utils
+pnpm add @vizij/render @vizij/runtime three zustand @vizij/utils
 ```
 
-Peer requirements:
-
-- `react >= 18`
-- `three >= 0.170`
-- `@react-three/fiber >= 8`
-- `@react-three/drei >= 9`
-- `zustand >= 5`
-- Optional UI integrations: `tailwindcss >= 4.1` (declared as a peer for theme utilities)
-
-Ensure these versions align with the rest of your app to avoid duplicate React or Three.js instances.
+Peer requirements: `@vizij/runtime ^6`, `react >= 18`, `three ^0.170` (the
+loader and the exporter), `zustand ^5` (the store). `@vizij/runtime` is a peer
+so that a page resolves one copy of it, and therefore one wasm module.
 
 ---
 
 ## Usage
 
 ```tsx
-import { Vizij, useVizijStore } from "@vizij/render";
-import { useEffect } from "react";
+import { VizijCanvas, Vizij } from "@vizij/render";
 
-export function VizijCanvas() {
-  const setDebug = useVizijStore((state) => state.setDebugState);
-
-  useEffect(() => {
-    setDebug((debug) => ({ ...debug, showGrid: true }));
-  }, [setDebug]);
-
+export function Page() {
   return (
-    <Vizij
-      rootId="default/root"
-      namespace="default"
-      showSafeArea
-      style={{ width: "100%", height: 480 }}
-    />
+    <>
+      <VizijCanvas />
+      <section>
+        <Vizij vizijId="quori" style={{ width: 480, height: 360 }} />
+      </section>
+    </>
   );
 }
 ```
 
-Wrap the component tree with `VizijContext.Provider` if you want to supply a custom store; otherwise the `Vizij` component creates one internally.
+The face itself is loaded under the same id, once the canvas is mounted:
 
----
+```ts
+import { canvasMounted } from "@vizij/render";
+import { loadVizij } from "@vizij/runtime";
 
-## Store & Hooks
+await canvasMounted();
+const quori = await loadVizij("quori", glbBytes);
+void quori.run();
+```
 
-- `useVizijStore(selector?)` – Access or mutate the renderer store with automatic subscription management.
-- `useVizijStoreGetter`, `useVizijStoreSetter`, `useVizijStoreSubscription` – Fine-grained accessors when you need optimised reads/writes.
-- `useFeatures()` – Inspect feature flags registered in the store.
-- Store types (`VizijData`, `VizijActions`) are exported from `store-types` for strongly typed selectors.
+`@vizij/runtime-react`'s `VizijRuntimeProvider` does this for a React tree.
 
-The store tracks world graph entries, controllers, debug overlays, and renderable metadata. See `src/store.ts` for the full surface.
+### `<VizijCanvas options? className? style? />`
 
----
+- Its first mount calls `@vizij/runtime`'s `mount` with `options` (every
+  face's defaults: `fit`, `zoom`, `background`, `ambient`, `unlit`). A second
+  `<VizijCanvas>`, a remount or React StrictMode's second effect shows the same
+  canvas and App; the options of the first mount stand for the page's
+  lifetime.
+- `canvasMounted()` resolves with the canvas once it is mounted, which
+  `loadVizij` requires, and rejects if mounting failed.
+- Default style: `position: fixed; inset: 0; pointer-events: none`, over the
+  page content. Faces then draw wherever their slots lie, whatever the
+  backgrounds of the sections between, and the page's own UI keeps the
+  pointer. Content that must draw over a face stacks above the canvas.
+- `className` or `style` replace the default. A page that takes picks (an
+  authoring viewport) places the canvas itself and gives it pointer events.
 
-## Controllers & Helpers
+The canvas's loop reads every slot's rectangle each frame and calls
+`placeVizij` when it moved, which follows scrolling, resizes and layout shifts
+alike. `placeVizij` and `drainPicks` act on the whole page, which is why they
+have one caller.
 
-- Controllers under `src/controllers` encapsulate input handling, camera logic, and other behaviours. Compose them with your own React components.
-- `loadGLTF` / `loadGLTFFromBlob` load rig assets and extract the animatable metadata used by `@vizij/runtime-react`. A blob is parsed in memory, with nothing fetched.
-- `buildSceneGraph(world, animatables, rootId)` builds the three.js graph of a world element with no renderer, and `exportScene(root, { bundle, animations })` encodes a graph as GLB bytes. Saving or uploading the bytes is the caller's job.
+### `<Vizij vizijId className? style? toneMapping? fit? zoom? bounds? showSafeArea? selection? onPick? />`
 
-All exports are re-exported through `src/index.tsx`, so a simple `import { loadGLTF } from "@vizij/render"` works.
+| Prop                 | Effect                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `vizijId`            | The face the slot shows: the id it is loaded under.                                                          |
+| `className`, `style` | Size and place the slot; the face draws over its border box.                                                 |
+| `toneMapping`        | The face's tone-mapping curve (`none`, `agx`, `aces`, `neutral`): `setView`.                                 |
+| `fit`, `zoom`        | How the framed bounds fit the slot, and the magnification after the fit; the canvas's options when absent.   |
+| `bounds`             | The world rectangle the face's camera frames, in place of the GLB's authored `rootBounds`.                   |
+| `showSafeArea`       | Outlines the framed bounds (`safeArea(vizijId)`) over the face, as a DOM overlay.                            |
+| `selection`          | The element ids whose outlines glow (`setSelection`). Absent, the slot leaves the face's selection as it is. |
+| `onPick`             | A press on the face: `{ vizijId, elementId }`, `elementId` `null` for a press that hit no element.           |
 
-### Dual-format Vizij bundles
+The slot carries `data-vizij-id` and `data-vizij-ready`, `"true"` once the
+face's scene shows its device's pose — what an e2e test waits on. When a slot
+unmounts, its face is placed on an empty rectangle, where it draws nothing.
+One slot shows a face at a time.
 
-Vizij scenes persist authoring metadata inside GLBs so third-party tools see baked animation, while Vizij runtimes retain the authored graphs and clips.
+### Loading and exporting
 
-- Every renderable still carries a `RobotData` extension in `userData` describing features and animatable bindings.
-- The exporter now writes a root-level `extensions.VIZIJ_bundle` block following the schema in [`src/types/vizij-bundle.ts`](./src/types/vizij-bundle.ts). It contains rig graphs, pose configs, stored Vizij clips, and provenance hashes.
-- Use `exportScene(root, { bundle, animations })` to embed both the Vizij bundle and optional baked `THREE.AnimationClip` instances; it resolves to the GLB as an `ArrayBuffer`. The helper attaches the bundle only for the export call and restores the original object.
-- A graph from `buildSceneGraph` carries each element's authored values: node translation, rotation and scale, morph weights and material factors equal the `RobotData` defaults written beside them, not a runtime pose.
-- When loading assets, prefer `loadGLTFWithBundle` / `loadGLTFFromBlobWithBundle` to retrieve `{ world, animatables, bundle, animations }`. The legacy tuple helpers return `[world, animatables, animations]` if you only need the renderer state.
-- The new `animations` field exposes `VizijAnimationClipData[]`, which maps each glTF animation channel back to Vizij animatable ids (`RobotData.features.*.value.id`). Each track provides component-aware `times`/`values` arrays so runtimes can register clips without re-parsing the GLB.
-- `extractVizijBundle(scene)` and `applyVizijBundle(scene, bundle)` (under `src/functions/vizij-bundle.ts`) let advanced tooling inspect or mutate bundles without triggering a fresh export.
+- `loadGLTF(url, aggressiveImport?, rootBounds?)`, `loadGLTFFromBlob` and
+  their `WithBundle` forms return the world, its animatables, the
+  `VIZIJ_bundle` and the GLB's animations. A blob is parsed in memory, with
+  nothing fetched.
+- `buildSceneGraph(world, animatables, rootId)` builds the three.js graph of a
+  world element with no renderer; `exportScene(root, { bundle, animations })`
+  encodes it as GLB bytes. Every node carries its element's `RobotData`, and
+  its transform, morph weights and material factors are the element's
+  authored defaults.
+- An ellipse or a rectangle exports as a node with no mesh, carrying its
+  `RobotData` — `type`, `width`, `height`, `fillColor`, `fillOpacity` — from
+  which the Bevy view draws it: a unit circle or square scaled by the width
+  and height, filled with the colour and opacity. Its stroke is not drawn.
+- `extractVizijBundle(scene)` and `applyVizijBundle(scene, bundle)` read and
+  write the bundle on a three.js graph.
 
-With this structure, authoring tools can round-trip Vizij runtime assets while shipping native glTF animations for viewers that do not understand Vizij.
+The `VIZIJ_bundle` extension follows the schema in
+[`src/types/vizij-bundle.ts`](./src/types/vizij-bundle.ts): rig graphs, pose
+configs, programs, stored clips and provenance hashes, beside glTF animations
+that viewers which do not understand Vizij still play.
+
+### The store
+
+- `useVizijStore(selector)` reads the store of the nearest
+  `VizijContext.Provider`; `useVizijStoreGetter`, `useVizijStoreSetter` and
+  `useVizijStoreSubscription` are its fine-grained forms.
+- `createVizijStore()` and `useDefaultVizijStore` create and hold one.
+- It holds the world, its animatables, values keyed by namespace, the element
+  selection, and the edits the authoring app makes to them (`setVizij`,
+  `addWorldElements`, `setStaticFeature`, `createAnimatable`, …). Its types are
+  `VizijData` and `VizijActions`.
 
 ---
 
@@ -127,39 +156,24 @@ pnpm --filter "@vizij/render" lint
 pnpm --filter "@vizij/render" size
 ```
 
-`tsup` produces both ESM and CJS bundles with type declarations. Tests run via Vitest (currently smoke-level), and `size-limit` guards against unexpected bundle growth.
+The tests run on Node (`node --test`): the loader, the headless export round
+trip of the shipped faces and of an ellipse and a rectangle, and the canvas's
+frame loop. `size-limit` guards the bundle size.
 
 ---
 
 ## Publishing
 
-Use the shared workflow at [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
-
-1. Align dependency versions (`three`, `@react-three/*`, `zustand`, Vizij packages) and generate a changeset:
-
-   ```bash
-   pnpm changeset
-   pnpm version:packages
-   ```
-
-2. Validate locally:
-
-   ```bash
-   pnpm install
-   pnpm --filter "@vizij/render" build
-   pnpm --filter "@vizij/render" test
-   pnpm --filter "@vizij/render" typecheck
-   pnpm --filter "@vizij/render" lint
-   pnpm --filter "@vizij/render" exec npm pack --dry-run
-   ```
-
-3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
+A change carries a changeset (`pnpm changeset`). Merging to `main` updates the
+Version Packages PR, and merging that publishes through
+[`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
+See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
 
 ---
 
 ## Related Packages
 
-- [`@vizij/runtime-react`](../runtime-react/README.md) – Hooks that consume the renderer to load rigged models.
-- [`@vizij/animation-react`](../animation-react/README.md) – React bindings that feed animation values back into the renderer.
-
-Questions or contributions? Open an issue so we can keep the renderer API and docs sharp for the whole Vizij ecosystem. 🎨
+- [`@vizij/runtime`](https://www.npmjs.com/package/@vizij/runtime) – the Bevy
+  view and each face's Arora device, in one wasm module.
+- [`@vizij/runtime-react`](../runtime-react/README.md) – one face's lifecycle
+  in React and the fan-out of its store changes.

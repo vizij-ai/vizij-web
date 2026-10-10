@@ -1,30 +1,19 @@
-import {
-  ACESFilmicToneMapping,
-  AgXToneMapping,
-  NeutralToneMapping,
-  NoToneMapping,
-} from "three";
-import type { ToneMapping } from "three";
+import type { ToneMapping } from "@vizij/runtime";
 
 /**
- * Vizij-level tone-mapping selection.
+ * A face's tone-mapping curve, as a bundle stores it and the view applies it
+ * (`@vizij/runtime`'s `ToneMapping`):
  *
- * This is a stable, serializable string enum rather than a raw three.js
- * constant so it can be persisted in the `VIZIJ_bundle` extension and round-trip
- * through import/export without leaking three's numeric enum values into stored
- * data.
- *
- * - `"none"` — no tone mapping. Values are written to the framebuffer as-is and
- *   clip at 1.0. This matches plain web/canvas rendering and is the historical
- *   vizij default (chosen so studio colors match the canvas).
- * - `"agx"` — AgX, Blender 4.x's default view transform. Compresses
- *   over-1.0 emissive into soft, slightly-desaturated color; matches faces
- *   authored/exported from Blender.
+ * - `"none"` — no curve: colors as shaded, clipped at 1.0, as plain web
+ *   rendering shows them. The default.
+ * - `"agx"` — AgX, Blender 4.x's default view transform: over-1.0 emissive
+ *   compressed into soft, slightly desaturated color, as faces authored in
+ *   Blender expect.
  * - `"aces"` — ACES Filmic, a punchier cinematic curve.
- * - `"neutral"` — Khronos PBR Neutral, a mild curve that preserves hue/saturation
- *   while taming highlights.
+ * - `"neutral"` — Khronos PBR Neutral, a mild curve that keeps hue and
+ *   saturation while taming highlights.
  */
-export type ToneMappingMode = "none" | "agx" | "aces" | "neutral";
+export type ToneMappingMode = ToneMapping;
 
 /**
  * The set of supported tone-mapping modes, in display order. Useful for
@@ -47,18 +36,8 @@ export const TONE_MAPPING_LABELS: Record<ToneMappingMode, string> = {
   neutral: "Neutral",
 };
 
-/**
- * The default tone-mapping mode used when a face/scene has not specified one.
- * `"none"` preserves the historical web-matching behavior.
- */
+/** The tone-mapping mode of a face that specifies none. */
 export const DEFAULT_TONE_MAPPING_MODE: ToneMappingMode = "none";
-
-const TONE_MAPPING_CONSTANTS: Record<ToneMappingMode, ToneMapping> = {
-  none: NoToneMapping,
-  agx: AgXToneMapping,
-  aces: ACESFilmicToneMapping,
-  neutral: NeutralToneMapping,
-};
 
 /**
  * Type guard: is `value` a valid {@link ToneMappingMode}?
@@ -66,20 +45,8 @@ const TONE_MAPPING_CONSTANTS: Record<ToneMappingMode, ToneMapping> = {
 export function isToneMappingMode(value: unknown): value is ToneMappingMode {
   return (
     typeof value === "string" &&
-    Object.prototype.hasOwnProperty.call(TONE_MAPPING_CONSTANTS, value)
+    (TONE_MAPPING_MODES as string[]).includes(value)
   );
-}
-
-/**
- * Resolve a {@link ToneMappingMode} (or an unknown/undefined stored value) to
- * the corresponding three.js tone-mapping constant. Falls back to
- * {@link DEFAULT_TONE_MAPPING_MODE} for missing/invalid input.
- */
-export function resolveToneMapping(mode: unknown): ToneMapping {
-  if (isToneMappingMode(mode)) {
-    return TONE_MAPPING_CONSTANTS[mode];
-  }
-  return TONE_MAPPING_CONSTANTS[DEFAULT_TONE_MAPPING_MODE];
 }
 
 /**
