@@ -41,9 +41,14 @@ type MeshMaterial =
  * pose. A caller that wants other values in the file passes them as the
  * defaults of `animatables`.
  *
- * Throws when an element is missing from `world`, when an animated feature
- * names an animatable missing from `animatables`, and for ellipse and
- * rectangle elements, which have no exported form.
+ * An ellipse or a rectangle becomes a node with no mesh: its RobotData —
+ * `type`, `width`, `height`, `fillColor`, `fillOpacity` among its features —
+ * is what the Bevy view draws it from (a unit circle or square scaled by the
+ * width and height, filled with the colour and opacity). The node carries its
+ * translation and rotation, and the width and height as its scale on X and Y.
+ *
+ * Throws when an element is missing from `world`, and when an animated
+ * feature names an animatable missing from `animatables`.
  */
 export function buildSceneGraph(
   world: World,
@@ -93,10 +98,24 @@ export function buildSceneGraph(
       }
       return object;
     }
-    default:
-      throw new Error(
-        `Element "${rootId}" is a ${entry.type}, which has no exported form.`,
-      );
+    case "ellipse":
+    case "rectangle": {
+      const object = new THREE.Group();
+      object.name = entry.name;
+      object.userData = { gltfExtensions: { RobotData: robotData } };
+      const { translation, rotation } = groupTransform(object);
+      applyFeatures(entry.features, animatables, {
+        translation,
+        rotation,
+        width: (value) => {
+          if (instanceOfRawNumber(value)) object.scale.x = value;
+        },
+        height: (value) => {
+          if (instanceOfRawNumber(value)) object.scale.y = value;
+        },
+      });
+      return object;
+    }
   }
 }
 
