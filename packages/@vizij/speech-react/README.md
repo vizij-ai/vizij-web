@@ -1,7 +1,7 @@
 # @vizij/speech-react
 
-**Deprecated.** Speech is the device's: `@vizij/runtime` 3 speaks through
-the `say` skill (`device.spawnSkill("say", { text })`), the lips follow the
+**Deprecated.** Speech is the device's: `@vizij/runtime` speaks through
+the `say` skill (`runtime.invoke("say", { text })`), the lips follow the
 device's viseme players, and the page plays the audio through the runtime's
 own hook. The speech-to-text and conversation halves live as source in
 [`apps/vizij-standalone/src/agent`](../../../apps/vizij-standalone/src/agent).

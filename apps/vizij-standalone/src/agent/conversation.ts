@@ -4,7 +4,7 @@
  * speaking over the face interrupts it (the `say` run is halted; the audio
  * cuts within 250 ms).
  */
-import type { TaskHandle } from "@vizij/runtime";
+import type { RunHandle } from "@vizij/runtime";
 import type { FaceHandle } from "../face";
 import { Listener } from "./listen";
 import type { Thinker } from "./think";
@@ -21,7 +21,7 @@ export interface ConversationEvents {
 
 export class Conversation {
   private listener: Listener | null = null;
-  private speaking: TaskHandle | null = null;
+  private speaking: RunHandle | null = null;
   private watch: ReturnType<typeof setInterval> | null = null;
   state: State = "idle";
 
