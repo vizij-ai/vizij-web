@@ -11,20 +11,27 @@ binary ships installers.
 ## What it does
 
 - Loads a face GLB — the page's `?glb=` URL, the shell's `--glb`, a file you
-  open or drop, else the shipped `public/faces/Quori_Current_Extended.glb`
-  (Quori with its standard viseme adaptation, so the lips follow speech) —
-  and shows it: `mount`, `loadVizij`, `placeVizijIn`, `whenReady`, `run`.
-- Speaks: a `say` run on the runtime (`runtime.spawnSkill("say", { text })`),
-  its audio played by the runtime's Web Audio player, its lips driven by the
-  runtime's viseme players. `stop` halts the run; the audio cuts within
-  250 ms.
+  open or drop, else the repository's
+  `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` (Quori with
+  its standard adaptation, so its expressions and lips follow the face
+  standard) — and shows it: `mount`, `loadVizij`, `placeVizijIn`,
+  `whenReady`, `run`.
+- Speaks: a `say` run on the runtime (`runtime.invoke("say", { text })`,
+  which resolves to the run's `RunHandle`), its audio played by the
+  runtime's Web Audio player, its lips driven by the runtime's viseme
+  players. `stop` halts the run (`runtime.halt(run.run)`); the audio cuts
+  within 250 ms. The run has ended once its `status` key reads terminal.
 - Listens and thinks: the microphone streamed to Deepgram (`src/agent/listen.ts`),
   each utterance answered by OpenAI (`src/agent/think.ts`) with the text to
   say and a ROS4HRI expression name, said with that expression. The user
   speaking over the face interrupts it (`src/agent/conversation.ts`).
 - Expresses: the twelve ROS4HRI expression names, written to
-  `standard/ros4hri/expression/name`, which the face's mapping turns into
-  its own pose. The page writes no `rig/<faceId>/…` path.
+  `standard/ros4hri/expression/name` (a `str`) with
+  `standard/ros4hri/expression/arousal` at 1 (an `f32`) in one store change;
+  the face's mapping shows the named expression at that arousal as its
+  intensity, so a name alone, at the resting arousal of 0, shows nothing.
+  Each write is of the type the key declares, as the device requires. The
+  page writes no `rig/<faceId>/…` path.
 
 Without a Deepgram key the microphone is off; without an OpenAI key the text
 box says what you type. Keys come from the shell's flags (`--deepgram-key`,

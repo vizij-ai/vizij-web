@@ -4,7 +4,12 @@
  * user picks or drops, else the face this app ships.
  */
 
-export const DEFAULT_GLB = "/faces/Quori_Current_Extended.glb";
+/** The face this app ships: the repository's Quori, with its standard
+ * adaptation, served from the authoring app's assets. */
+export const DEFAULT_GLB = new URL(
+  "../../vizij-authoring/public/assets/Quori_Current_Extended.glb",
+  import.meta.url,
+).href;
 
 export interface GlbSource {
   name: string;

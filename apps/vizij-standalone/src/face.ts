@@ -13,25 +13,29 @@ import {
   unloadVizij,
   unlockAudio,
   whenReady,
+  type RunHandle,
   type Runtime,
-  type TaskHandle,
 } from "@vizij/runtime";
 
 /** The one slot this page shows. */
 export const FACE = "face";
 
-/** The ROS4HRI command keys the face's mapping reads (the face's own paths). */
+/** The ROS4HRI command keys the face's mapping reads: the named expression
+ * shows at the commanded arousal as its intensity, so a name goes with an
+ * arousal of 1 to show at full weight. Each write is of the key's declared
+ * type (`str`, `f32`), which the device requires of a client. */
 const EXPRESSION_NAME = "standard/ros4hri/expression/name";
+const EXPRESSION_AROUSAL = "standard/ros4hri/expression/arousal";
 
 export interface FaceHandle {
   runtime: Runtime;
   /** Speak `text`: a `say` run on the runtime; resolves with its handle once
-   * spawned. */
-  say(text: string): Promise<TaskHandle>;
+   * started. */
+  say(text: string): Promise<RunHandle>;
   /** Stop the run `say` returned; the audio cuts within 250 ms. */
-  halt(run: TaskHandle): Promise<void>;
+  halt(run: RunHandle): Promise<void>;
   /** The run's status key reads terminal. */
-  ended(run: TaskHandle): boolean;
+  ended(run: RunHandle): boolean;
   /** The face's expression, by its ROS4HRI name. */
   express(name: string): void;
   /** Keep the face over `slot` on the page. */
@@ -71,13 +75,20 @@ export async function showFace(
   void runtime.run();
   return {
     runtime,
-    say: (text) => runtime.spawnSkill("say", { text, voice: "Ruth" }),
-    halt: (run) => runtime.halt(run),
+    // `say` is a task method: invoking it starts a run and resolves to its
+    // handle.
+    say: async (text) =>
+      (await runtime.invoke("say", { text, voice: "Ruth" })) as RunHandle,
+    halt: (run) => runtime.halt(run.run),
     ended: (run) => {
       const status = runStatus(runtime.readValues([run.status])[run.status]);
       return status !== undefined && status !== "running";
     },
-    express: (name) => runtime.setValue(EXPRESSION_NAME, { text: name }),
+    express: (name) =>
+      runtime.writeValues({
+        [EXPRESSION_NAME]: { str: name },
+        [EXPRESSION_AROUSAL]: { f32: 1 },
+      }),
     place: (element) => placeVizijIn(FACE, element, canvas),
     unload: () => {
       runtime.stop();
