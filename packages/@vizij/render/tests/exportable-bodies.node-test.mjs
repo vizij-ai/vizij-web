@@ -63,29 +63,3 @@ test("prefers rootBounds-tagged groups when available", () => {
     ["root_with_bounds"],
   );
 });
-
-test("getExportableBodies returns the mounted object registered for a root group", async () => {
-  const { Group } = await import("three");
-  const { createVizijStore } = await import("../src/store.ts");
-  const store = createVizijStore();
-  store.getState().setVizij(
-    {
-      root: {
-        id: "root",
-        name: "Root",
-        type: "group",
-        tags: [],
-        root: true,
-        children: [],
-        features: {},
-      },
-    },
-    {},
-  );
-  assert.deepEqual(store.getState().getExportableBodies(), []);
-
-  const mounted = new Group();
-  store.getState().setReference("root", "default", { current: mounted });
-  assert.deepEqual(store.getState().getExportableBodies(), [mounted]);
-  assert.equal("refs" in store.getState().world.root, false);
-});

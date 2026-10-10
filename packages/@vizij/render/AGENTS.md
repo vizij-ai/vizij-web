@@ -1,8 +1,8 @@
 # Agent Notes · @vizij/render
 
 - Run tasks with `pnpm --filter "@vizij/render"` (`build`, `test`, `typecheck`, `lint`, `clean`). Builds run through `tsup`; keep outputs confined to `dist/`.
-- Coordinate changes with consuming apps (`apps/vizij-authoring`, `apps/demo-vizij-player`, `apps/vizij-showcase`) and `@vizij/utils`. Keep README snapshots and component docs aligned when APIs move.
-- Dependencies like `three`, `@react-three/fiber`, and `zustand` must stay in sync with the demo apps. If you bump them, run the apps locally to confirm nothing regresses.
+- Coordinate changes with consuming apps (`apps/vizij-authoring`, `apps/demo-vizij-player`, `apps/vizij-showcase`), `@vizij/runtime-react` and `@vizij/utils`. Keep the README aligned when APIs move.
+- Faces are drawn by `@vizij/runtime`'s Bevy view, a peer dependency. `three` is imported only by the loader (`src/functions/load-gltf*`, `src/functions/gltf-loading/`) and the exporter (`src/functions/build-scene-graph.ts`, `src/functions/export.ts`, `src/functions/vizij-bundle.ts`); the rest imports its types at most.
 - Before publishing, generate a changeset and then execute:
 
   ```bash
@@ -17,4 +17,4 @@
   pnpm --filter "@vizij/render" exec npm pack --dry-run
   ```
 
-- Push tags in the form `npm-render-vX.Y.Z`. The GitHub Action handles the actual `npm publish`.
+- Merging the Version Packages PR publishes; there is no release tag.

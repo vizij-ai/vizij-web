@@ -1,11 +1,7 @@
-import type { RefObject } from "react";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { produce, enableMapSet } from "immer";
-import * as THREE from "three";
-import type { ThreeEvent } from "@react-three/fiber";
-import type { MouseEvent as ReactMouseEvent } from "react";
-import type { Group, Mesh } from "three";
+import type * as THREE from "three";
 import { type RawValue, type AnimatableValue, getLookup } from "@vizij/utils";
 import type { World } from "./types/world";
 import { createNewElement } from "./actions/create-new-element";
@@ -16,28 +12,20 @@ import type {
   VizijStoreGetter,
   VizijStoreSetter,
 } from "./store-types";
-import { recordRenderCounter } from "./memoryInvestigation";
 import { createAnimatable } from "./functions/create-animatable";
-import { selectExportableGroupEntries } from "./functions/exportable-bodies";
 import type { RenderableFeature } from "./types/renderable-feature";
 import type { StaticFeature, GroupFeature, Selection } from "./types";
 
-THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 enableMapSet();
 
-export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
-  // worldRef: createRef<THREE.Group>(),
+export const VizijSlice = (set: VizijStoreSetter, _get: VizijStoreGetter) => ({
   world: {},
-  refs: {},
   animatables: {},
   values: new Map(),
-  renderHit: false,
   preferences: {
     damping: false,
   },
   elementSelection: [],
-  hoveredElement: null,
-  slotConfig: {},
   clearSelection: () => {
     set({ elementSelection: [] });
   },
@@ -47,95 +35,6 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
         state.elementSelection = [selection];
       }),
     );
-  },
-  setHoveredElement: (selection: Selection | null) => {
-    set({ hoveredElement: selection });
-  },
-  onElementClick: (
-    selection: Selection,
-    _chain: string[],
-    event: ThreeEvent<ReactMouseEvent>,
-  ) => {
-    event.stopPropagation();
-
-    const makeKey = (sel: Selection) =>
-      `${sel.namespace}__${sel.type}__${sel.id}`;
-
-    const stack: Selection[] = [];
-    const seen = new Set<string>();
-    const push = (sel: Selection | undefined) => {
-      if (!sel) return;
-      if (!sel.id || !sel.namespace || !sel.type) return;
-      const key = makeKey(sel);
-      if (seen.has(key)) return;
-      seen.add(key);
-      stack.push(sel);
-    };
-
-    const intersections = (event.intersections ?? []) as Array<{
-      object: THREE.Object3D & { userData?: Record<string, unknown> };
-    }>;
-
-    intersections.forEach((hit) => {
-      const hitSelection = hit.object?.userData?.selection as
-        | Selection
-        | undefined;
-      push(hitSelection);
-    });
-
-    if (stack.length === 0) {
-      push(selection);
-    }
-
-    const stackKeys = new Set(stack.map(makeKey));
-    const primary = stack[0];
-    const primaryKey = makeKey(primary);
-
-    set(
-      produce((state: VizijData) => {
-        if (event.metaKey) {
-          const existing = state.elementSelection ?? [];
-          const alreadySelected = existing.some(
-            (item) => makeKey(item) === primaryKey,
-          );
-
-          const existingWithoutStack = existing.filter(
-            (item) => !stackKeys.has(makeKey(item)),
-          );
-
-          if (alreadySelected) {
-            state.elementSelection = existingWithoutStack;
-          } else {
-            state.elementSelection = [...stack, ...existingWithoutStack];
-          }
-        } else {
-          state.elementSelection = stack;
-        }
-      }),
-    );
-  },
-  getExportableBodies: (filterIds?: string[]) => {
-    const worldData = get().world as World;
-    const candidateGroups = selectExportableGroupEntries(
-      worldData as Record<
-        string,
-        {
-          id: string;
-          type: string;
-          parent?: string | null;
-          root?: boolean;
-          rootBounds?: unknown;
-        }
-      >,
-      filterIds,
-    );
-    const refs = get().refs;
-    return candidateGroups.flatMap((entry) => {
-      const mounted = Object.values(refs[entry.id] ?? {})
-        .map((ref) => ref.current)
-        .find((object): object is Group => Boolean(object));
-      return mounted ? [mounted] : [];
-    });
   },
   setGeometry: (id: string, geometry: THREE.BufferGeometry) => {
     set(
@@ -331,41 +230,7 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
       }),
     );
   },
-  setSlot: (
-    parentId: string,
-    parentNamespace: string,
-    childId: string,
-    childNamespace: string,
-  ) => {
-    set(
-      produce((state) => {
-        const parentLookupId = getLookup(parentNamespace, parentId);
-        const childLookupId = getLookup(childNamespace, childId);
-        state.slotConfig[parentLookupId] = childLookupId;
-      }),
-    );
-  },
-  setSlots: (slots: Record<string, string>, replace?: boolean) => {
-    set(
-      produce((state) => {
-        if (replace) {
-          state.slotConfig = slots;
-        } else {
-          state.slotConfig = { ...state.slotConfig, ...slots };
-        }
-      }),
-    );
-  },
-  clearSlot: (parentId: string, parentNamespace: string) => {
-    set(
-      produce((state) => {
-        const parentLookupId = getLookup(parentNamespace, parentId);
-        delete state.slotConfig[parentLookupId];
-      }),
-    );
-  },
   setVizij: (scene: World, animatables: Record<string, AnimatableValue>) => {
-    recordRenderCounter("rootReplacementCount");
     set({
       world: scene,
       animatables,
@@ -377,7 +242,6 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
     replace?: boolean,
   ) {
     if (replace) {
-      recordRenderCounter("rootReplacementCount");
       set({ world, animatables });
     } else {
       set((state) => ({
@@ -389,18 +253,6 @@ export const VizijSlice = (set: VizijStoreSetter, get: VizijStoreGetter) => ({
   setPreferences: (preferences: Partial<VizijData["preferences"]>) => {
     set((state) => ({
       preferences: { ...state.preferences, ...preferences },
-    }));
-  },
-  setReference: (
-    id: string,
-    namespace: string,
-    ref: RefObject<Group | Mesh | null>,
-  ) => {
-    set((state) => ({
-      refs: {
-        ...state.refs,
-        [id]: { ...state.refs[id], [namespace]: ref },
-      },
     }));
   },
 });

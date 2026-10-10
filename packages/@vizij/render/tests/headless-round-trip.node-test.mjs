@@ -191,3 +191,118 @@ for (const face of FACES) {
     assert.equal(reloaded.animations.length, loaded.animations.length);
   });
 }
+
+// No shipped face carries an ellipse or a rectangle; these two do, one with
+// static features and one with animated ones.
+const number = (id, value) => ({
+  id,
+  type: "number",
+  default: value,
+  constraints: {},
+});
+const PRIMITIVES = {
+  world: {
+    root: {
+      id: "root",
+      name: "Root",
+      tags: [],
+      type: "group",
+      root: true,
+      features: {
+        translation: { animated: false, value: { x: 0, y: 0, z: 0 } },
+        rotation: { animated: false, value: { x: 0, y: 0, z: 0 } },
+      },
+      rootBounds: { center: { x: 0, y: 0 }, size: { x: 4, y: 3 } },
+      children: ["eye", "mouth"],
+    },
+    eye: {
+      id: "eye",
+      name: "Eye",
+      tags: [],
+      type: "ellipse",
+      features: {
+        translation: { animated: false, value: { x: -0.5, y: 0.4, z: 0.1 } },
+        rotation: { animated: false, value: { x: 0, y: 0, z: 0.25 } },
+        width: { animated: false, value: 0.3 },
+        height: { animated: false, value: 0.5 },
+        fillColor: { animated: false, value: { r: 0.1, g: 0.2, b: 0.9 } },
+        fillOpacity: { animated: false, value: 0.8 },
+        strokeWidth: { animated: false, value: 0.02 },
+      },
+    },
+    mouth: {
+      id: "mouth",
+      name: "Mouth",
+      tags: [],
+      type: "rectangle",
+      features: {
+        translation: {
+          animated: true,
+          value: "mouth-translation",
+        },
+        rotation: { animated: false, value: { x: 0, y: 0, z: 0 } },
+        width: { animated: true, value: "mouth-width" },
+        height: { animated: true, value: "mouth-height" },
+        fillColor: { animated: true, value: "mouth-fill" },
+        fillOpacity: { animated: true, value: "mouth-opacity" },
+      },
+    },
+  },
+  animatables: {
+    "mouth-translation": {
+      id: "mouth-translation",
+      type: "vector3",
+      default: { x: 0, y: -0.6, z: 0.1 },
+      constraints: {},
+    },
+    "mouth-width": number("mouth-width", 1.2),
+    "mouth-height": number("mouth-height", 0.2),
+    "mouth-fill": {
+      id: "mouth-fill",
+      type: "rgb",
+      default: { r: 0.8, g: 0.1, b: 0.1 },
+      constraints: {},
+    },
+    "mouth-opacity": number("mouth-opacity", 1),
+  },
+};
+
+test("an ellipse and a rectangle export as the RobotData the Bevy view draws", async () => {
+  const { world, animatables } = PRIMITIVES;
+  const glb = await exportScene(buildSceneGraph(world, animatables, "root"));
+  const output = parseGlbJsonChunk(glb);
+
+  const node = (name) => output.nodes.find((entry) => entry.name === name);
+  for (const [name, type] of [
+    ["Eye", "ellipse"],
+    ["Mouth", "rectangle"],
+  ]) {
+    const robotData = node(name).extensions?.RobotData;
+    assert.equal(robotData?.type, type, `${name}'s type`);
+    for (const feature of ["width", "height", "fillColor", "fillOpacity"]) {
+      assert.ok(robotData.features[feature], `${name}'s ${feature}`);
+    }
+    // The view generates the mesh from the RobotData.
+    assert.equal(node(name).mesh, undefined, `${name} carries no mesh`);
+  }
+  assert.deepEqual(node("Eye").extensions.RobotData.features.fillColor, {
+    animated: false,
+    value: { r: 0.1, g: 0.2, b: 0.9 },
+  });
+  assert.deepEqual(node("Mouth").extensions.RobotData.features.width, {
+    animated: true,
+    value: animatables["mouth-width"],
+  });
+
+  // Translation and rotation are the node's; width and height its scale.
+  const eye = node("Eye");
+  assert.deepEqual(diff(eye.translation, [-0.5, 0.4, 0.1]), []);
+  assert.deepEqual(diff(eye.scale, [0.3, 0.5, 1]), []);
+  const mouth = node("Mouth");
+  assert.deepEqual(diff(mouth.translation, [0, -0.6, 0.1]), []);
+  assert.deepEqual(diff(mouth.scale, [1.2, 0.2, 1]), []);
+
+  const reloaded = await load(glb);
+  assert.deepEqual(diff(plainWorld(reloaded.world), plainWorld(world)), []);
+  assert.deepEqual(diff(reloaded.animatables, animatables), []);
+});
