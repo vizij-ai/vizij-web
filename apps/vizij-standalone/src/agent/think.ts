@@ -1,12 +1,13 @@
 /**
  * The mind: an OpenAI chat over the conversation so far, answering each
  * turn with what to say and the expression to say it with — one of the
- * ROS4HRI expression names the face understands.
+ * face standard's expression names.
  */
 
 export interface Reply {
   text: string;
-  /** A ROS4HRI expression name (`happy`, `sad`, …), `neutral` by default. */
+  /** An expression name of the face standard (`happy`, `sad`, …), `neutral`
+   * by default. */
   expression: string;
 }
 

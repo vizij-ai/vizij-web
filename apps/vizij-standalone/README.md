@@ -23,15 +23,13 @@ binary ships installers.
   within 250 ms. The run has ended once its `status` key reads terminal.
 - Listens and thinks: the microphone streamed to Deepgram (`src/agent/listen.ts`),
   each utterance answered by OpenAI (`src/agent/think.ts`) with the text to
-  say and a ROS4HRI expression name, said with that expression. The user
+  say and an expression name of the face standard, said with that expression. The user
   speaking over the face interrupts it (`src/agent/conversation.ts`).
-- Expresses: the twelve ROS4HRI expression names, written to
-  `standard/ros4hri/expression/name` (a `str`) with
-  `standard/ros4hri/expression/arousal` at 1 (an `f32`) in one store change;
-  the face's mapping shows the named expression at that arousal as its
-  intensity, so a name alone, at the resting arousal of 0, shows nothing.
-  Each write is of the type the key declares, as the device requires. The
-  page writes no `rig/<faceId>/…` path.
+- Expresses: twelve of the face standard's expression names, each its
+  weight `runtime.path("standard/vizij/expression/<name>")` (an `f32` in
+  `[0, 1]`, the type the profile declares, as the device requires). One
+  store change sets the new expression's weight to 1 and the previous one's
+  to 0; the face's standard adaptation maps the weights onto its own poses.
 
 Without a Deepgram key the microphone is off; without an OpenAI key the text
 box says what you type. Keys come from the shell's flags (`--deepgram-key`,
