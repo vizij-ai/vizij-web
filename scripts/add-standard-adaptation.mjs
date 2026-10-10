@@ -18,8 +18,10 @@
  * - expressions and visemes: each face pose sums the standard controls that
  *   should drive it, clamped to [0, 1] (the profile's 27 expressions fold onto
  *   the seven emotion poses these faces author; the 15 viseme shapes onto the
- *   letter poses). `viseme/sil`, the closed-mouth rest, is listened to and
- *   drives nothing;
+ *   letter poses). A letter pose's sum is scaled by the face's lipsync gain,
+ *   `lipsync/gain`, before the clamp; the gain rests at 1, so the face shows
+ *   a viseme weight as is until a deployment tunes it. `viseme/sil`, the
+ *   closed-mouth rest, is listened to and drives nothing;
  * - gaze: nothing when the rig listens on `standard/vizij/*` itself; the
  *   legacy `standard/<eye>/pos/*` inputs one to one; the eyes' own
  *   `propsrig/<l|r>_eye/translation/*` through the rig input's authored range,
@@ -257,13 +259,16 @@ function buildSpec(rigPrefix, { paths, metadata }) {
   const edge = (from, to, input) =>
     edges.push({ from: { node_id: from }, to: { node_id: to, input } });
 
-  /** One `input` node per standard control, shared by everything it drives. */
-  const control = (path, id) => {
+  /**
+   * One `input` node per standard control, shared by everything it drives,
+   * resting at `rest` until the control is written.
+   */
+  const control = (path, id, rest = 0.0) => {
     if (!inputs.has(path)) {
       nodes.push({
         id,
         type: "input",
-        params: { path: `${rigPrefix}standard/vizij/${path}`, value: 0.0 },
+        params: { path: `${rigPrefix}standard/vizij/${path}`, value: rest },
       });
       inputs.set(path, id);
     }
@@ -302,7 +307,18 @@ function buildSpec(rigPrefix, { paths, metadata }) {
           `operand_${i}`,
         );
       });
-      clampTo(`sum_${leaf}`, leaf, path);
+      let shown = `sum_${leaf}`;
+      if (kind === "viseme") {
+        nodes.push({ id: `gain_${leaf}`, type: "multiply", params: {} });
+        edge(shown, `gain_${leaf}`, "operand_0");
+        edge(
+          control("lipsync/gain", "in_lipsync_gain", 1.0),
+          `gain_${leaf}`,
+          "operand_1",
+        );
+        shown = `gain_${leaf}`;
+      }
+      clampTo(shown, leaf, path);
       mapped.push([path, controls.map((name) => `${kind}/${name}`).join(", ")]);
     }
   }
