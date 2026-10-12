@@ -6,7 +6,7 @@
 except authoring) and [VIZ-148](https://linear.app/semio-ai/issue/VIZ-148) (the
 authoring app). Umbrella: [VIZ-158](https://linear.app/semio-ai/issue/VIZ-158).
 The apps' line references are to vizij-web `8f9ea296`; the runtime's are to
-`@vizij/runtime` 5.0.0 (npm `latest`) and vizij-rs `origin/main` at `a7f7570`.
+`@vizij/runtime` 6.0.0 and vizij-rs `origin/main` at `4c6e0fe`.
 
 Every Vizij face in the browser is drawn by the Bevy view of the vizij-rs
 `vizij` crate, shipped as [`@vizij/runtime`](https://github.com/vizij-ai/vizij-rs/blob/main/npm/@vizij/runtime/README.md).
@@ -35,7 +35,7 @@ behaviors that duplicate what the device already does.
 
 | Package                     | Version  | Role                                                                                                                |
 | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `@vizij/runtime` (vizij-rs) | `^5.0.0` | The view and the device: everything an app calls on a face. npm `latest`.                                           |
+| `@vizij/runtime` (vizij-rs) | `^6.0.0` | The view and the device: everything an app calls on a face.                                                         |
 | `@vizij/render`             | 1.0      | The page's canvas and the face slot (`<VizijCanvas>`, `<Vizij>`); the GLB loader, the exporter and the world types. |
 | `@vizij/runtime-react`      | 1.0      | One face's lifecycle in React and the fan-out of its store changes.                                                 |
 | `@vizij/speech-react`       | deleted  | No app uses it: `apps/vizij-standalone`, its only code consumer, dropped it.                                        |
@@ -102,8 +102,9 @@ A `<div>` marking where face `vizijId` draws. It renders no canvas. It carries
 which every app's e2e uses as its ready signal. Its view props reach
 `setView` and `setSelection` once the canvas is mounted, compared by value. An
 absent `selection` leaves the face's selection alone. On unmount the face is
-placed on an empty rectangle, where it draws nothing (from `@vizij/runtime`
-5.1; under 5.0 an empty rectangle is 1×1). One slot shows a face at a time.
+placed on an empty rectangle, where it draws nothing. A slot partly off the
+canvas shows its face cropped at the canvas's edge, at the position and scale
+the whole slot gives it. One slot shows a face at a time.
 
 | 0.x prop              | 1.0                                        | Why                                                                                                  |
 | --------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -164,45 +165,29 @@ and checks the RobotData, the node transform and the reload.
 
 A face is an Arora device. An app drives it through its Arora API — the
 methods it declares (`invoke`) and its data store (`setValue`, `writeValues`)
-— addressing the keys of a standard profile. The app chooses the profile; **a
-Vizij app uses the Vizij face standard by default**: the `vizij-face`
-profile's keys, `standard/vizij/…` under the face's rig prefix
-(`runtime.path("standard/vizij/…")`). ROS4HRI is a special profile, consumed
-by the ROS4HRI mapping for ROS clients; apps do not write `standard/ros4hri/*`.
+— addressing the keys of a standard profile. A Vizij app uses the Vizij face
+standard: the `vizij-face` profile's keys, `standard/vizij/…` under the face's
+rig prefix (`runtime.path("standard/vizij/…")`), each an `f32`.
 
 The shipped faces carry their standard adaptation and declare the
 `vizij-face` profile ([VIZ-171](https://linear.app/semio-ai/issue/VIZ-171),
 vizij-web [#135](https://github.com/vizij-ai/vizij-web/pull/135)): the
 adaptation maps the standard's keys onto each face's rig. `loadVizij` composes
-the rig, pose-driver, pose and standard-adaptation graphs and, in
-`@vizij/runtime` 5.0, the built-in ROS4HRI mapping by default
-(`ComposeVizijOptions.ros4hri`).
+the rig, pose-driver, pose and standard-adaptation graphs.
 
-**A key a composed graph or a running program writes every step cannot be
-commanded beside it**: the writer overwrites the client's write at the next
-step. Two writers bear on apps:
-
-- The ROS4HRI mapping writes 65 of the standard's keys from its own — every
-  expression weight ROS4HRI names, the eye positions, lids and blink, the
-  muscle tier (vizij-rs `docs/ros4hri.md`). An app that writes those keys
-  loads its face with `ros4hri: false`. The mapping becomes opt-in in vizij-rs
-  (pending), after which leaving it out is the default and the option goes.
-- A face's programs. Quori's active program
-  (`authoring.motiongraph.program.1`, which `program: "auto"` runs from load)
-  writes the standard's eye positions, top and bottom lids, brows and
-  `mouth/morph/jaw_open`. An app that commands those keys on Quori halts that
-  run, or loads with `program: "none"`, and the face's idle motion goes with
-  it.
+**A key a running program writes every step cannot be commanded beside it**:
+the program overwrites the client's write at the next step. Quori's active
+program (`authoring.motiongraph.program.1`, which `program: "auto"` runs from
+load) writes the standard's eye positions, top and bottom lids, brows and
+`mouth/morph/jaw_open`; an app commanding those keys on Quori depends on D9.
 
 | Intent                          | 1.0                                                                                                                                                      |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | an expression at an intensity   | `P("standard/vizij/expression/<name>")`, `[0, 1]`; showing one writes the previous one's weight 0 in the same `writeValues`; a fade is `useAnimateValue` |
 | gaze                            | `P("standard/vizij/{left,right}_eye/pos/{x,y}")`, `[-1, 1]`                                                                                              |
-| a gaze target, a glance         | `invoke("look_at", { policy, target, frame })`, policy `""` (track) or `glance`: needs the ROS4HRI mapping (gap G4)                                      |
-| idle gaze                       | the face's own program where it has one; `look_at` has no idle policy (`random`, `social`, `auto` abort)                                                 |
+| idle gaze and blink             | the face's own program, where it has one                                                                                                                 |
 | top lids                        | `P("standard/vizij/{left,right}_eye_top_eyelid/pos/y")`, `[0, 1]`                                                                                        |
 | a blink                         | `P("standard/vizij/blink")`, `[0, 1]`: a tween up and back                                                                                               |
-| idle blink                      | none without the ROS4HRI mapping (gap G5)                                                                                                                |
 | a viseme from a phoneme aligner | `invoke("play_viseme", { shape, weight })`, once per viseme                                                                                              |
 | speech from text                | `invoke("say", { text, voice })`: its audio, and its visemes on the standard's viseme keys                                                               |
 | jaw from audio volume           | `P("standard/vizij/mouth/morph/jaw_open")` (D6)                                                                                                          |
@@ -211,16 +196,16 @@ step. Two writers bear on apps:
 | a program                       | `invoke("run_behavior", { name, behavior })`, `halt(run)`                                                                                                |
 | an animation                    | the animation module's functions by name (`play`, `set_weight`, `seek`, …)                                                                               |
 
-`P(x)` is `runtime.path(x)`: `rig/<faceId>/` + `x`. Each write is of the type
-the profile declares — `{ f32: v }` for every number key of `vizij-face` — as
-the device requires of a client; `useAnimateValue` writes in the numeric kind
-the key holds, or rests at before anything writes it. `say` and `play_viseme`
-write the standard's viseme keys themselves, so they need no mapping.
+`P(x)` is `runtime.path(x)`: `rig/<faceId>/` + `x`. The device takes a write
+of a `standard/vizij/*` key only as an `f32`, which `setValue` with a number
+is; `useAnimateValue` writes in the numeric kind the key holds, or rests at
+before anything writes it. `say` and `play_viseme` write the standard's viseme
+keys themselves.
 
 A page that inspects a face's own rig rather than the standard
 (demo-vizij-player's rig and pose panels, the showcase's rig sliders, the
 authoring viewport) loads it without the adaptation and the mapping —
-`options: { graphs: ["rig", "pose-driver", "pose"], ros4hri: false }` — and
+`options: { graphs: ["rig", "pose-driver", "pose"] }` — and
 writes rig inputs and `poses/<id>.weight` directly.
 
 ## 5. `@vizij/runtime-react` 1.0
@@ -338,7 +323,7 @@ Inventory by grep over `apps/<app>/src` for `@vizij/runtime-react`,
 ### 6.2 demo-vizij-player
 
 The demo inspects a bundle's own rig: its provider loads with
-`{ graphs: ["rig", "pose-driver", "pose"], ros4hri: false }` (section 4).
+`{ graphs: ["rig", "pose-driver", "pose"] }` (section 4).
 
 | Site                                                         | 0.4                                                                                                                                    | 1.0                                                                                                                                    |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -348,7 +333,7 @@ The demo inspects a bundle's own rig: its provider loads with
 | `App.tsx:35`                                                 | `<VizijRuntimeFace className>`                                                                                                         | same; `<VizijCanvas>` at the root                                                                                                      |
 | `App.tsx:58,66-102`                                          | merged `assetBundle`: `animations`, `programs`                                                                                         | `d.animations`, `d.programs`                                                                                                           |
 | `App.tsx:144`, `AssetOverviewPanel.tsx:8-25,112-118,197-198` | `loading/ready/error/controllers`                                                                                                      | `status`, `d.graphs`, `d.animations.length`                                                                                            |
-| `lib/bundleSummary.ts:38-123`                                | `bundle.graphs[].kind/.id`, `bundle.metadata`, `pose.config.poses/poseGroups`, `animations`, `programs`, `faceId`, `rig.inputMetadata` | `d.graphs` (ids: gap G3), `d.metadata`, `d.poses`, `d.poseGroups`, `d.animations`, `d.programs`, `d.faceId`, `d.rigInputs`             |
+| `lib/bundleSummary.ts:38-123`                                | `bundle.graphs[].kind/.id`, `bundle.metadata`, `pose.config.poses/poseGroups`, `animations`, `programs`, `faceId`, `rig.inputMetadata` | `d.graphs` (`{ id, kind }`), `d.metadata`, `d.poses`, `d.poseGroups`, `d.animations`, `d.programs`, `d.faceId`, `d.rigInputs`          |
 | `FaceControlsPanel.tsx:89,184,189`                           | `buildRigInputPath(faceId, rig.inputMetadata[].path)`                                                                                  | `P(input.path)` over `d.rigInputs`                                                                                                     |
 | `FaceControlsPanel.tsx:40-55,150-159`                        | `inputConstraints`, `resolveFaceControls`                                                                                              | `d.rigInputs[].min/max/defaultValue`                                                                                                   |
 | `FaceControlsPanel.tsx:243-262,420,454`                      | `setInput(path, { float })`                                                                                                            | `rt.setValue(P(path), { float })`                                                                                                      |
@@ -365,7 +350,7 @@ The demo inspects a bundle's own rig: its provider loads with
 | `ProgramsPanel.tsx:11,26-31`                                 | `getProgramState` polled                                                                                                               | run status keys under `BEHAVIOR_RUNS` via `useVizijChanges`, `runStatus`                                                               |
 | `ProgramsPanel.tsx:128`                                      | `playProgram(id)`                                                                                                                      | `invoke("run_behavior", { name: id, behavior: await behaviorValue(graph) })`                                                           |
 | `ProgramsPanel.tsx:133`                                      | `pauseProgram(id)`                                                                                                                     | D3                                                                                                                                     |
-| `ProgramsPanel.tsx:139`                                      | `stopProgram(id, { resetOutputs: true })`                                                                                              | `halt(run)`, `reset_keys` of the program's outputs (gap G2)                                                                            |
+| `ProgramsPanel.tsx:139`                                      | `stopProgram(id, { resetOutputs: true })`                                                                                              | `halt(run)`, `reset_keys` of `outputKeys(program.graph)`                                                                               |
 | `DiagnosticsPanel.tsx:7-13,60-65,89-93`                      | `outputPaths`, `controllers`                                                                                                           | `rt.listKeys(rt.rigPrefix)`, `d.graphs`, runs                                                                                          |
 | `DiagnosticsPanel.tsx:114`                                   | `assetBundle.initialInputs` count                                                                                                      | deleted: no initial inputs in 1.0                                                                                                      |
 | `DiagnosticsPanel.tsx:125-136`                               | `errors[].phase/.message`                                                                                                              | `error`, `behaviorError`                                                                                                               |
@@ -398,7 +383,7 @@ goes with it.
 | `PoseRigMirrorBridge.tsx:21-86`            | listens for pose triggers, re-applies them                                                                                   | deleted                                                                             |
 | `GazeInteractiveFace.tsx:11-18,51-79`      | `usePoseHotkeys`, random pose on click                                                                                       | a random expression's weight                                                        |
 | `hooks/useMouseGaze.ts:22-33,75-77`        | `resolveFaceControls`, `setInput(eye, mapNormalized…)`                                                                       | the standard's eye keys from the pointer                                            |
-| `hooks/useIdleGazeBehavior.ts:21-28,65-87` | `animateValue` on eyes, lids, blink on timers                                                                                | the face's own program; the blink a `P("standard/vizij/blink")` tween (G5)          |
+| `hooks/useIdleGazeBehavior.ts:21-28,65-87` | `animateValue` on eyes, lids, blink on timers                                                                                | the face's own program; a blink is a `P("standard/vizij/blink")` tween              |
 | `HeroPassiveBehavior.tsx:16-32,50-234`     | scripted emotion and viseme pose weights, warm-up flash                                                                      | expression weights; `play_viseme`; the warm-up flash deleted                        |
 | `VoicePanel.tsx:49-105,131-141,191-203`    | Polly marks from the app's API (`services/pollyApi.ts`), JS viseme timeline over `animateValue` on viseme pose weights       | `invoke("say", { text, voice })`; `standard/vizij/speech` for the overlay text (D5) |
 
@@ -407,7 +392,7 @@ goes with it.
 | Site                                                                                | 0.4                                                                                              | 1.0                                                                                                                                                         |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FaceApp.tsx:35-45`                                                                 | bundle `{ namespace, glb url aggressive, pose.stageNeutralFilter }`                              | `glb` URL                                                                                                                                                   |
-| `FaceApp.tsx:553`                                                                   | `<VizijRuntimeProvider assetBundle autostart>`                                                   | `<VizijRuntimeProvider glb options={{ ros4hri: false }}>`; whether Quori's active program runs beside the app's gaze and jaw writes is D9                   |
+| `FaceApp.tsx:553`                                                                   | `<VizijRuntimeProvider assetBundle autostart>`                                                   | `<VizijRuntimeProvider glb>`; whether Quori's active program runs beside the app's gaze and jaw writes is D9                                                |
 | `FaceApp.tsx:77-106`                                                                | `faceId`, `assetBundle.pose.config`, `bundle.metadata.speechConfig`, `programs`, `bundle.graphs` | `rt.rigPrefix`, `d.metadata`                                                                                                                                |
 | `FaceApp.tsx:139-143`                                                               | `stagePoseNeutral()`                                                                             | deleted: `stageNeutral` at load                                                                                                                             |
 | `FaceApp.tsx:149-179`                                                               | `playProgram(activeMotionGraphId)`                                                               | deleted: `options.program` runs it from load (D9)                                                                                                           |
@@ -418,7 +403,7 @@ goes with it.
 | `useAgentFaceTools.ts:263-332` tool `set_gaze(x, y, hold, duration, blink, offset)` | tweens the four eye inputs, eyelids and blink                                                    | the standard's eye keys tweened to the point from `x`, `y` (`offset` as distance), held for `hold` then back; `blink` → a `P("standard/vizij/blink")` tween |
 | `useAgentFaceTools.ts:377-454` tool `express_emotion(emotion, percent, length)`     | tweens `rig/<face>/poses/<poseId>.weight`                                                        | expression weight tween; the enum becomes the profile's 27 expression names                                                                                 |
 | `useAgentFaceTools.ts:493-502`                                                      | standing neutral weight 0.7                                                                      | deleted: rest is neutral                                                                                                                                    |
-| `hooks/useIdleGazeBehavior.ts:21-30,106-152`                                        | timer-driven eye and blink tweens                                                                | the face's own program; the blink a `P("standard/vizij/blink")` tween (G5)                                                                                  |
+| `hooks/useIdleGazeBehavior.ts:21-30,106-152`                                        | timer-driven eye and blink tweens                                                                | the face's own program; a blink is a `P("standard/vizij/blink")` tween                                                                                      |
 | `hooks/useMouseGaze.ts:21-60`                                                       | `setInput(eye, mapNormalized…)`                                                                  | the standard's eye keys from the pointer                                                                                                                    |
 | `hooks/usePoseHotkeys.ts:70-188`                                                    | pose bindings, hotkeys at 0.7                                                                    | expression keys, `useAnimateValue`                                                                                                                          |
 | `hooks/usePoseWarmup.ts:11-32`                                                      | primes every pose weight once                                                                    | deleted: it primed the three.js materials; the e2e asserts the first expression draws                                                                       |
@@ -443,7 +428,7 @@ players own their envelope and smoothing.
 | `transformOutputWrite`, `Viewer.tsx:678-703`, `runtimeOutputLocks.ts:75-213`                                                                                                                | `rt.hold(["<animatableId>", "<id>:x", …])` / `rt.release`                                                                                                 |
 | `setGraphBundle({ rig, pose }, { tier: "graphs" })`, `Viewer.tsx:446-484`                                                                                                                   | reload from exported bytes                                                                                                                                |
 | `setGraphBundle({ programs })`, `playProgram`, `stopProgram`, `getProgramState`, `motiongraph/hooks/useMotionGraphDriver.ts:37-269`                                                         | `run_behavior`, `runEdits` + `applyGraphEdits` for live edits, `halt`, run status keys                                                                    |
-| `setInput` on program stop, `Viewer.tsx:543-569`                                                                                                                                            | `reset_keys` of the program's outputs (G2)                                                                                                                |
+| `setInput` on program stop, `Viewer.tsx:543-569`                                                                                                                                            | `reset_keys` of `outputKeys(graph)`                                                                                                                       |
 | animation transport, `hooks/useAnimationTransport.ts:133-529,589-763` (`setGraphBundle({ animations })`, play/pause/seek/stop/loop/state, `setAnimationActive`, `setInput` clearing at 401) | `load_animation` / `reload_animation` with `rt.moduleAnimation`, the module's transport, `decodePlayerStates`; `useOptionalVizijRuntime` stays for `:589` |
 | `setInput`, `animateValue` published through graphRuntimeStore, `Viewer.tsx:192-205`                                                                                                        | `rt.setValue`, `useAnimateValue`                                                                                                                          |
 | `inputConstraints`, `namespace` → input catalogue, `Viewer.tsx:412-418`, `runtimeInputsFromConstraints.ts:23-99`, `ReferenceFaceRuntime.tsx:75-176,354-541`                                 | `d.rigInputs`, `P()`; the namespace strippers are deleted                                                                                                 |
@@ -458,7 +443,7 @@ players own their envelope and smoothing.
 | `world[rootId].rootBounds` push, `measureFaceGeometryBounds` with `deriveRootBounds` over mounted refs, `Viewer.tsx:255-321`                                                                | `bounds` → `setView`; Fit to Geometry runs `deriveRootBounds` over the exporter's scene                                                                   |
 | `getExportableBodies` snapshot of mounted groups, `Viewer.tsx:334-400`, `ExportDialog.tsx:137-167`, `useVizijExport.ts:751-842`                                                             | deleted: export is headless from the world (VIZ-140), section 3.5                                                                                         |
 | render store as the document model (`main.tsx:21-26`, `useRigController.ts`, `scene/*`, `useVizijAssetLoader.ts`, `FaceBoundsSection.tsx`, …)                                               | stays                                                                                                                                                     |
-| `@vizij/runtime` direct (`profile`, `profiles`, `standardProfile*`, `skills`, `skillSource`, `startRuntime`, `composeVizij`)                                                                | stays; `^5.0.0`; `standardProfile*` → `mapping*`                                                                                                          |
+| `@vizij/runtime` direct (`profile`, `profiles`, `standardProfile*`, `skills`, `skillSource`, `startRuntime`, `composeVizij`)                                                                | stays; `^6.0.0`; `standardProfile*` → `mapping*`                                                                                                          |
 | `three` in `scene/sceneEditing.ts`, `animationBake/*`                                                                                                                                       | stays (maths and clip building, not rendering)                                                                                                            |
 
 Noted for VIZ-148: `useVizijExport.ts:627,736` and `utils/rigRoundtripAudit.ts:118`
@@ -466,40 +451,30 @@ look values up under `getLookup(faceId, id)`, while scene editing writes them
 under `getLookup(DEFAULT_NAMESPACE, id)`; the headless export reads one of
 them.
 
-## 7. Gaps: upstream items
+## 7. What the apps rely on from `@vizij/runtime` 6
 
-Each is a capability an app depends on that `@vizij/runtime` 5.0.0 does not
-provide. Each lands upstream and is published before the app that needs it
-moves; no app works around one.
+Each is a capability an app depends on; none is worked around in an app.
 
-| #   | Gap                                                                                                                                                                                                                                                                                               | Needed by                                                                                 | Where the fix belongs, and its state                                                                                                                                                                                    |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G1  | **A slot partly or wholly outside the canvas.** Under 5.0 `placeVizij` moves a slot scrolled past the top or left edge, refits one past the bottom or right edge, and draws an empty rectangle as 1×1.                                                                                            | vizij-showcase (five slots on a scrolling page); any slot that scrolls; a slot unmounting | vizij-rs view: fixed in vizij-rs [#172](https://github.com/vizij-ai/vizij-rs/pull/172) (0db97cd): any rectangle, cropped to the canvas; an empty one draws nothing. Ships in `@vizij/runtime` 5.1.0, not yet published. |
-| G2  | **A program's output keys.** Returning a halted program's outputs to rest is the client's `reset_keys` of the keys its graph's output nodes write, and nothing lists them.                                                                                                                        | demo-vizij-player `ProgramsPanel.tsx:139`; authoring `Viewer.tsx:543-569`                 | `outputKeys(graph)`, vizij-rs #172. Ships in 5.1.0, not yet published.                                                                                                                                                  |
-| G3  | **Graph ids in `describe()`.** `graphs` carries `{ kind }` only.                                                                                                                                                                                                                                  | demo-vizij-player `lib/bundleSummary.ts:65-68`                                            | `describe().graphs` as `[{ id, kind }]`, vizij-rs #172. Ships in 5.1.0, not yet published.                                                                                                                              |
-| G4  | **`look_at` drives the vizij standard.** The skill's fragment writes `standard/ros4hri/gaze/{target,frame}` only (vizij-rs `crates/interop/vizij-arora-host/skills/look_at.json`): without the ROS4HRI mapping it moves nothing, and with it composed the mapping writes every expression weight. | any app that wants a gaze target or a glance rather than writing the eye keys             | vizij-rs: the skill writes the vizij standard's gaze (the eye keys, or a gaze target key the `vizij-face` profile declares), with the ROS4HRI mapping relaying `standard/ros4hri/gaze/*` onto it. Open.                 |
-| G5  | **Idle blink without the ROS4HRI mapping.** The mapping's blink generator is the device's only one.                                                                                                                                                                                               | every app that showed an idle blink in 0.4 (showcase, tutorial-agent-face)                | vizij-rs: an idle blink of the vizij standard (a skill run, or a generator in the adaptation's composition) that does not need the ROS4HRI mapping. Open.                                                               |
+| Capability                                                                                                                                                                     | Needed by                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **Any slot rectangle.** `placeVizij` frames the face on the whole rectangle and draws the part on the canvas; an empty rectangle, or one wholly off the canvas, draws nothing. | vizij-showcase (five slots on a scrolling page); any slot that scrolls; a slot unmounting |
+| **A program's output keys.** `outputKeys(graph)` lists the keys a run of `graph` writes and leaves holding when halted: what `reset_keys` takes to return them to rest.        | demo-vizij-player `ProgramsPanel.tsx:139`; authoring `Viewer.tsx:543-569`                 |
+| **Graph ids.** `describe(glb).graphs` is `[{ id, kind }]`.                                                                                                                     | demo-vizij-player `lib/bundleSummary.ts:65-68`                                            |
+| **Typed standard controls.** `listKeys` reports each `standard/vizij/*` input as an `f32` resting at the profile's rest.                                                       | `useAnimateValue` on a key nothing has written yet                                        |
 
-Not gaps, checked: placing a face before it loads works (the placement is
-stored by id); `setView` before load is documented; the animation transport
-the apps use exists (`play`, `pause`, `stop`, `seek`, `set_loop`,
-`set_speed`, `set_weight`); a headless face composition for the bake is
-`composeVizij` + `startRuntime`; `say` and `play_viseme` write the standard's
-viseme keys themselves; the pixel sample runs headless in CI
+Also checked: placing a face before it loads works (the placement is stored by
+id); `setView` before load is documented; the animation transport the apps
+use exists (`play`, `pause`, `stop`, `seek`, `set_loop`, `set_speed`,
+`set_weight`); a headless face composition for the bake is `composeVizij` +
+`startRuntime`; the pixel sample runs headless in CI
 (`e2e/tests/vizij-standalone-face.spec.ts` is green in the `e2e` job).
-
-Seen while building 1.0, to check upstream: `listKeys` lists a `vizij-face`
-key that nothing has written with `__meta.ty` `"f64"` and range `[0, 1]` while
-its `default` is `{ f32: 0 }` and the profile declares `f32` (and `[-1, 1]` for
-the eye positions).
 
 ## 8. The standalone and the shipped faces
 
 - `apps/vizij-standalone` is on `@vizij/runtime` 5 directly
   ([#141](https://github.com/vizij-ai/vizij-web/pull/141)), with no
   `runtime-react` dependency. It writes expressions as the vizij standard's
-  weights and loads its face with `ros4hri: false`
-  ([#142](https://github.com/vizij-ai/vizij-web/pull/142)).
+  weights ([#142](https://github.com/vizij-ai/vizij-web/pull/142)).
 - The shipped faces carry their standard adaptation and the `vizij-face`
   profile ([#135](https://github.com/vizij-ai/vizij-web/pull/135)). Quori's
   `faceId` is `quori_latest`; its rig reads the standard's eye keys and
@@ -528,10 +503,10 @@ pull request per package or app goes into it, in this order:
 3. **`@vizij/speech-react` deleted**: the package directory, its
    `.changeset/config.json` `ignore` entry, the README and AGENTS tables.
 4. **tutorial-fullscreen-face** (6.1).
-5. **demo-vizij-player** (6.2; after G2, G3).
-6. **tutorial-agent-face** (6.4; after D9), with the vizij-docs pull request
+5. **demo-vizij-player** (6.2).
+6. **tutorial-agent-face** (6.4; its jaw and gaze after D9), with the vizij-docs pull request
    of 9.3.
-7. **vizij-showcase** (6.3; after G1).
+7. **vizij-showcase** (6.3).
 8. **vizij-authoring**: VIZ-148's sequence (gate, exporter in `ExportDialog`,
    viewport, programs and timeline, reloads, StrictMode memory, load time).
 
@@ -591,9 +566,7 @@ links); the website's guidebook sync (`vizij-ai.github.io`,
   merges.
 - `@vizij/speech-react`: `npm deprecate @vizij/speech-react "<message>"` (a
   manual step for Victor); no further version.
-- `@vizij/runtime`: `latest` at 5.0.0; G1–G3 ship in 5.1.0, whose Version
-  Packages PR (vizij-rs [#189](https://github.com/vizij-ai/vizij-rs/pull/189))
-  is open. The peer ranges move to `^5.1.0` with it.
+- `@vizij/runtime`: the packages and apps require `^6.0.0`.
 - `@vizij/render` has a pending `major` changeset on `main` already (the
   headless exporter, [#134](https://github.com/vizij-ai/vizij-web/pull/134)).
   Released before the integration branch merges, it publishes as 1.0.0 and the
@@ -603,15 +576,15 @@ links); the website's guidebook sync (`vizij-ai.github.io`,
 
 Decided with Victor on 2026-10-10.
 
-| #   | Question                                                      | Decision                                                                                                                                                                                                                                                     |
-| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | How apps command a face                                       | Through its Arora API: the methods it declares and its data store. An app uses the standard profile it chooses; a Vizij app uses the vizij standard (`standard/vizij/…`) by default. ROS4HRI is a special profile that apps do not use directly (section 4). |
-| D2  | The shared canvas's place                                     | One canvas fixed over the page, pointer events off, the page's UI above it by z-index; the authoring viewport positions its canvas itself with pointer events on.                                                                                            |
-| D3  | Pausing a program (demo-vizij-player `ProgramsPanel.tsx:133`) | Pause is a halt; resume is a new spawn.                                                                                                                                                                                                                      |
-| D4  | The integration branch between PRs                            | One PR per package or app into the integration branch, each green on its own scope; the branch's workspace typecheck is red until the last app PR.                                                                                                           |
-| D5  | The showcase's Voice section                                  | The device's `say`, which needs no credentials. The Polly timeline and the slider that scrubs through visemes go.                                                                                                                                            |
-| D6  | tutorial-agent-face's volume-driven mouth                     | A vizij-standard key: the one the shipped faces' adaptations map. Quori's rig reads `standard/vizij/mouth/morph/jaw_open` (AU 26 under the name current faces implement); no shipped face maps `standard/vizij/face/jaw_open`, and Hugo maps neither.        |
-| D8  | The showcase's hidden-section stepping at 1 Hz                | Deleted: an offscreen face stops (`run={visible}`).                                                                                                                                                                                                          |
+| #   | Question                                                      | Decision                                                                                                                                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1  | How apps command a face                                       | Through its Arora API: the methods it declares and its data store. An app uses the standard profile it chooses; a Vizij app uses the vizij standard (`standard/vizij/…`) by default (section 4). Eyes move through `standard/vizij/{left,right}_eye/pos/{x,y}`; a blink is `standard/vizij/blink` or the face's program. |
+| D2  | The shared canvas's place                                     | One canvas fixed over the page, pointer events off, the page's UI above it by z-index; the authoring viewport positions its canvas itself with pointer events on.                                                                                                                                                        |
+| D3  | Pausing a program (demo-vizij-player `ProgramsPanel.tsx:133`) | Pause is a halt; resume is a new spawn.                                                                                                                                                                                                                                                                                  |
+| D4  | The integration branch between PRs                            | One PR per package or app into the integration branch, each green on its own scope; the branch's workspace typecheck is red until the last app PR.                                                                                                                                                                       |
+| D5  | The showcase's Voice section                                  | The device's `say`, which needs no credentials. The Polly timeline and the slider that scrubs through visemes go.                                                                                                                                                                                                        |
+| D6  | tutorial-agent-face's volume-driven mouth                     | A vizij-standard key: the one the shipped faces' adaptations map. Quori's rig reads `standard/vizij/mouth/morph/jaw_open` (AU 26 under the name current faces implement); no shipped face maps `standard/vizij/face/jaw_open`, and Hugo maps neither.                                                                    |
+| D8  | The showcase's hidden-section stepping at 1 Hz                | Deleted: an offscreen face stops (`run={visible}`).                                                                                                                                                                                                                                                                      |
 
 Open:
 
