@@ -5,22 +5,15 @@ import type {
   FunctionResponse,
 } from "@google/genai";
 import { Type, type Tool } from "@google/genai";
-import {
-  mapNormalizedControlValue,
-  mapUnitControlValue,
-  resolveFaceControls,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
-import {
-  canonicalEmotionName,
-  isEmotionBinding,
-  scoreEmotionBinding,
-} from "../utils/emotions";
-import type { PoseHotkeyBinding } from "./usePoseHotkeys";
+import { useAnimateValue, useVizijRuntime } from "@vizij/runtime-react";
+import { resolveExpression } from "../utils/emotions";
+import { useGazeTarget } from "./useGazeTarget";
+import { useShowExpression } from "./useExpressions";
 
 type AgentFaceToolsOptions = {
   enabled: boolean;
-  bindings: PoseHotkeyBinding[];
+  /** The face standard's expression names: `express_emotion`'s options. */
+  expressions: string[];
   allowEmotionTools?: boolean;
 };
 
@@ -29,6 +22,7 @@ export type AgentFaceTools = {
   handleFunctionCalls: (
     functionCalls: FunctionCall[],
   ) => Promise<FunctionResponse[]>;
+  /** Whether a `set_gaze` holds the eyes. */
   gazeActive: boolean;
 };
 
@@ -38,7 +32,6 @@ type GazeArgs = {
   holdSeconds?: number;
   durationSeconds?: number;
   blink?: number;
-  offset?: number;
 };
 
 type EmotionArgs = {
@@ -49,12 +42,13 @@ type EmotionArgs = {
   intensity?: number;
   lengthSeconds?: number;
   holdSeconds?: number;
-  durationSeconds?: number;
 };
 
-const DEFAULT_POSE_WEIGHT = 0.7;
-const DEFAULT_NEUTRAL_WEIGHT = 0.7;
+/** The weight a 100 % emotion peaks at. */
+const EMOTION_PEAK = 0.7;
 const EMOTION_ATTACK_SECONDS = 0.25;
+const GAZE_RELEASE_SECONDS = 0.4;
+const BLINK = "standard/vizij/blink";
 
 const GAZE_DECLARATION: FunctionDeclaration = {
   name: "set_gaze",
@@ -84,25 +78,12 @@ const GAZE_DECLARATION: FunctionDeclaration = {
         type: Type.NUMBER,
         description: "Optional blink strength 0..1 to pair with the gaze.",
       },
-      offset: {
-        type: Type.NUMBER,
-        description: "Tiny cross-eye offset (-0.3..0.3) to keep gaze lively.",
-      },
     },
     required: ["x", "y"],
   },
 };
 
 function buildEmotionDeclaration(options: string[]): FunctionDeclaration {
-  const emotionProperty: Record<string, unknown> = {
-    type: Type.STRING,
-    description:
-      "Name of the emotion/pose to show. Prefer the provided options when possible.",
-  };
-  if (options.length > 0) {
-    emotionProperty.enum = options;
-    emotionProperty.description = `${emotionProperty.description} Options: ${options.join(", ")}`;
-  }
   return {
     name: "express_emotion",
     description:
@@ -110,16 +91,19 @@ function buildEmotionDeclaration(options: string[]): FunctionDeclaration {
     parameters: {
       type: Type.OBJECT,
       properties: {
-        emotion: emotionProperty,
+        emotion: {
+          type: Type.STRING,
+          description: `Name of the emotion to show. Options: ${options.join(", ")}`,
+          enum: options,
+        },
         percent: {
           type: Type.NUMBER,
           description:
-            "How strongly to feel the emotion as a percentage. You can use 0..100 or 0..1. The app normalizes this to its 0.7 pose cap.",
+            "How strongly to feel the emotion as a percentage. You can use 0..100 or 0..1.",
         },
         intensity: {
           type: Type.NUMBER,
-          description:
-            "Legacy alias for percent. You can pass 0..100 or 0..1; the app normalizes it to its 0.7 pose cap.",
+          description: "Legacy alias for percent.",
         },
         lengthSeconds: {
           type: Type.NUMBER,
@@ -148,322 +132,122 @@ function toNumber(value: unknown, fallback: number) {
 
 function normalizePercent(value: unknown, fallback = 100) {
   const numeric = toNumber(value, fallback);
-  if (numeric <= 1) {
-    return clamp(numeric, 0, 1);
-  }
-  return clamp(numeric / 100, 0, 1);
+  return numeric <= 1 ? clamp(numeric, 0, 1) : clamp(numeric / 100, 0, 1);
 }
 
+/**
+ * The agent's tools over the face standard. `set_gaze` steers the gaze
+ * target and hands the eyes back to the face after `holdSeconds`;
+ * `express_emotion` peaks an expression's weight and lets it ease back.
+ */
 export function useAgentFaceTools({
   enabled,
-  bindings,
+  expressions,
   allowEmotionTools = true,
 }: AgentFaceToolsOptions): AgentFaceTools {
-  const {
-    animateValue,
-    faceId: runtimeFaceId,
-    assetBundle,
-    inputConstraints,
-  } = useVizijRuntime();
+  const { runtime } = useVizijRuntime();
+  const { animateValue } = useAnimateValue();
+  const gaze = useGazeTarget();
+  const { show } = useShowExpression();
   const [gazeActive, setGazeActive] = useState(false);
   const gazeTimeoutRef = useRef<number | null>(null);
-  const emotionTimeoutsRef = useRef<number[]>([]);
-  const gazeControls = useMemo(
-    () => resolveFaceControls(assetBundle, runtimeFaceId, inputConstraints),
-    [assetBundle, inputConstraints, runtimeFaceId],
-  );
-
-  const emotionBindings = useMemo(
-    () => bindings.filter((binding) => isEmotionBinding(binding)),
-    [bindings],
-  );
-  const hasEmotionBindings = allowEmotionTools && emotionBindings.length > 0;
-  const neutralBinding = useMemo(
-    () =>
-      emotionBindings.find(
-        (binding) =>
-          canonicalEmotionName(binding.semanticKey ?? "") === "neutral",
-      ) ?? null,
-    [emotionBindings],
-  );
-
-  const availableEmotionOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          emotionBindings
-            .map((binding) => binding.pose.name ?? binding.pose.id ?? "emotion")
-            .filter(Boolean),
-        ),
-      ),
-    [emotionBindings],
-  );
-
-  const toolDeclarations = useMemo<FunctionDeclaration[]>(() => {
-    const declarations = [GAZE_DECLARATION];
-    if (hasEmotionBindings) {
-      declarations.push(buildEmotionDeclaration(availableEmotionOptions));
-    }
-    return declarations;
-  }, [availableEmotionOptions, hasEmotionBindings]);
+  const hasEmotionTool = allowEmotionTools && expressions.length > 0;
 
   const tools = useMemo<Tool[]>(
-    () => [{ functionDeclarations: toolDeclarations }],
-    [toolDeclarations],
+    () => [
+      {
+        functionDeclarations: hasEmotionTool
+          ? [GAZE_DECLARATION, buildEmotionDeclaration(expressions)]
+          : [GAZE_DECLARATION],
+      },
+    ],
+    [expressions, hasEmotionTool],
   );
 
-  const animateSigned = useCallback(
-    (
-      control: (typeof gazeControls.eyes)[keyof typeof gazeControls.eyes],
-      value: number,
-      duration: number,
-      easing: "linear" | "easeIn" | "easeOut" | "easeInOut",
-    ) => {
-      if (!control) {
-        return;
-      }
-      void animateValue(
-        control.path,
-        { float: mapNormalizedControlValue(control, value) },
-        { duration, easing },
+  const blink = useCallback(
+    (strength: number, seconds: number) => {
+      if (!runtime) return;
+      const key = runtime.path(BLINK);
+      void animateValue(key, strength, {
+        duration: seconds,
+        easing: "easeIn",
+      }).then(() =>
+        animateValue(key, 0, { duration: 0.12, easing: "easeOut" }),
       );
     },
-    [animateValue, gazeControls.eyes],
+    [animateValue, runtime],
   );
-
-  const animateUnit = useCallback(
-    (
-      control:
-        | (typeof gazeControls.eyelids)[keyof typeof gazeControls.eyelids]
-        | typeof gazeControls.blink,
-      value: number,
-      duration: number,
-      easing: "linear" | "easeIn" | "easeOut" | "easeInOut",
-    ) => {
-      if (!control) {
-        return;
-      }
-      void animateValue(
-        control.path,
-        { float: mapUnitControlValue(control, value) },
-        { duration, easing },
-      );
-    },
-    [animateValue, gazeControls.blink, gazeControls.eyelids],
-  );
-
-  const resetGaze = useCallback(() => {
-    animateSigned(gazeControls.eyes.leftX, 0, 0.2, "easeInOut");
-    animateSigned(gazeControls.eyes.rightX, 0, 0.2, "easeInOut");
-    animateSigned(gazeControls.eyes.leftY, 0, 0.2, "easeInOut");
-    animateSigned(gazeControls.eyes.rightY, 0, 0.2, "easeInOut");
-    setGazeActive(false);
-  }, [animateSigned, gazeControls.eyes]);
 
   const applyGaze = useCallback(
     async (rawArgs: GazeArgs) => {
-      if (!enabled) throw new Error("Face rig not ready yet.");
-
+      if (!enabled) throw new Error("Face not ready yet.");
       const x = clamp(toNumber(rawArgs.x, 0), -1, 1);
       const y = clamp(toNumber(rawArgs.y, 0), -1, 1);
-      const offset = clamp(toNumber(rawArgs.offset, 0.08), -0.35, 0.35);
       const duration = clamp(
         toNumber(rawArgs.durationSeconds, 0.22),
         0.05,
         2.5,
       );
       const holdSeconds = clamp(toNumber(rawArgs.holdSeconds, 1.6), 0.2, 8);
-      const blink = clamp(toNumber(rawArgs.blink, 0), 0, 1);
+      const blinkStrength = clamp(toNumber(rawArgs.blink, 0), 0, 1);
 
       setGazeActive(true);
-      if (gazeTimeoutRef.current) {
-        window.clearTimeout(gazeTimeoutRef.current);
-      }
-
-      animateSigned(
-        gazeControls.eyes.leftX,
-        clamp(x - offset, -1, 1),
-        duration,
-        "easeInOut",
-      );
-      animateSigned(
-        gazeControls.eyes.rightX,
-        clamp(x + offset, -1, 1),
-        duration,
-        "easeInOut",
-      );
-      animateSigned(gazeControls.eyes.leftY, y, duration, "easeInOut");
-      animateSigned(gazeControls.eyes.rightY, y, duration, "easeInOut");
-
-      if (blink > 0.01) {
-        const closeDuration = Math.min(duration, 0.2);
-        animateUnit(gazeControls.blink, blink, closeDuration, "easeIn");
-        animateUnit(
-          gazeControls.eyelids.leftUpper,
-          blink,
-          closeDuration,
-          "easeIn",
-        );
-        animateUnit(
-          gazeControls.eyelids.rightUpper,
-          blink,
-          closeDuration,
-          "easeIn",
-        );
-        window.setTimeout(() => {
-          animateUnit(gazeControls.blink, 0, 0.12, "easeOut");
-          animateUnit(gazeControls.eyelids.leftUpper, 0, 0.12, "easeOut");
-          animateUnit(gazeControls.eyelids.rightUpper, 0, 0.12, "easeOut");
-        }, 120);
-      }
-
+      if (gazeTimeoutRef.current) window.clearTimeout(gazeTimeoutRef.current);
+      if (blinkStrength > 0.01) blink(blinkStrength, Math.min(duration, 0.2));
+      await gaze.look(x, y, duration);
       gazeTimeoutRef.current = window.setTimeout(() => {
-        resetGaze();
+        void gaze.release(GAZE_RELEASE_SECONDS);
+        setGazeActive(false);
       }, holdSeconds * 1000);
 
-      return {
-        x,
-        y,
-        holdSeconds,
-        blink,
-      };
+      return { x, y, holdSeconds, blink: blinkStrength };
     },
-    [animateSigned, animateUnit, enabled, gazeControls, resetGaze],
-  );
-
-  const resolveEmotionBinding = useCallback(
-    (
-      raw: string | undefined,
-    ): { binding: PoseHotkeyBinding; canonical: string } | null => {
-      const canonical = canonicalEmotionName(raw ?? "");
-      if (!canonical) return null;
-
-      let best: PoseHotkeyBinding | null = null;
-      let bestScore = 0;
-
-      emotionBindings.forEach((binding) => {
-        const score = scoreEmotionBinding(binding, canonical);
-        if (score > bestScore) {
-          best = binding;
-          bestScore = score;
-        }
-      });
-
-      return best ? { binding: best, canonical } : null;
-    },
-    [emotionBindings],
-  );
-
-  const clearEmotionTimers = useCallback(() => {
-    emotionTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
-    emotionTimeoutsRef.current = [];
-  }, []);
-
-  const resetNonNeutralEmotions = useCallback(
-    (activeBinding: PoseHotkeyBinding | null, duration: number) => {
-      const clampedDuration = clamp(duration, 0.05, 2);
-      emotionBindings.forEach((binding) => {
-        if (binding === neutralBinding || binding === activeBinding) return;
-        void animateValue(
-          binding.weightPath,
-          { float: 0 },
-          { duration: clampedDuration, easing: "easeInOut" },
-        );
-      });
-    },
-    [animateValue, emotionBindings, neutralBinding],
+    [blink, enabled, gaze],
   );
 
   const applyEmotion = useCallback(
     async (rawArgs: EmotionArgs) => {
-      if (!enabled) throw new Error("Face rig not ready yet.");
-      const emotionArg =
-        rawArgs.emotion ?? rawArgs.name ?? availableEmotionOptions[0];
-      const resolved = resolveEmotionBinding(emotionArg);
-      if (!resolved) {
-        throw new Error(
-          `No matching emotion pose for "${emotionArg ?? "unknown"}".`,
-        );
+      if (!enabled) throw new Error("Face not ready yet.");
+      const requested = rawArgs.emotion ?? rawArgs.name ?? "";
+      const expression = resolveExpression(requested, expressions);
+      if (!expression) {
+        throw new Error(`No matching expression for "${requested}".`);
       }
-      const { binding, canonical } = resolved;
-
-      clearEmotionTimers();
-      resetNonNeutralEmotions(binding, 0.12);
-
-      const requestedPercent = normalizePercent(
+      const percent = normalizePercent(
         rawArgs.percent ?? rawArgs.percentage ?? rawArgs.intensity ?? 100,
       );
-      const peakWeight = requestedPercent * DEFAULT_POSE_WEIGHT;
       const lengthSeconds = clamp(
         toNumber(rawArgs.lengthSeconds ?? rawArgs.holdSeconds ?? 2, 2),
         0.2,
         8,
       );
-
-      await Promise.all([
-        animateValue(
-          binding.weightPath,
-          { float: peakWeight },
-          { duration: EMOTION_ATTACK_SECONDS, easing: "easeOut" },
-        ),
-        neutralBinding && neutralBinding !== binding
-          ? animateValue(
-              neutralBinding.weightPath,
-              { float: 0 },
-              { duration: EMOTION_ATTACK_SECONDS, easing: "easeInOut" },
-            )
-          : Promise.resolve(),
-      ]);
-
-      const decayTimer = window.setTimeout(() => {
-        void animateValue(
-          binding.weightPath,
-          { float: 0 },
-          { duration: lengthSeconds, easing: "easeInOut" },
-        );
-        if (neutralBinding && neutralBinding !== binding) {
-          void animateValue(
-            neutralBinding.weightPath,
-            { float: DEFAULT_NEUTRAL_WEIGHT },
-            { duration: lengthSeconds, easing: "easeInOut" },
-          );
-        }
-      }, EMOTION_ATTACK_SECONDS * 1000);
-      emotionTimeoutsRef.current.push(decayTimer);
-
+      const peak = percent * EMOTION_PEAK;
+      await show(expression, {
+        peak,
+        attackSeconds: EMOTION_ATTACK_SECONDS,
+        releaseSeconds: lengthSeconds,
+      });
       return {
-        emotion: canonical,
-        poseId: binding.pose.id,
-        displayName: binding.pose.name ?? binding.pose.id,
-        peakWeight,
-        percent: requestedPercent,
+        emotion: expression,
+        peakWeight: peak,
+        percent,
         lengthSeconds,
         attackSeconds: EMOTION_ATTACK_SECONDS,
-        neutralPoseId: neutralBinding?.pose.id ?? null,
       };
     },
-    [
-      animateValue,
-      availableEmotionOptions,
-      clearEmotionTimers,
-      enabled,
-      neutralBinding,
-      resetNonNeutralEmotions,
-      resolveEmotionBinding,
-    ],
+    [enabled, expressions, show],
   );
 
   const handleFunctionCalls = useCallback(
     async (functionCalls: FunctionCall[]) => {
       const responses: FunctionResponse[] = [];
-
       for (const call of functionCalls) {
         if (!call.name) continue;
         try {
           if (call.name === "set_gaze") {
             const result = await applyGaze((call.args ?? {}) as GazeArgs);
             responses.push({ id: call.id, name: call.name, response: result });
-          } else if (call.name === "express_emotion" && allowEmotionTools) {
+          } else if (call.name === "express_emotion" && hasEmotionTool) {
             const result = await applyEmotion((call.args ?? {}) as EmotionArgs);
             responses.push({ id: call.id, name: call.name, response: result });
           } else {
@@ -484,31 +268,17 @@ export function useAgentFaceTools({
           });
         }
       }
-
       return responses;
     },
-    [allowEmotionTools, applyEmotion, applyGaze],
+    [applyEmotion, applyGaze, hasEmotionTool],
   );
 
-  useEffect(() => {
-    if (!enabled || !neutralBinding?.weightPath) {
-      return;
-    }
-    void animateValue(
-      neutralBinding.weightPath,
-      { float: DEFAULT_NEUTRAL_WEIGHT },
-      { duration: 0.2, easing: "easeInOut" },
-    );
-  }, [animateValue, enabled, neutralBinding]);
-
-  useEffect(() => {
-    return () => {
-      if (gazeTimeoutRef.current) {
-        window.clearTimeout(gazeTimeoutRef.current);
-      }
-      clearEmotionTimers();
-    };
-  }, [clearEmotionTimers]);
+  useEffect(
+    () => () => {
+      if (gazeTimeoutRef.current) window.clearTimeout(gazeTimeoutRef.current);
+    },
+    [],
+  );
 
   return { tools, handleFunctionCalls, gazeActive };
 }
