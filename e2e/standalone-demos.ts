@@ -24,6 +24,8 @@ export const STANDALONE_DEMOS: StandaloneDemo[] = [
   { filter: "demo-graph-studio", port: offsetPort(5202) },
   // The face page on the Bevy view (its own spec checks the face shows).
   { filter: "vizij-standalone", port: offsetPort(5203) },
+  // The minimal face page (its own spec checks an expression shows).
+  { filter: "fullscreen-face", port: offsetPort(5204) },
 ];
 
 /** The base URL a demo is served on. */
