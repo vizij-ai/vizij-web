@@ -1,10 +1,10 @@
 /**
  * The page: a face in the Bevy view over its own Arora runtime, and an agent
  * talking through it — the ear (Deepgram), the mind (OpenAI), the mouth (the
- * runtime's `say` skill, lips driven by its viseme players). The agent writes
- * nothing but the face standard: the expression the mind chose, the `say`
- * run and the conversation state; the face's own rig paths are its own
- * business.
+ * runtime's `say` skill, lips driven by its viseme players). The agent drives
+ * the face through its skills and the face standard: a `set_expression` run
+ * for the expression the mind chose, a `say` run and the conversation state;
+ * the face's own rig paths are its own business.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Conversation, type State } from "./agent/conversation";
@@ -148,7 +148,12 @@ export default function App() {
     await conversation.turn(text);
   };
 
-  const express = (name: string) => faceRef.current?.express(name);
+  const express = (name: string) =>
+    faceRef.current
+      ?.express(name)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      );
 
   return (
     <div
