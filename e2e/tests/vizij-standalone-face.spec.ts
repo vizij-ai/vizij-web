@@ -5,7 +5,7 @@ import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
 // The face page: the Bevy view mounts on the page's canvas, the shipped face
 // loads from its bytes, its device runs, and the page reports it ready. The
 // canvas then shows something — a non-uniform pixel sample — and an
-// expression written as its face-standard weight changes what it shows.
+// expression, a `set_expression` run, changes what it shows.
 //
 // The face moves on its own (its programs move the eyes and blink), so any
 // two samples differ. The expression's change is measured against that idle
