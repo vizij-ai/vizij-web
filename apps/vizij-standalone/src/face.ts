@@ -67,7 +67,6 @@ export async function showFace(
   if (!mounted) throw new Error("mount the canvas first");
   const canvas = mounted;
   const runtime = await loadVizij(FACE, glb, {
-    ros4hri: false,
     speechApiUrl: options.speechApiUrl ?? undefined,
   });
   placeVizijIn(FACE, slot, canvas);
