@@ -32,7 +32,6 @@ body,
   height: 100%;
   border-radius: 0;
   overflow: hidden;
-  cursor: none;
   background: radial-gradient(circle at 50% 20%, #1e293b, #020617);
 }
 
@@ -43,6 +42,7 @@ body,
 }
 
 .status {
+  z-index: 2;
   position: absolute;
   inset: 0;
   display: flex;
@@ -60,6 +60,7 @@ body,
 }
 
 .hud-error {
+  z-index: 2;
   position: absolute;
   top: 24px;
   left: 50%;
@@ -74,6 +75,7 @@ body,
 }
 
 .hint {
+  z-index: 2;
   position: absolute;
   bottom: 24px;
   left: 50%;
@@ -93,6 +95,8 @@ body,
   margin: 8px 0 0;
   padding: 0;
   display: flex;
+  flex-wrap: wrap;
+  max-width: 80vw;
   gap: 12px;
   justify-content: center;
 }

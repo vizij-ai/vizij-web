@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { PNG } from "pngjs";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
+import { changedPixels, distinctColours, sampleRect } from "../pixels";
 
 // The face page: the Bevy view mounts on the page's canvas, the shipped face
 // loads from its bytes, its device runs, and the page reports it ready. The
@@ -58,31 +58,6 @@ test("the face page loads its face and shows it", async ({ page }) => {
 });
 
 /** The RGBA pixels of the page's middle. */
-async function sample(page: import("@playwright/test").Page): Promise<Buffer> {
-  return PNG.sync.read(
-    await page.screenshot({
-      clip: { x: 200, y: 100, width: 500, height: 350 },
-    }),
-  ).data;
-}
-
-function distinctColours(pixels: Buffer): number {
-  const colours = new Set<number>();
-  for (let i = 0; i < pixels.length; i += 4) {
-    colours.add((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
-  }
-  return colours.size;
-}
-
-/** The pixels whose colour moved by more than rendering noise. */
-function changedPixels(a: Buffer, b: Buffer): number {
-  let changed = 0;
-  for (let i = 0; i < a.length; i += 4) {
-    const distance =
-      Math.abs(a[i] - b[i]) +
-      Math.abs(a[i + 1] - b[i + 1]) +
-      Math.abs(a[i + 2] - b[i + 2]);
-    if (distance > 24) changed++;
-  }
-  return changed;
+function sample(page: import("@playwright/test").Page): Promise<Buffer> {
+  return sampleRect(page, { x: 200, y: 100, width: 500, height: 350 });
 }
