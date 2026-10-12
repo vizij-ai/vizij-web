@@ -1,116 +1,48 @@
-import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
-import { VizijRuntimeProvider, useVizijRuntime } from "@vizij/runtime-react";
-import {
-  createShowcaseBundle,
-  type ShowcaseFaceAssetKey,
-} from "../lib/faceAssets";
-import { broadcastRuntimeStatus } from "../lib/runtimeDebug";
+import type { VizijOptions } from "@vizij/runtime";
+import { VizijRuntimeProvider } from "@vizij/runtime-react";
+import { FACE_ASSET_URLS, type ShowcaseFaceAssetKey } from "../lib/faceAssets";
 
 type ShowcaseRuntimeProps = {
+  /** The section's face, unique on the page. */
   namespace: string;
   asset?: ShowcaseFaceAssetKey;
   children: ReactNode;
+  /** Load the face; until then the section shows `fallback`. */
   active?: boolean;
   fallback?: ReactNode;
-  autostart?: boolean;
-  driveRuntime?: boolean;
+  /** Run the face's device while its section is on screen; an offscreen
+   * face stops. */
   visible?: boolean;
-  hiddenStepHz?: number;
-  label?: string;
+  /** `loadVizij`'s options. The face's program runs only where a section
+   * asks for it (`program: "auto"`). */
+  options?: VizijOptions;
 };
 
+const NO_PROGRAM: VizijOptions = { program: "none" };
+
+/** One section's face: its provider, loaded once the section has entered
+ * the viewport and running while it is visible. */
 export function ShowcaseRuntime({
   namespace,
   asset = "quoriCurrentExtended",
   children,
   active = true,
   fallback = null,
-  autostart = true,
-  driveRuntime = false,
   visible = true,
-  hiddenStepHz = 1,
-  label,
+  options = NO_PROGRAM,
 }: ShowcaseRuntimeProps) {
-  const bundle = useMemo(
-    () => createShowcaseBundle(namespace, asset),
-    [namespace, asset],
-  );
-
   if (!active) {
     return <>{fallback}</>;
   }
-
-  const shouldAutostart = autostart && visible;
-  const shouldDriveVisible = driveRuntime && visible;
-  const shouldDriveHidden = driveRuntime && !visible && hiddenStepHz > 0;
-
   return (
     <VizijRuntimeProvider
-      assetBundle={bundle}
-      autostart={shouldAutostart}
-      driveRuntime={shouldDriveVisible}
+      glb={FACE_ASSET_URLS[asset]}
+      vizijId={`showcase-${namespace}`}
+      options={options}
+      run={visible}
     >
-      <HiddenStepController enabled={shouldDriveHidden} hz={hiddenStepHz} />
-      <RuntimeDebugBeacon
-        namespace={namespace}
-        label={label}
-        visible={visible}
-        driver={driveRuntime}
-        autostart={shouldAutostart}
-        hiddenStepHz={hiddenStepHz}
-      />
       {children}
     </VizijRuntimeProvider>
   );
-}
-
-function HiddenStepController({
-  enabled,
-  hz,
-}: {
-  enabled: boolean;
-  hz: number;
-}) {
-  const { step, ready } = useVizijRuntime();
-
-  useEffect(() => {
-    if (!enabled || !ready || hz <= 0) {
-      return;
-    }
-    const intervalMs = 1000 / hz;
-    const id = window.setInterval(() => {
-      step(1 / hz, { forceRuntime: true });
-    }, intervalMs);
-    return () => window.clearInterval(id);
-  }, [enabled, hz, ready, step]);
-
-  return null;
-}
-
-function RuntimeDebugBeacon(props: {
-  namespace: string;
-  label?: string;
-  visible: boolean;
-  driver: boolean;
-  autostart: boolean;
-  hiddenStepHz: number;
-}) {
-  const { namespace, label, visible, driver, autostart, hiddenStepHz } = props;
-  const { stepHz } = useVizijRuntime();
-
-  useEffect(() => {
-    broadcastRuntimeStatus({
-      namespace,
-      label,
-      visible,
-      driver,
-      autostart,
-      hiddenStepHz,
-      stepHz,
-      timestamp: Date.now(),
-    });
-  }, [autostart, driver, hiddenStepHz, label, namespace, visible, stepHz]);
-
-  return null;
 }

@@ -5,6 +5,13 @@ import { RuntimeFaceFrame } from "../components/RuntimeFaceFrame";
 import { FaceFramePlaceholder } from "../components/FaceFramePlaceholder";
 import { useSectionInView } from "../hooks/useSectionInView";
 
+/** The face's own rig and poses, without its standard adaptation, which
+ * would write the inputs this section sets. */
+const RIG_ONLY = {
+  graphs: ["rig", "pose-driver", "pose"],
+  program: "none",
+};
+
 export function ControlsSection() {
   const { ref, hasEntered, isVisible } = useSectionInView<HTMLElement>({
     threshold: 0.4,
@@ -16,16 +23,13 @@ export function ControlsSection() {
       <SectionIntro
         eyebrow="Fine-grain control"
         title="Every feature is controllable."
-        description="Dial any part of the face—from color and opacity to 3D position, rotation, and scale. Search a path, add it, and drive exact values through Vizij’s runtime."
+        description="Dial any part of the face—from color and opacity to 3D position, rotation, and scale. Search a path, add it, and drive exact values into the face's device."
       />
       <ShowcaseRuntime
         namespace="controls"
-        asset="quoriCurrentExtended"
         active={hasEntered}
-        autostart={false}
-        driveRuntime={false}
         visible={isVisible}
-        label="Rig composer"
+        options={RIG_ONLY}
         fallback={<ControlsFallback />}
       >
         <div className="section-grid two-col">

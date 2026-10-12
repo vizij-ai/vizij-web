@@ -1,45 +1,32 @@
 # vizij-showcase
 
-`vizij-showcase` is the main multi-surface runtime demo in this repo. It renders several face experiences inside one app, each on its own runtime, and throttles the ones that are not in view.
+`vizij-showcase` is the main multi-surface demo in this repo. It shows several face experiences on one page, each section with a face of its own, all drawn on one canvas.
 
 ## Runtime Pattern
 
-The key runtime abstraction here is [`ShowcaseRuntime`](./src/components/ShowcaseRuntime.tsx).
+The page renders `@vizij/render`'s `<VizijCanvas>` once, fixed over the page with its pointer events off. Each section wraps its face in [`ShowcaseRuntime`](./src/components/ShowcaseRuntime.tsx), which:
 
-Each section-level face:
+- mounts a `VizijRuntimeProvider` (one Arora device per face) once the section has entered the viewport, under the id `showcase-<section>`;
+- runs the face's device while the section is visible (`run={visible}`), so an offscreen face stops;
+- passes the section's `loadVizij` options: no program by default, Quori's program where the section relies on it.
 
-- creates a bundle with `createShowcaseBundle()`
-- gets a unique namespace like `vizij-showcase-<section>`
-- mounts its own `VizijRuntimeProvider` (one Arora device per face)
-- decides whether it should actively drive its runtime or stay passive
-
-This lets the showcase keep multiple runtime surfaces alive without every section stepping at full rate.
-
-### Driver vs passive faces
-
-Some faces are visible and interactive; others are decorative or hidden until scrolled into view.
-
-`ShowcaseRuntime` therefore separates:
-
-- `autostart`
-- `driveRuntime`
-- `visible`
-- `hiddenStepHz`
-
-Visible driver faces use the normal runtime loop. Hidden driver faces can fall back to low-frequency manual stepping through `step(..., { forceRuntime: true })`.
-
-If you are trying to understand shared runtime-react orchestration, this app is the reference consumer in the repo.
+[`RuntimeFaceFrame`](./src/components/RuntimeFaceFrame.tsx) places the face's slot (`VizijRuntimeFace`) in a card; the canvas draws the face over it, cropped at the canvas's edge as the page scrolls.
 
 ## What The App Demonstrates
 
-- shared runtime namespaces for multiple face surfaces
-- pose hotkeys, idle gaze, and interactive gaze on top of runtime-react
-- voice/viseme overlays tied to runtime bundles
-- runtime status broadcasting for debug overlays
+| Section      | Program                                | What it drives                                                                                       |
+| ------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Hero         | Quori's                                | expression weights and `play_viseme` in a passive routine, beside the program's idle gaze and blinks |
+| Expressions  | none                                   | buttons and hotkeys over the face standard's expression weights                                      |
+| Gaze Play    | Quori's                                | the face standard's gaze target from the pointer, a random expression on click                       |
+| Voice        | none                                   | the device's `say`, which synthesises the line and moves the lips                                    |
+| Rig Controls | none (rig, pose driver and poses only) | any rig input from `describe(glb).rigInputs`                                                         |
+
+The gaze target (`standard/vizij/gaze/target/{x,y}` and its `weight`) is an input of Quori's program, so the Gaze Play section runs it.
 
 ## Environment
 
-Voice/viseme controls default to the staging Vizij API endpoint. Override only when needed:
+The Voice section's `say` calls the Vizij text-to-speech endpoint, the staging Cloud Function by default. Override only when needed:
 
 ```bash
 cat > apps/vizij-showcase/.env.local <<'EOF'
@@ -59,12 +46,15 @@ pnpm --filter vizij-showcase typecheck
 pnpm --filter vizij-showcase lint
 ```
 
+The e2e spec is `e2e/tests/vizij-showcase.spec.ts` (port 5205).
+
 ## Key Files
 
-- [`src/components/ShowcaseRuntime.tsx`](./src/components/ShowcaseRuntime.tsx): shared runtime provider wrapper
-- [`src/lib/faceAssets.ts`](./src/lib/faceAssets.ts): bundle template + namespace generation
-- [`src/components/RuntimeFaceFrame.tsx`](./src/components/RuntimeFaceFrame.tsx): runtime face stage
-- [`src/components/RuntimeDebugOverlay.tsx`](./src/components/RuntimeDebugOverlay.tsx): debug/status surface
+- [`src/components/ShowcaseRuntime.tsx`](./src/components/ShowcaseRuntime.tsx): one section's face
+- [`src/components/RuntimeFaceFrame.tsx`](./src/components/RuntimeFaceFrame.tsx): the face's card and slot
+- [`src/hooks/useGazeTarget.ts`](./src/hooks/useGazeTarget.ts): the eyes through the face standard's gaze target
+- [`src/hooks/useExpressions.ts`](./src/hooks/useExpressions.ts): the face standard's expression weights
+- [`src/components/VoicePanel.tsx`](./src/components/VoicePanel.tsx): the device's `say`
 
 ## Build, Preview, And Deploy
 
