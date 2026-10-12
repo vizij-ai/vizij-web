@@ -1,59 +1,46 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  useVizijRuntime,
-  type ProgramPlaybackState,
-} from "@vizij/runtime-react";
+  behaviorValue,
+  outputKeys,
+  runStatus,
+  type Program,
+  type RunHandle,
+  type ValueInput,
+} from "@vizij/runtime";
+import { useVizijRuntime, useVizijValues } from "@vizij/runtime-react";
 import { useAppState } from "../state/AppStateContext";
 import { IconButton } from "./IconButton";
 import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
 
-function useProgramSnapshots(programIds: string[]) {
-  const { getProgramState } = useVizijRuntime();
-  const [snapshots, setSnapshots] = useState<
-    Record<string, ProgramPlaybackState | null>
-  >({});
-  const programIdsKey = programIds.join("|");
-
-  useEffect(() => {
-    if (programIds.length === 0) {
-      // Bail if already empty: `assetBundle.programs` is rebuilt every render,
-      // so `programIds` is a fresh reference each time and this effect re-runs
-      // on every render. Setting a new `{}` here would then loop forever
-      // ("Maximum update depth"); returning `prev` unchanged lets React bail.
-      setSnapshots((prev) => (Object.keys(prev).length === 0 ? prev : {}));
-      return;
-    }
-    const timer = window.setInterval(() => {
-      setSnapshots(
-        Object.fromEntries(programIds.map((id) => [id, getProgramState(id)])),
-      );
-    }, 150);
-    return () => window.clearInterval(timer);
-    // Keyed by `programIdsKey` (stable by value), not `programIds` (unstable
-    // identity) — otherwise the interval is torn down and rebuilt every render
-    // and its snapshots never settle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getProgramState, programIdsKey]);
-
-  return snapshots;
-}
-
+/**
+ * The face's programs (`describe(glb).programs`). A program runs beside the
+ * face's graph as a `run_behavior` run of the device's interpreter: play
+ * starts a run, pause halts it with its outputs holding their last values,
+ * and stop halts it and returns those outputs to rest (`reset_keys` of the
+ * keys `outputKeys(program.graph)` lists). Playing after a pause starts a
+ * new run.
+ */
 export function ProgramsPanel() {
-  const { assetBundle, playProgram, pauseProgram, stopProgram } =
-    useVizijRuntime();
+  const { runtime, description } = useVizijRuntime();
   const {
     state: {
       playbackSelection: { programId },
     },
     setSelectedProgram,
   } = useAppState();
-  const programs = assetBundle.programs ?? [];
-  const programIds = useMemo(
-    () => programs.map((program) => program.id),
-    [programs],
+  const programs = useMemo(() => description?.programs ?? [], [description]);
+  const [runs, setRuns] = useState<Record<string, RunHandle>>({});
+  const statuses = useVizijValues(
+    Object.values(runs).map((handle) => handle.status),
   );
-  const programIdsKey = programIds.join("|");
-  const snapshots = useProgramSnapshots(programIds);
+  const stateOf = (program: Program) => {
+    const handle = runs[program.id];
+    return handle ? (runStatus(statuses[handle.status]) ?? "starting") : null;
+  };
+
+  useEffect(() => {
+    setRuns({});
+  }, [runtime]);
 
   useEffect(() => {
     if (!programs.length) {
@@ -63,7 +50,32 @@ export function ProgramsPanel() {
     if (!programId || !programs.some((program) => program.id === programId)) {
       setSelectedProgram(programs[0]!.id);
     }
-  }, [programId, programIdsKey, programs, setSelectedProgram]);
+  }, [programId, programs, setSelectedProgram]);
+
+  const play = async (program: Program) => {
+    if (!runtime || stateOf(program) === "running") return;
+    const handle = (await runtime.invoke("run_behavior", {
+      name: program.id,
+      // `behaviorValue` returns the Arora value `run_behavior` takes, typed
+      // as a plain object.
+      behavior: (await behaviorValue(program.graph)) as ValueInput,
+    })) as RunHandle;
+    setRuns((current) => ({ ...current, [program.id]: handle }));
+  };
+
+  const halt = async (program: Program) => {
+    const handle = runs[program.id];
+    if (!runtime || !handle || stateOf(program) !== "running") return;
+    await runtime.halt(handle.run);
+  };
+
+  const stop = async (program: Program) => {
+    if (!runtime) return;
+    await halt(program);
+    await runtime.invoke("reset_keys", {
+      keys: { strs: await outputKeys(program.graph) },
+    });
+  };
 
   const selectedProgram =
     programs.find((program) => program.id === programId) ?? programs[0] ?? null;
@@ -71,14 +83,19 @@ export function ProgramsPanel() {
     if (!selectedProgram) {
       return [];
     }
-
     return [
       {
         label: selectedProgram.label ?? selectedProgram.id,
         code: [
-          `playProgram(${JSON.stringify(selectedProgram.id)});`,
-          `pauseProgram(${JSON.stringify(selectedProgram.id)});`,
-          `stopProgram(${JSON.stringify(selectedProgram.id)}, { resetOutputs: true });`,
+          `const program = description.programs.find((p) => p.id === ${JSON.stringify(selectedProgram.id)})!;`,
+          'const run = await runtime.invoke("run_behavior", {',
+          "  name: program.id,",
+          "  behavior: await behaviorValue(program.graph),",
+          "});",
+          "await runtime.halt(run.run); // its outputs hold their last values",
+          'await runtime.invoke("reset_keys", {',
+          "  keys: { strs: await outputKeys(program.graph) },",
+          "}); // back to rest",
         ].join("\n"),
       },
     ];
@@ -101,12 +118,12 @@ export function ProgramsPanel() {
           <>
             <div className="list-stack">
               {programs.map((program) => {
-                const state = snapshots[program.id];
-                const active = program.id === programId;
+                const label = program.label ?? program.id;
+                const state = stateOf(program);
                 return (
                   <article
                     key={program.id}
-                    className={`program-card ${active ? "is-active" : ""}`}
+                    className={`program-card ${program.id === selectedProgram?.id ? "is-active" : ""}`}
                   >
                     <button
                       type="button"
@@ -114,30 +131,31 @@ export function ProgramsPanel() {
                       onClick={() => setSelectedProgram(program.id)}
                     >
                       <span>
-                        <strong>{program.label ?? program.id}</strong>
+                        <strong>{label}</strong>
                         <small>{program.id}</small>
                       </span>
                       <span className="soft-badge">
-                        {state?.state ?? "stopped"}
+                        {state === "running" ? "running" : "halted"}
                       </span>
                     </button>
                     <div className="transport-actions">
                       <IconButton
                         icon="play"
-                        label={`Play ${program.label ?? program.id}`}
-                        onClick={() => playProgram(program.id)}
+                        label={`Play ${label}`}
+                        disabled={!runtime}
+                        onClick={() => void play(program)}
                       />
                       <IconButton
                         icon="pause"
-                        label={`Pause ${program.label ?? program.id}`}
-                        onClick={() => pauseProgram(program.id)}
+                        label={`Pause ${label}`}
+                        disabled={state !== "running"}
+                        onClick={() => void halt(program)}
                       />
                       <IconButton
                         icon="stop"
-                        label={`Stop ${program.label ?? program.id}`}
-                        onClick={() =>
-                          stopProgram(program.id, { resetOutputs: true })
-                        }
+                        label={`Stop ${label}`}
+                        disabled={!runtime}
+                        onClick={() => void stop(program)}
                       />
                     </div>
                   </article>
@@ -146,7 +164,7 @@ export function ProgramsPanel() {
             </div>
             <RuntimeApiDisclosure
               title="Runtime program calls"
-              description="The selected procedural program uses the runtime program transport directly."
+              description="A program as a run of the device's interpreter, started, halted and returned to rest."
               examples={runtimeExamples}
             />
           </>
