@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useCallback, useState } from "react";
+import { VizijCanvas } from "@vizij/render";
 import {
-  VizijRuntimeProvider,
   VizijRuntimeFace,
+  VizijRuntimeProvider,
   useVizijRuntime,
-  type VizijAssetBundle,
 } from "@vizij/runtime-react";
-import { useMouseGaze } from "./hooks/useMouseGaze";
-import { usePoseHotkeys, POSE_HOTKEY_LAYOUT } from "./hooks/usePoseHotkeys";
+import { useFaceHotkeys } from "./hooks/useFaceHotkeys";
 import "./styles.css";
 
 const faceAssetUrl = new URL(
@@ -14,131 +13,42 @@ const faceAssetUrl = new URL(
   import.meta.url,
 ).href;
 
-const assetBundle: VizijAssetBundle = {
-  namespace: "fullscreen-face",
-  glb: {
-    kind: "url",
-    src: faceAssetUrl,
-    aggressiveImport: true,
-  },
-  pose: {
-    stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-  },
-};
+/** `?autoplay` runs the face's active program from load. */
+const autoplay = new URLSearchParams(window.location.search).has("autoplay");
 
-function VizijRuntimeHud() {
-  const { loading, error, ready } = useVizijRuntime();
-  return (
-    <div>
-      Status:
-      {loading && <div>Loading Face {ready}</div>}
-      {error && <div>Error: {error.message}</div>}
-      {!ready && <div>Initializing</div>}
-    </div>
-  );
-}
+const CANVAS_STYLE = {
+  position: "fixed",
+  inset: 0,
+  pointerEvents: "none",
+  zIndex: 1,
+} as const;
 
 function FaceRuntime() {
-  const runtime = useVizijRuntime();
-  const { ready, loading, error, stagePoseNeutral, assetBundle } = runtime;
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const gazeRef = useMouseGaze(ready);
-  const { bindings } = usePoseHotkeys(poseConfig, ready);
+  const { status, error } = useVizijRuntime();
+  const ready = status === "ready";
+  const hotkeys = useFaceHotkeys(ready);
   const [hintsVisible, setHintsVisible] = useState(false);
-
-  const handlePointerMove = useCallback(() => {
-    setHintsVisible(true);
-  }, []);
-
-  useEffect(() => {
-    if (ready) {
-      stagePoseNeutral();
-    }
-  }, [ready, stagePoseNeutral]);
-
-  // Auto-play motion graph from bundle metadata when ?autoplay is present
-  const autoPlayTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (!ready || loading) return;
-    if (autoPlayTriggeredRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    if (!params.has("autoplay")) return;
-    const meta = assetBundle.bundle?.metadata as
-      | Record<string, unknown>
-      | undefined;
-    const activeId: string | undefined =
-      typeof meta?.activeMotionGraphId === "string"
-        ? meta.activeMotionGraphId
-        : Array.isArray(meta?.activeMotionGraphIds) &&
-            typeof (meta.activeMotionGraphIds as unknown[])[0] === "string"
-          ? ((meta.activeMotionGraphIds as unknown[])[0] as string)
-          : undefined;
-    if (!activeId) return;
-    const match = (assetBundle.programs ?? []).find((p) => p.id === activeId);
-    if (!match) return;
-    try {
-      runtime.playProgram(activeId);
-      autoPlayTriggeredRef.current = true;
-    } catch {
-      // will retry on next render cycle
-    }
-  }, [ready, loading, assetBundle, runtime.playProgram]);
-
-  const hotkeyHints = useMemo(() => {
-    if (!poseConfig || bindings.length === 0) {
-      return [];
-    }
-    return bindings.slice(0, POSE_HOTKEY_LAYOUT.length).map((binding, idx) => ({
-      key: POSE_HOTKEY_LAYOUT[idx]?.label ?? `${idx + 1}`,
-      label: binding.pose.name ?? `Pose ${idx + 1}`,
-      semanticKey: binding.semanticKey,
-    }));
-  }, [bindings, poseConfig]);
-
-  if (loading) {
-    return (
-      <div className="fullscreen">
-        <div className="status">Loading face…</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="fullscreen">
-        <div className="status error hud-error">{error.message}</div>
-      </div>
-    );
-  }
-
-  if (!ready) {
-    return (
-      <div className="fullscreen">
-        <div className="status">Initialising runtime…</div>
-      </div>
-    );
-  }
+  const showHints = useCallback(() => setHintsVisible(true), []);
 
   return (
-    <div className="fullscreen" onPointerMove={handlePointerMove}>
-      <div ref={gazeRef} className="canvas-wrapper">
-        <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
+    <div className="fullscreen" onPointerMove={showHints}>
+      <div className="canvas-wrapper">
+        <VizijRuntimeFace className="face-canvas" />
       </div>
-      {hintsVisible && (
+      {status === "loading" && <div className="status">Loading face…</div>}
+      {error && <div className="status error hud-error">{error.message}</div>}
+      {ready && hintsVisible && (
         <div className="hint">
-          <div>Move the mouse to steer gaze.</div>
-          <div>Press the hotkeys to trigger poses:</div>
-          {hotkeyHints.length > 0 ? (
-            <ul>
-              {hotkeyHints.map((entry) => (
-                <li key={entry.key}>
-                  <kbd>{entry.key}</kbd> → {entry.label}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div>Bundle did not include a pose rig with hotkeys.</div>
-          )}
+          <div>
+            Hold a key to show an expression, or press one for a viseme:
+          </div>
+          <ul>
+            {hotkeys.map((hotkey) => (
+              <li key={hotkey.key}>
+                <kbd>{hotkey.key}</kbd> → {hotkey.label}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
@@ -147,9 +57,15 @@ function FaceRuntime() {
 
 export function FaceApp() {
   return (
-    <VizijRuntimeProvider assetBundle={assetBundle} autostart>
-      <VizijRuntimeHud />
-      <FaceRuntime />
-    </VizijRuntimeProvider>
+    <>
+      {/* Over the page's backdrop, under its hints. */}
+      <VizijCanvas style={CANVAS_STYLE} />
+      <VizijRuntimeProvider
+        glb={faceAssetUrl}
+        options={{ program: autoplay ? "auto" : "none" }}
+      >
+        <FaceRuntime />
+      </VizijRuntimeProvider>
+    </>
   );
 }
