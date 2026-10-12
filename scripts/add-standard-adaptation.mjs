@@ -31,7 +31,11 @@
  *   `standard/vizij/*` itself; the legacy `standard/<eye>_top_eyelid/pos/y`
  *   inputs one to one;
  * - blink: the rig's `lids/blink` or `blink` input;
- * - conversation state: the rig's `speech/<state>` inputs.
+ * - gaze target: nothing — a face's program reads it, blended with its own
+ *   eye motion, or the face leaves it unmapped;
+ * - conversation state: nothing when a graph of the face reads
+ *   `standard/vizij/conversation/*` itself; the rig's `speech/<state>`
+ *   inputs otherwise.
  *
  * Only an input the face's graphs pass on counts as one of its controls. What
  * the face has no control for stays unmapped, and the script lists it: it
@@ -49,6 +53,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
+import { findBundle, parseGlb, writeGlb } from "./glb-bundle.mjs";
 
 /** Emotion pose (canonical leaf name) ← the standard expressions that drive it. */
 const EXPRESSION_MAPPING = {
@@ -105,78 +110,6 @@ const EYES = [
 
 /** The other names the exporters gave an emotion pose. */
 const LEAF_ALIASES = { angry: "anger", surprised: "surprise" };
-
-const JSON_CHUNK = 0x4e4f534a;
-const GLB_MAGIC = 0x46546c67;
-
-/** Split a GLB into its JSON document and its trailing chunks, verbatim. */
-function parseGlb(buf) {
-  if (buf.readUInt32LE(0) !== GLB_MAGIC) {
-    throw new Error("not a GLB (bad magic)");
-  }
-  const total = buf.readUInt32LE(8);
-  const chunks = [];
-  let json = null;
-  let offset = 12;
-  while (offset < total) {
-    const length = buf.readUInt32LE(offset);
-    const type = buf.readUInt32LE(offset + 4);
-    const data = buf.subarray(offset + 8, offset + 8 + length);
-    if (type === JSON_CHUNK && json === null) {
-      json = JSON.parse(data.toString("utf8"));
-      chunks.push({ type, data: null });
-    } else {
-      chunks.push({ type, data });
-    }
-    offset += 8 + length;
-  }
-  if (json === null) {
-    throw new Error("the GLB carries no JSON chunk");
-  }
-  return { json, chunks };
-}
-
-/** Re-encode a GLB, the JSON chunk rewritten and every other chunk verbatim. */
-function writeGlb(json, chunks) {
-  const encoded = chunks.map((chunk) => {
-    const data =
-      chunk.data === null
-        ? Buffer.from(JSON.stringify(json), "utf8")
-        : chunk.data;
-    // glTF requires 4-byte-aligned chunks: JSON pads with spaces, binary with
-    // zeroes, so a padded chunk stays valid as its own content type.
-    const padding = (4 - (data.length % 4)) % 4;
-    const pad = Buffer.alloc(padding, chunk.type === JSON_CHUNK ? 0x20 : 0x00);
-    const header = Buffer.alloc(8);
-    header.writeUInt32LE(data.length + padding, 0);
-    header.writeUInt32LE(chunk.type, 4);
-    return Buffer.concat([header, data, pad]);
-  });
-  const body = Buffer.concat(encoded);
-  const header = Buffer.alloc(12);
-  header.writeUInt32LE(GLB_MAGIC, 0);
-  header.writeUInt32LE(2, 4);
-  header.writeUInt32LE(12 + body.length, 8);
-  return Buffer.concat([header, body]);
-}
-
-/**
- * The `VIZIJ_bundle` object: on a node's `extensions`, else the document's —
- * the same two places `vizij-bundle` looks, in the same order.
- */
-function findBundle(json) {
-  for (const node of json.nodes ?? []) {
-    const bundle = node.extensions?.VIZIJ_bundle;
-    if (bundle) {
-      return bundle;
-    }
-  }
-  const bundle = json.extensions?.VIZIJ_bundle;
-  if (bundle) {
-    return bundle;
-  }
-  throw new Error("the GLB carries no VIZIJ_bundle");
-}
 
 /**
  * The face's controls: every input path its graphs read and pass on, relative
@@ -394,8 +327,19 @@ function buildSpec(rigPrefix, { paths, metadata }) {
     unmapped.push("blink");
   }
 
+  // The gaze target: a face's program blends it with its own eye motion, or
+  // nothing in the face reads it.
+  const targets = ["x", "y"].map((axis) => `gaze/target/${axis}`);
+  if (targets.every((t) => has(`standard/vizij/${t}`))) {
+    native.push("gaze target");
+  } else {
+    unmapped.push(...targets);
+  }
+
   for (const state of CONVERSATION) {
-    if (has(`speech/${state}`)) {
+    if (has(`standard/vizij/conversation/${state}`)) {
+      native.push(`conversation/${state}`);
+    } else if (has(`speech/${state}`)) {
       const from = control(`conversation/${state}`, `in_conv_${state}`);
       clampTo(from, `conv_${state}`, `speech/${state}`);
       mapped.push([`speech/${state}`, `conversation/${state}`]);
@@ -481,7 +425,7 @@ function main() {
   }
   if (native.length > 0) {
     console.log(
-      `  the rig listens on the standard itself: ${native.join(", ")}`,
+      `  the face's graphs read the standard itself: ${native.join(", ")}`,
     );
   }
   if (unmapped.length > 0) {
