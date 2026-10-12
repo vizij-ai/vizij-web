@@ -4,6 +4,9 @@ import { GazeInteractiveFace } from "../components/GazeInteractiveFace";
 import { FaceFramePlaceholder } from "../components/FaceFramePlaceholder";
 import { useSectionInView } from "../hooks/useSectionInView";
 
+/** Quori's program implements the gaze target and its idle gaze. */
+const WITH_PROGRAM = { program: "auto" } as const;
+
 export function GazePlaySection() {
   const { ref, hasEntered, isVisible } = useSectionInView<HTMLElement>({
     threshold: 0.3,
@@ -15,17 +18,13 @@ export function GazePlaySection() {
       <SectionIntro
         eyebrow="Responsive presence"
         title="Enable rendered faces to give people attention across every surface."
-        description="Use passive gaze behaviors for idle animations or connect mouse, touch, or sensor data to control gaze for joint attention in real time."
+        description="Let the face's own idle gaze run, or connect mouse, touch, or sensor data to the gaze target for joint attention in real time."
       />
       <ShowcaseRuntime
         namespace="gaze"
-        asset="quoriCurrentExtended"
         active={hasEntered}
-        autostart={isVisible}
-        driveRuntime
         visible={isVisible}
-        hiddenStepHz={1}
-        label="Gaze"
+        options={WITH_PROGRAM}
         fallback={<GazeFallback />}
       >
         <GazeInteractiveFace enabled={isVisible} />
@@ -40,7 +39,7 @@ function GazeFallback() {
       variant="lg"
       label="Cursor-reactive gaze"
       subtitle="Live demo activates on scroll"
-      message="Scroll a bit further to wake this Vizij runtime."
+      message="Scroll a bit further to wake this Vizij face."
     />
   );
 }

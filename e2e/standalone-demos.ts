@@ -28,6 +28,8 @@ export const STANDALONE_DEMOS: StandaloneDemo[] = [
   { filter: "fullscreen-face", port: offsetPort(5204) },
   // The agent face (its own spec checks the face and its debug controls).
   { filter: "tutorial-agent-face", port: offsetPort(5206) },
+  // The showcase: five faces on one canvas (its own spec checks each).
+  { filter: "vizij-showcase", port: offsetPort(5205) },
 ];
 
 /** The base URL a demo is served on. */
