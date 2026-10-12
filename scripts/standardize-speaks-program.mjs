@@ -16,7 +16,11 @@
  *   `idle/{eyes/explore,eyes/jitter_amplitude,eyes/jitter_speed,
  *   brows/twitch,mouth/breathing,mouth/twitch}` under the rig prefix, each
  *   resting at the value the program was authored with (the constant it added
- *   to the knob), so the face moves as authored when nobody sets them.
+ *   to the knob), so the face moves as authored when nobody sets them. Each
+ *   declares its range on its input node (`params.min`, `params.max`): 0 is
+ *   off and the authored amount the middle — explore [0, 2], jitter_amplitude
+ *   [0, 0.3], jitter_speed [0, 1.2], brows/twitch [0, 1], mouth/breathing
+ *   [0, 1], mouth/twitch [0, 0.4].
  * - **Gaze target** — it reads `standard/vizij/gaze/target/{x,y}` ([0, 1] of
  *   the face's frame, origin top-left, y downward, resting at 0.5) and the
  *   target's weight, `standard/vizij/gaze/target/weight` ([0, 1], resting at
@@ -65,6 +69,15 @@ const CONVERSATION = ["speaking", "user_speaking", "thinking"];
 const STANDARD = "standard/vizij/";
 const OLD_KNOBS = "standard/vmotion/idle/";
 const KNOBS = "idle/";
+/** Each knob's declared range: 0 is off, the authored amount the middle. */
+const KNOB_RANGES = {
+  "eyes/explore": [0, 2],
+  "eyes/jitter_amplitude": [0, 0.3],
+  "eyes/jitter_speed": [0, 1.2],
+  "brows/twitch": [0, 1],
+  "mouth/breathing": [0, 1],
+  "mouth/twitch": [0, 0.4],
+};
 
 const f32 = (value) => ({ f32: value });
 const valueOf = (node) => {
@@ -319,11 +332,17 @@ function editProgram(spec, rig) {
     }
     g.remove([sum.id]);
     const old = knob.params.path.slice(rig.length);
-    const path = `${rig}${KNOBS}${old.slice(OLD_KNOBS.length)}`;
-    knob.params = { path, value: f32(rest) };
+    const name = old.slice(OLD_KNOBS.length);
+    const range = KNOB_RANGES[name];
+    if (!range) {
+      throw new Error(`no declared range for the knob ${name}`);
+    }
+    const [min, max] = range;
+    const path = `${rig}${KNOBS}${name}`;
+    knob.params = { path, value: f32(rest), min, max };
     g.rename(knob.id, `__input_source_${path}`);
     report.push(
-      `${old} → ${path.slice(rig.length)} (rests at ${Number(rest.toPrecision(6))})`,
+      `${old} → ${path.slice(rig.length)} (rests at ${Number(rest.toPrecision(6))}, in [${min}, ${max}])`,
     );
   }
 
@@ -598,9 +617,35 @@ function main() {
       (n) => n.type === "input" && n.params?.path === weight,
     )
   ) {
-    console.log(
-      "  the program already reads the gaze target and its weight: nothing to do",
-    );
+    console.log("  the program already reads the gaze target and its weight");
+    // A face put on the standard before the knobs declared their ranges
+    // gains them here, so the script brings any edition of the face to the
+    // same result.
+    const declared = [];
+    for (const [name, [min, max]] of Object.entries(KNOB_RANGES)) {
+      const path = `${rig}${KNOBS}${name}`;
+      for (const knob of program.spec.nodes.filter(
+        (n) => n.type === "input" && n.params?.path === path,
+      )) {
+        if (knob.params.min !== min || knob.params.max !== max) {
+          knob.params = { ...knob.params, min, max };
+          declared.push(`${KNOBS}${name} in [${min}, ${max}]`);
+        }
+      }
+    }
+    if (declared.length === 0) {
+      console.log("  its knobs declare their ranges: nothing to do");
+      return;
+    }
+    for (const line of declared) {
+      console.log(`  ${line}`);
+    }
+    if (dryRun) {
+      console.log("  --dry-run: the GLB is not written");
+      return;
+    }
+    writeFileSync(output, writeGlb(json, chunks));
+    console.log(`  wrote ${output}`);
     return;
   }
 
