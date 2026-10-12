@@ -28,8 +28,9 @@ const MOUTH = { x: 0.3, y: 0.55, width: 0.4, height: 0.25 };
 test("the agent face shows its face and an emotion button changes it", async ({
   page,
 }) => {
-  // Compiling the Bevy shaders on SwiftShader takes a while the first time.
-  test.setTimeout(240_000);
+  // Compiling the Bevy shaders on SwiftShader takes a while the first time,
+  // and each screenshot is slow beside the other demos' pages.
+  test.setTimeout(420_000);
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.goto(demoUrl(agentFace));
