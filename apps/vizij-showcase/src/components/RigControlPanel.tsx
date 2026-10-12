@@ -11,21 +11,34 @@ type RigInputOption = {
   defaultValue?: number;
 };
 
+/**
+ * Any input of the face's rig, from `describe(glb).rigInputs`: search a
+ * path, stage a value, and the slider writes it at
+ * `runtime.path(input.path)`.
+ */
 export function RigControlPanel() {
-  const { ready, assetBundle, setInput, step, inputConstraints, namespace } =
-    useVizijRuntime();
-  const rigSpec = assetBundle.rig?.spec;
-  const rigInputOptions = useMemo(
-    () => extractRigInputOptions(rigSpec, inputConstraints, namespace),
-    [rigSpec, inputConstraints, namespace],
+  const { runtime, description, status } = useVizijRuntime();
+  const ready = status === "ready";
+  const rigInputOptions = useMemo<RigInputOption[]>(
+    () =>
+      (description?.rigInputs ?? [])
+        .map((input) => ({
+          path: input.path,
+          label: input.label ?? input.path,
+          id: input.id ?? undefined,
+          min: input.min ?? undefined,
+          max: input.max ?? undefined,
+          defaultValue: input.defaultValue ?? undefined,
+        }))
+        .sort((a, b) => a.path.localeCompare(b.path)),
+    [description],
   );
 
   const handleStageValue = useCallback(
     (path: string, value: number) => {
-      setInput(path, { float: value });
-      step(1 / 30, { forceRuntime: true });
+      runtime?.setValue(runtime.path(path), value);
     },
-    [setInput, step],
+    [runtime],
   );
 
   return (
@@ -50,14 +63,6 @@ function countWithConstraints(options: RigInputOption[]): {
       opt.defaultValue !== undefined,
   ).length;
   return { total, resolved };
-}
-
-function namespaceTypedPath(path: string, namespace: string): string {
-  const trimmed = path.trim();
-  if (!trimmed) return trimmed;
-  const prefix = `${namespace}/`;
-  if (trimmed.startsWith(prefix)) return trimmed;
-  return `${prefix}${trimmed}`;
 }
 
 type InputStagerProps = {
@@ -263,7 +268,7 @@ function InputStager({
           className="input-stage__search"
           placeholder={
             inputs.length > 0
-              ? "Search any feature path (e.g. rig/face/smile_left)"
+              ? "Search any feature path (e.g. mouth/smile)"
               : "No feature paths available"
           }
           value={query}
@@ -342,90 +347,4 @@ function InputStager({
       )}
     </div>
   );
-}
-
-function extractRigInputOptions(
-  spec: unknown,
-  constraints: Record<
-    string,
-    { min?: number; max?: number; defaultValue?: number }
-  > = {},
-  namespace: string,
-): RigInputOption[] {
-  if (!spec || typeof spec !== "object") {
-    return [];
-  }
-  const nodes = Array.isArray((spec as { nodes?: unknown }).nodes)
-    ? ((spec as { nodes?: unknown }).nodes as unknown[])
-    : [];
-  const options: RigInputOption[] = [];
-  nodes.forEach((node) => {
-    if (!node || typeof node !== "object") {
-      return;
-    }
-    const type = String((node as { type?: unknown }).type ?? "").toLowerCase();
-    if (type !== "input") {
-      return;
-    }
-    const params = (node as { params?: unknown }).params;
-    const path =
-      params && typeof params === "object"
-        ? (params as { path?: unknown }).path
-        : undefined;
-    if (typeof path !== "string") {
-      return;
-    }
-    const trimmed = path.trim();
-    if (!trimmed) {
-      return;
-    }
-    const label =
-      typeof (node as { label?: unknown }).label === "string"
-        ? ((node as { label?: string }).label as string)
-        : trimmed;
-    const numericOrUndefined = (val: unknown): number | undefined => {
-      const num = Number(val);
-      return Number.isFinite(num) ? num : undefined;
-    };
-    const namespaced = namespaceTypedPath(trimmed, namespace);
-    const stripped =
-      trimmed.startsWith("rig/") && trimmed.split("/").length > 2
-        ? trimmed.split("/").slice(2).join("/")
-        : trimmed.startsWith("/")
-          ? trimmed.slice(1)
-          : trimmed;
-    const namespacedStripped = namespaceTypedPath(stripped, namespace);
-    const fromConstraints =
-      constraints[trimmed] ??
-      constraints[namespaced] ??
-      constraints[stripped] ??
-      constraints[namespacedStripped];
-    options.push({
-      path: trimmed,
-      label,
-      id:
-        typeof (node as { id?: unknown }).id === "string"
-          ? String((node as { id?: unknown }).id)
-          : undefined,
-      min:
-        fromConstraints?.min ??
-        (params && typeof params === "object"
-          ? numericOrUndefined((params as { min?: unknown }).min)
-          : undefined),
-      max:
-        fromConstraints?.max ??
-        (params && typeof params === "object"
-          ? numericOrUndefined((params as { max?: unknown }).max)
-          : undefined),
-      defaultValue:
-        fromConstraints?.defaultValue ??
-        (params && typeof params === "object"
-          ? numericOrUndefined(
-              (params as { default?: unknown; value?: unknown }).default ??
-                (params as { value?: unknown }).value,
-            )
-          : undefined),
-    });
-  });
-  return options.sort((a, b) => a.path.localeCompare(b.path));
 }
