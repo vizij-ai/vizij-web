@@ -18,13 +18,23 @@
  *   resting at the value the program was authored with (the constant it added
  *   to the knob), so the face moves as authored when nobody sets them.
  * - **Gaze target** — it reads `standard/vizij/gaze/target/{x,y}` ([0, 1] of
- *   the face's frame, origin top-left, y downward, resting at 0.5): the target
- *   sets where the eyes point — x 0 → -1, 0.5 → 0, 1 → +1 on the eye
- *   position range; y 0 → +1 (up), 1 → -1 — and the program's exploration and
- *   jitter add around it, through the same spring, clamped to [-1, 1]. At the
- *   centre the offset is exactly 0, so the idle motion is unchanged. A caller
- *   directs the gaze through the target: the eye positions are the program's
- *   output, and a write to them is overwritten on the next step.
+ *   the face's frame, origin top-left, y downward, resting at 0.5) and the
+ *   target's weight, `standard/vizij/gaze/target/weight` ([0, 1], resting at
+ *   0). The target maps onto the eye position range — x 0 → -1, 0.5 → 0,
+ *   1 → +1; y 0 → +1 (up), 1 → -1 — and, with w the weight:
+ *   - the centre of the gaze is w × the mapped target;
+ *   - the slow wander (the `explore` terms) is scaled by (1 − w) and by the
+ *     edge factor 1 − |w × mapped target| per axis, so it shrinks as the
+ *     centre nears the frame's edge rather than pinning the eyes at the
+ *     limit;
+ *   - the jitter is unchanged, so at w = 1 the eyes hold the target with
+ *     micro-motion only;
+ *   - then the program's spring, then a clamp to [-1, 1].
+ *   At w = 0 the centre term is 0 and the wander's factor exactly 1, so the
+ *   program moves exactly as authored whatever the target says. A caller
+ *   directs the gaze through the target and its weight: the eye positions
+ *   are the program's output, and a write to them is overwritten on the next
+ *   step.
  * - **Jaw** — it no longer writes `standard/vizij/mouth/morph/jaw_open`, which
  *   the viseme players own through the face's poses. The breathing lane that
  *   fed only the jaw goes with it; breathing still moves the mouth.
@@ -43,7 +53,8 @@
  *   node scripts/standardize-speaks-program.mjs <face.glb> [-o <out.glb>]
  *        [--dry-run]
  *
- * A GLB whose program already reads the gaze target is left as it is.
+ * A GLB whose program already reads the gaze target's weight is left as it
+ * is.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -236,6 +247,37 @@ function vectorChain(g, outputId) {
   };
 }
 
+/** The idle wander on one eye axis: the term the `explore` knob scales,
+ * and the edge carrying it into the eye's sum — the one whose sum the idle
+ * record keys `eye_<axis>`. */
+function wanderTerm(g, rig, axis) {
+  const [explore] = g.byPath("input", `${rig}${KNOBS}eyes/explore`);
+  if (!explore) {
+    throw new Error("the program reads no idle/eyes/explore");
+  }
+  const found = [];
+  for (const scale of g.from(explore.id)) {
+    const term = scale.to.node_id;
+    const into = g.only(g.from(term), `out of ${term}`);
+    const sum = g.node(into.to.node_id);
+    const toRecord = g.only(g.from(sum.id), `out of ${sum.id}`);
+    const record = g.node(toRecord.to.node_id);
+    if (sum.type !== "add" || record.type !== "buildrecord") {
+      throw new Error(`the wander ${term} does not feed an eye's sum`);
+    }
+    const position = connectedFields(g, record.id).indexOf(toRecord);
+    if (record.params.record_keys[position] === `eye_${axis}`) {
+      found.push({ term, edge: into });
+    }
+  }
+  if (found.length !== 1) {
+    throw new Error(
+      `expected one wander on eye ${axis}, found ${found.length}`,
+    );
+  }
+  return found[0];
+}
+
 function editProgram(spec, rig) {
   const g = graphOf(spec);
   const report = [];
@@ -325,8 +367,11 @@ function editProgram(spec, rig) {
     `${STANDARD}mouth/morph/jaw_open no longer written (${mouth.key} dropped)`,
   );
 
-  // Gaze target: an offset on the eye positions before the spring, the eyes
-  // clamped to their range after it.
+  // Gaze target, held by its weight w: the centre of the gaze moves to
+  // w × the target's offset, the slow wander fades by (1 − w) and by the
+  // edge factor 1 − |w × offset|, the jitter stays, and the eyes are clamped
+  // to their range after the spring. At w = 0 the centre term is 0 and the
+  // wander's factor exactly 1, so the motion is the program's own.
   const eyes = {};
   for (const axis of ["x", "y"]) {
     const outputs = ["left_eye", "right_eye"].map((eye) => {
@@ -346,13 +391,38 @@ function editProgram(spec, rig) {
     ) {
       throw new Error(`the eyes' ${axis} are not one lane`);
     }
-    eyes[axis] = { outputs, chain: chains[0] };
+    eyes[axis] = {
+      outputs,
+      chain: chains[0],
+      wander: wanderTerm(g, rig, axis),
+    };
   }
+  const anchor = eyes.x.chain.toVector;
+  const weightPath = `${rig}${STANDARD}gaze/target/weight`;
+  const weight = g.add(
+    {
+      id: `__input_source_${weightPath}`,
+      type: "input",
+      params: { path: weightPath, value: f32(0) },
+    },
+    anchor,
+    -1200,
+    -360,
+  );
+  const released = g.add(
+    { id: "gaze_target_released", type: "subtract" },
+    anchor,
+    -900,
+    -360,
+  );
+  g.constant(released, "lhs", 1);
+  g.edge(weight, undefined, released, "rhs");
   for (const [axis, [top, bottom]] of [
     ["x", [-1, 1]],
     ["y", [1, -1]],
   ]) {
-    const { outputs, chain } = eyes[axis];
+    const { outputs, chain, wander } = eyes[axis];
+    const row = axis === "x" ? -260 : -160;
     const target = `${rig}${STANDARD}gaze/target/${axis}`;
     const input = g.add(
       {
@@ -361,38 +431,80 @@ function editProgram(spec, rig) {
         params: { path: target, value: f32(0.5) },
       },
       chain.toVector,
-      -900,
-      axis === "x" ? -260 : -160,
+      -1200,
+      row,
     );
     const offset = g.add(
       { id: `gaze_target_${axis}_offset`, type: "remap" },
       chain.toVector,
-      -600,
-      axis === "x" ? -260 : -160,
+      -900,
+      row,
     );
     g.edge(input, undefined, offset, "in");
     g.constant(offset, "in_min", 0);
     g.constant(offset, "in_max", 1);
     g.constant(offset, "out_min", top);
     g.constant(offset, "out_max", bottom);
+    // The centre: the offset, held by the weight.
+    const held = g.add(
+      { id: `gaze_target_${axis}_held`, type: "multiply" },
+      chain.toVector,
+      -600,
+      row,
+    );
+    g.edge(offset, undefined, held, "operand_0");
+    g.edge(weight, undefined, held, "operand_1");
     const aimed = g.add(
       { id: `gaze_target_${axis}_aimed`, type: "add" },
       chain.toVector,
       -300,
-      axis === "x" ? -260 : -160,
+      row,
     );
     const lane = g.only(
       g.into(chain.toVector, `operand_${chain.element}`),
       `into the eye ${axis} operand`,
     );
     g.edge(lane.from.node_id, lane.from.output, aimed, "operand_0");
-    g.edge(offset, undefined, aimed, "operand_1");
+    g.edge(held, undefined, aimed, "operand_1");
     lane.from = { node_id: aimed };
+    // The wander's factor: (1 − w) × (1 − |w × offset|).
+    const distance = g.add(
+      { id: `gaze_target_${axis}_distance`, type: "abs" },
+      chain.toVector,
+      -600,
+      row + 40,
+    );
+    g.edge(held, undefined, distance, "in");
+    const edge = g.add(
+      { id: `gaze_target_${axis}_edge`, type: "subtract" },
+      chain.toVector,
+      -300,
+      row + 40,
+    );
+    g.constant(edge, "lhs", 1);
+    g.edge(distance, undefined, edge, "rhs");
+    const factor = g.add(
+      { id: `gaze_target_${axis}_wander`, type: "multiply" },
+      wander.term,
+      0,
+      80,
+    );
+    g.edge(released, undefined, factor, "operand_0");
+    g.edge(edge, undefined, factor, "operand_1");
+    const faded = g.add(
+      { id: `gaze_target_${axis}_faded`, type: "multiply" },
+      wander.term,
+      150,
+      40,
+    );
+    g.edge(wander.term, undefined, faded, "operand_0");
+    g.edge(factor, undefined, faded, "operand_1");
+    wander.edge.from = { node_id: faded };
     const clamped = g.add(
       { id: `gaze_target_${axis}_clamped`, type: "clamp" },
       chain.fromVector,
       300,
-      axis === "x" ? -260 : -160,
+      row,
     );
     g.edge(chain.fromVector, `elements_${chain.element}`, clamped, "in");
     g.constant(clamped, "min", -1);
@@ -403,7 +515,7 @@ function editProgram(spec, rig) {
       };
     }
     report.push(
-      `eyes ${axis} ← ${STANDARD}gaze/target/${axis} (${top} … ${bottom}), clamped to [-1, 1]`,
+      `eyes ${axis} ← ${STANDARD}gaze/target/${axis} (${top} … ${bottom}) held by its weight, the wander faded, clamped to [-1, 1]`,
     );
   }
   return report;
@@ -480,13 +592,15 @@ function main() {
   console.log(
     `${basename(input)} — face ${faceId}, program ${programId} ("${program.label}")`,
   );
-  const target = `${rig}${STANDARD}gaze/target/x`;
+  const weight = `${rig}${STANDARD}gaze/target/weight`;
   if (
     program.spec.nodes.some(
-      (n) => n.type === "input" && n.params?.path === target,
+      (n) => n.type === "input" && n.params?.path === weight,
     )
   ) {
-    console.log("  the program already reads the gaze target: nothing to do");
+    console.log(
+      "  the program already reads the gaze target and its weight: nothing to do",
+    );
     return;
   }
 
