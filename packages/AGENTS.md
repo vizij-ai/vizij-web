@@ -20,7 +20,6 @@ Use this note when touching anything under `packages/`.
 | `@vizij/node-graph-react`     | `@vizij/node-graph-react`     | React bindings for node graphs and staging helpers.            |
 | `@vizij/render`               | `@vizij/render`               | Three.js renderer/controllers used across demos.               |
 | `@vizij/runtime-react`        | `@vizij/runtime-react`        | All-in-one runtime provider that wires render + orchestration. |
-| `@vizij/speech-react`         | `@vizij/speech-react`         | STT/LLM/TTS speech pipeline hooks for Vizij React apps.        |
 | `@vizij/utils`                | `@vizij/utils`                | Shared math/value helpers used by all other packages/apps.     |
 
 See each package’s own `AGENTS.md` for test expectations, release notes, and integration tips.
