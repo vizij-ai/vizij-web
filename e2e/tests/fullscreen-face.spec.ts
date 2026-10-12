@@ -29,20 +29,20 @@ test("the fullscreen face shows its face and an expression changes it", async ({
   });
   await page.waitForTimeout(1_000);
 
-  const first = await sampleElement(page, slot);
+  const first = await sampleElement(slot);
   expect(
     distinctColours(first),
     "the canvas shows more than one colour",
   ).toBeGreaterThan(8);
 
   await page.waitForTimeout(INTERVAL_MS);
-  const before = await sampleElement(page, slot);
+  const before = await sampleElement(slot);
   const idle = changedPixels(first, before);
 
   // `4` holds the face standard's fourth expression, `happy`.
   await page.keyboard.down("4");
   await page.waitForTimeout(INTERVAL_MS);
-  const after = await sampleElement(page, slot);
+  const after = await sampleElement(slot);
   await page.keyboard.up("4");
   const expressed = changedPixels(before, after);
 

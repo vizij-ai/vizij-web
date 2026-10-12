@@ -1,16 +1,54 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
+import { BEHAVIOR_RUNS, type KeyInfo } from "@vizij/runtime";
 import { useVizijRuntime } from "@vizij/runtime-react";
 import type { DemoBundleSummary } from "../lib/bundleSummary";
-import { formatGraphKind, formatPathLabel } from "../lib/bundleSummary";
+import { formatGraphKind } from "../lib/bundleSummary";
+
+const KEY_PREVIEW = 12;
+const REFRESH_MS = 1_000;
+
+/** What the device lists of itself: its keys under the face's prefix and
+ * its interpreter's runs (Arora's ListKeys), refreshed every second. */
+function useDeviceListing() {
+  const { runtime } = useVizijRuntime();
+  const [listing, setListing] = useState<{ keys: KeyInfo[]; runs: string[] }>({
+    keys: [],
+    runs: [],
+  });
+
+  useEffect(() => {
+    if (!runtime) return;
+    let current = true;
+    const refresh = async () => {
+      const [keys, runKeys] = await Promise.all([
+        runtime.listKeys(runtime.rigPrefix),
+        runtime.listKeys(BEHAVIOR_RUNS),
+      ]);
+      if (!current) return;
+      const runs = Array.from(
+        new Set(
+          runKeys.map(
+            (key) => key.path.slice(BEHAVIOR_RUNS.length).split("/")[0]!,
+          ),
+        ),
+      );
+      setListing({ keys, runs });
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), REFRESH_MS);
+    return () => {
+      current = false;
+      window.clearInterval(timer);
+    };
+  }, [runtime]);
+
+  return listing;
+}
 
 export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
-  const { errors, outputPaths, controllers, assetBundle } = useVizijRuntime();
-  const outputPreviewPaths = useMemo(
-    () => outputPaths.slice(0, 12),
-    [outputPaths],
-  );
-  const hasControllers =
-    controllers.graphs.length > 0 || controllers.anims.length > 0;
+  const { runtime, error, behaviorError } = useVizijRuntime();
+  const { keys, runs } = useDeviceListing();
+  const prefix = runtime?.rigPrefix ?? "";
 
   return (
     <section className="panel" aria-labelledby="diagnostics-title">
@@ -24,9 +62,9 @@ export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
         <div className="diagnostics-block">
           <strong>Bundle graph inventory</strong>
           <p className="diagnostic-copy">
-            This is the authored graph structure embedded in the bundle before
-            runtime registration. It tells you what systems ship with the face,
-            not whether they are currently stepping.
+            The graphs the bundle carries, by kind and id
+            (`describe(glb).graphs`). The face composes its rig, pose driver and
+            poses here; its programs run on demand.
           </p>
           <div className="badge-row">
             {summary.graphKinds.map((kind) => (
@@ -42,99 +80,79 @@ export function DiagnosticsPanel({ summary }: { summary: DemoBundleSummary }) {
               ))}
             </ul>
           ) : (
-            <div className="panel-empty compact">
-              No embedded graph ids surfaced.
-            </div>
+            <div className="panel-empty compact">No bundle graphs.</div>
           )}
         </div>
 
         <div className="diagnostics-block">
-          <strong>Runtime controllers</strong>
+          <strong>Runs</strong>
           <p className="diagnostic-copy">
-            These are the controller ids the runtime exposes. Graph controllers
-            cover registered rig, pose, or program graphs. Animation controllers
-            cover registered embedded clips.
+            The interpreter's runs (`listKeys(BEHAVIOR_RUNS)`): every program
+            started on this face, ended runs included.
           </p>
-          {hasControllers ? (
+          {runs.length > 0 ? (
             <ul className="mono-list">
-              {controllers.graphs.map((graphId) => (
-                <li key={graphId}>{graphId}</li>
-              ))}
-              {controllers.anims.map((animationId) => (
-                <li key={animationId}>{animationId}</li>
+              {runs.map((run) => (
+                <li key={run}>{run}</li>
               ))}
             </ul>
           ) : (
-            <div className="panel-empty compact">
-              No controller ids are currently surfaced. The face can still load
-              and render because asset import and renderer state are separate
-              from this controller inventory.
-            </div>
+            <div className="panel-empty compact">No run started yet.</div>
           )}
         </div>
 
         <div className="diagnostics-block">
-          <strong>Renderer outputs</strong>
+          <strong>Device keys</strong>
           <p className="diagnostic-copy">
-            These paths are output channels the runtime discovered from bundle
-            graphs, procedural programs, and animation bridges. They describe
-            where authored logic can write values into the renderer pipeline.
+            The keys the device holds or describes under the face's prefix
+            (`listKeys(runtime.rigPrefix)`), with the shape its store declares.
           </p>
-          {outputPreviewPaths.length === 0 ? (
-            <div className="panel-empty compact">
-              No output paths detected yet.
-            </div>
-          ) : (
+          <p>{keys.length} keys.</p>
+          {keys.length > 0 ? (
             <ul className="output-list">
-              {outputPreviewPaths.map((path) => (
-                <li key={path}>
-                  <span>{formatPathLabel(path)}</span>
-                  <code>{path}</code>
+              {keys.slice(0, KEY_PREVIEW).map((key) => (
+                <li key={key.path}>
+                  <span>{key.path.slice(prefix.length)}</span>
+                  <code>{String(key.__meta.ty ?? "")}</code>
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </div>
 
         <div className="diagnostics-block">
           <strong>Metadata</strong>
-          <p className="diagnostic-copy">
-            Export metadata helps identify provenance and authored capabilities.
-            Initial inputs counts show how many values the runtime stages before
-            playback begins.
-          </p>
           <p>
             Bundle metadata keys:{" "}
             {summary.metadataKeys.length > 0
               ? summary.metadataKeys.join(", ")
               : "none"}
           </p>
-          <p>
-            Initial inputs:{" "}
-            {Object.keys(assetBundle.initialInputs ?? {}).length}
-          </p>
         </div>
 
         <div className="diagnostics-block">
           <strong>Errors</strong>
           <p className="diagnostic-copy">
-            Runtime errors are grouped by phase so you can tell whether a
-            problem came from asset loading, graph registration, animation
-            playback, or bridge wiring.
+            A load error, and the device's standing behavior error — the message
+            of its latest failed tick.
           </p>
-          {errors.length === 0 ? (
-            <div className="panel-empty compact">
-              No runtime errors captured.
-            </div>
-          ) : (
+          {error || behaviorError ? (
             <ul className="error-list">
-              {errors.map((error, index) => (
-                <li key={`${error.phase ?? "unknown"}-${index}`}>
-                  <strong>{error.phase ?? "unknown"}</strong>
+              {error ? (
+                <li>
+                  <strong>load</strong>
                   <span>{error.message}</span>
                 </li>
-              ))}
+              ) : null}
+              {behaviorError ? (
+                <li>
+                  <strong>behavior</strong>
+                  <span>{behaviorError}</span>
+                </li>
+              ) : null}
             </ul>
+          ) : (
+            <div className="panel-empty compact">No errors.</div>
           )}
         </div>
       </div>

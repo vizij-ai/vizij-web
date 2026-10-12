@@ -179,6 +179,12 @@ importers:
 
   apps/demo-vizij-player:
     dependencies:
+      '@vizij/render':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/render
+      '@vizij/runtime':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react

@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  buildPoseWeightPathMap,
-  getPoseSemanticKey,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import type { Pose } from "@vizij/runtime";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import { useAppState } from "../state/AppStateContext";
 import { IconButton } from "./IconButton";
 import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
@@ -11,11 +8,22 @@ import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
 type PoseBucket = {
   id: string;
   label: string;
-  poses: Array<{ id: string; name?: string; description?: string }>;
+  poses: Pose[];
 };
 
+const PULSE_MS = 450;
+
+/** A pose's weight, relative to the face. */
+const weightPath = (poseId: string) => `poses/${poseId}.weight`;
+
+/**
+ * The bundle's poses, by group (`describe(glb).poses` and `.poseGroups`).
+ * A pulse sets a pose's weight to 1 and back to 0; a hold keeps one pose at
+ * 1 and every other at 0; the reset returns the whole face to rest
+ * (`invoke("reset")`).
+ */
 export function PosePanel() {
-  const { assetBundle, setInput, stagePoseNeutral } = useVizijRuntime();
+  const { runtime, description } = useVizijRuntime();
   const {
     state: {
       playbackSelection: { poseGroupId },
@@ -24,70 +32,43 @@ export function PosePanel() {
   } = useAppState();
   const [heldPoseId, setHeldPoseId] = useState<string | null>(null);
   const timersRef = useRef<number[]>([]);
-  const poseConfig = assetBundle.pose?.config;
-
-  const posePathMap = useMemo(
-    () =>
-      buildPoseWeightPathMap(
-        Array.isArray(poseConfig?.poses) ? poseConfig.poses : [],
-        poseConfig?.faceId ?? assetBundle.faceId ?? null,
-      ),
-    [assetBundle.faceId, poseConfig?.faceId, poseConfig?.poses],
-  );
+  const poses = useMemo(() => description?.poses ?? [], [description]);
+  const groups = useMemo(() => description?.poseGroups ?? [], [description]);
 
   const buckets = useMemo(() => {
-    const groups = Array.isArray(poseConfig?.poseGroups)
-      ? poseConfig.poseGroups
-      : [];
-    const poses = Array.isArray(poseConfig?.poses) ? poseConfig.poses : [];
-    const groupsById = new Map<string, PoseBucket>(
+    const byId = new Map<string, PoseBucket>(
       groups.map((group) => [
         group.id,
-        {
-          id: group.id,
-          label: group.name,
-          poses: [] as PoseBucket["poses"],
-        },
+        { id: group.id, label: group.name ?? group.id, poses: [] },
       ]),
     );
-    const uncategorized: PoseBucket = {
+    const ungrouped: PoseBucket = {
       id: "ungrouped",
       label: groups.length > 0 ? "Ungrouped" : "All poses",
       poses: [],
     };
-
     poses.forEach((pose) => {
-      const membership = Array.isArray(pose.groupIds)
-        ? pose.groupIds
-        : pose.groupId
-          ? [pose.groupId]
-          : pose.group
-            ? [pose.group]
-            : [];
-      const targetGroups =
-        membership.length > 0 ? membership : [uncategorized.id];
-      targetGroups.forEach((groupId) => {
-        if (groupId === uncategorized.id) {
-          uncategorized.poses.push(pose);
-          return;
-        }
-        const bucket = groupsById.get(groupId);
-        if (!bucket) {
-          uncategorized.poses.push(pose);
-          return;
-        }
-        bucket.poses.push(pose);
-      });
+      const owners = pose.groupIds
+        .map((id) => byId.get(id))
+        .filter((bucket): bucket is PoseBucket => Boolean(bucket));
+      if (owners.length === 0) {
+        ungrouped.poses.push(pose);
+      }
+      owners.forEach((bucket) => bucket.poses.push(pose));
     });
-
-    const next: PoseBucket[] = Array.from(groupsById.values()).filter(
+    const next = Array.from(byId.values()).filter(
       (bucket) => bucket.poses.length > 0,
     );
-    if (uncategorized.poses.length > 0 || next.length === 0) {
-      next.push(uncategorized);
+    if (ungrouped.poses.length > 0 || next.length === 0) {
+      next.push(ungrouped);
     }
     return next;
-  }, [poseConfig?.poseGroups, poseConfig?.poses]);
+  }, [groups, poses]);
+
+  const groupNames = useMemo(
+    () => new Map(groups.map((group) => [group.id, group.name ?? group.id])),
+    [groups],
+  );
 
   useEffect(() => {
     if (!buckets.length) {
@@ -99,77 +80,74 @@ export function PosePanel() {
     }
   }, [buckets, poseGroupId, setSelectedPoseGroup]);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
       timersRef.current = [];
-    };
-  }, []);
+    },
+    [],
+  );
 
   const activeBucket =
     buckets.find((bucket) => bucket.id === poseGroupId) ?? buckets[0] ?? null;
   const examplePose = activeBucket?.poses[0] ?? null;
-  const examplePosePath = examplePose ? posePathMap.get(examplePose.id) : null;
   const runtimeExamples = useMemo(() => {
-    if (!examplePose || !examplePosePath) {
+    if (!examplePose) {
       return [];
     }
-
+    const path = JSON.stringify(weightPath(examplePose.id));
     return [
       {
         label: `${examplePose.name ?? examplePose.id} pulse / hold`,
         code: [
-          `const posePath = ${JSON.stringify(examplePosePath)};`,
+          `const weight = runtime.path(${path});`,
           "",
-          "// Bounce the pose on, then release it after 450ms.",
-          "setInput(posePath, { float: 1 });",
-          "window.setTimeout(() => setInput(posePath, { float: 0 }), 450);",
+          `// Bounce the pose on, then release it after ${PULSE_MS} ms.`,
+          "runtime.setValue(weight, 1);",
+          `setTimeout(() => runtime.setValue(weight, 0), ${PULSE_MS});`,
           "",
-          "// Hold the pose until the operator releases or resets it.",
-          "stagePoseNeutral(true);",
-          "setInput(posePath, { float: 1 });",
+          "// Back to rest: every key the face's graphs read.",
+          'await runtime.invoke("reset");',
         ].join("\n"),
       },
     ];
-  }, [examplePose, examplePosePath]);
+  }, [examplePose]);
 
-  const clearPoseWeights = () => {
-    posePathMap.forEach((path) => {
-      setInput(path, { float: 0 });
-    });
+  const setWeights = (weights: Record<string, number>) => {
+    if (!runtime) return;
+    runtime.writeValues(
+      Object.fromEntries(
+        Object.entries(weights).map(([poseId, weight]) => [
+          runtime.path(weightPath(poseId)),
+          weight,
+        ]),
+      ),
+    );
   };
 
   const handleReset = () => {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     timersRef.current = [];
     setHeldPoseId(null);
-    clearPoseWeights();
-    stagePoseNeutral(true);
+    void runtime?.invoke("reset");
   };
 
   const pulsePose = (poseId: string) => {
-    const path = posePathMap.get(poseId);
-    if (!path) {
-      return;
-    }
-    setInput(path, { float: 1 });
+    setWeights({ [poseId]: 1 });
     const timer = window.setTimeout(() => {
-      setInput(path, { float: 0 });
+      setWeights({ [poseId]: 0 });
       timersRef.current = timersRef.current.filter((entry) => entry !== timer);
-    }, 450);
+    }, PULSE_MS);
     timersRef.current.push(timer);
   };
 
   const toggleHold = (poseId: string) => {
     const nextId = heldPoseId === poseId ? null : poseId;
-    clearPoseWeights();
-    stagePoseNeutral(true);
-    if (nextId) {
-      const path = posePathMap.get(nextId);
-      if (path) {
-        setInput(path, { float: 1 });
-      }
-    }
+    setWeights(
+      Object.fromEntries(
+        poses.map((pose) => [pose.id, pose.id === nextId ? 1 : 0]),
+      ),
+    );
     setHeldPoseId(nextId);
   };
 
@@ -183,7 +161,7 @@ export function PosePanel() {
         <IconButton icon="reset" label="Neutral reset" onClick={handleReset} />
       </header>
       <div className="panel-body">
-        {buckets.length === 0 ? (
+        {buckets.length === 0 || poses.length === 0 ? (
           <div className="panel-empty">
             This bundle does not include a pose rig.
           </div>
@@ -205,9 +183,12 @@ export function PosePanel() {
             </div>
             <div className="pose-list">
               {activeBucket?.poses.map((pose) => {
-                const semanticKey = getPoseSemanticKey(pose);
                 const held = heldPoseId === pose.id;
                 const poseLabel = pose.name ?? pose.id;
+                const groupLabel = pose.groupIds
+                  .map((id) => groupNames.get(id))
+                  .filter(Boolean)
+                  .join(", ");
                 return (
                   <article
                     key={pose.id}
@@ -219,8 +200,8 @@ export function PosePanel() {
                   >
                     <div className="pose-row-main">
                       <strong>{poseLabel}</strong>
-                      {semanticKey ? (
-                        <span className="soft-badge">{semanticKey}</span>
+                      {groupLabel ? (
+                        <span className="soft-badge">{groupLabel}</span>
                       ) : null}
                     </div>
                     <div className="icon-toolbar">
@@ -244,7 +225,7 @@ export function PosePanel() {
             </div>
             <RuntimeApiDisclosure
               title="Runtime pose calls"
-              description="One concrete pose path from the loaded bundle, showing the pulse versus hold behavior behind the UI."
+              description="One pose weight from the loaded bundle, pulsed and held, and the face's reset."
               examples={runtimeExamples}
             />
           </>

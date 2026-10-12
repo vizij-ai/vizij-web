@@ -1,343 +1,160 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  buildRigInputPath,
-  mapNormalizedControlValue,
-  resolveFaceControls,
-  useVizijRuntime,
-  type FaceScalarControl,
-} from "@vizij/runtime-react";
+import type { RigInput } from "@vizij/runtime";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import { formatPathLabel } from "../lib/bundleSummary";
 import { IconButton } from "./IconButton";
 import { RuntimeApiDisclosure } from "./RuntimeApiDisclosure";
 
-type InputMetadataLike = {
+/** A rig input as a slider: its path relative to the face, range and rest. */
+type Control = {
   path: string;
-  label?: string;
-  defaultValue?: number;
-  range?: {
-    min?: number;
-    max?: number;
-  };
-};
-
-type GenericControl = {
-  absolutePath: string;
-  relativePath: string;
   label: string;
   min: number;
   max: number;
   defaultValue: number;
 };
 
-type RankedGenericControl = GenericControl & {
-  priority: number;
-};
+const FEATURED_NEEDLES = [
+  "smile",
+  "brow",
+  "jaw",
+  "chin",
+  "mouth",
+  "lip",
+  "squint",
+  "cheek",
+];
+const FEATURED_COUNT = 8;
+
+function controlOf(input: RigInput): Control | null {
+  const min = input.min ?? -1;
+  const max = input.max ?? 1;
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+    return null;
+  }
+  return {
+    path: input.path,
+    label: input.label?.trim() || formatPathLabel(input.path),
+    min,
+    max,
+    defaultValue: input.defaultValue ?? 0,
+  };
+}
+
+/** `normalized` in `[-1, 1]` onto the control's range, 0 at its rest. */
+function fromNormalized(control: Control, normalized: number): number {
+  return normalized >= 0
+    ? control.defaultValue + normalized * (control.max - control.defaultValue)
+    : control.defaultValue + normalized * (control.defaultValue - control.min);
+}
 
 function formatExampleNumber(value: number) {
   return Number(value.toFixed(2)).toString();
 }
 
-function findConstraint(
-  inputConstraints: Record<
-    string,
-    { min?: number; max?: number; defaultValue?: number }
-  >,
-  absolutePath: string,
-  relativePath: string,
-) {
-  const normalizedRelative = relativePath.replace(/^\/+/, "");
-  return (
-    inputConstraints[absolutePath] ??
-    inputConstraints[relativePath] ??
-    inputConstraints[normalizedRelative] ??
-    null
-  );
-}
+/** Rig inputs the panel leaves to the face: the eye positions, which the
+ * gaze follows, and the idle-motion tuning. */
+const LEFT_TO_THE_FACE = /eye\/pos\/|(^|\/)vmotion\//;
 
-function buildGenericControls(
-  faceId: string | null,
-  metadata: InputMetadataLike[],
-  inputConstraints: Record<
-    string,
-    { min?: number; max?: number; defaultValue?: number }
-  >,
-  excludedPaths: Set<string>,
-): GenericControl[] {
-  if (!faceId) {
-    return [];
-  }
-
-  const prioritizedNeedles = [
-    "smile",
-    "brow",
-    "jaw",
-    "chin",
-    "mouth",
-    "lip",
-    "squint",
-    "cheek",
-  ];
-
-  const candidates = metadata
-    .map((entry) => {
-      if (typeof entry.path !== "string" || entry.path.trim().length === 0) {
-        return null;
-      }
-      const relativePath = entry.path.startsWith("/")
-        ? entry.path
-        : `/${entry.path.replace(/^\/+/, "")}`;
-      const absolutePath = buildRigInputPath(faceId, relativePath);
-      if (
-        excludedPaths.has(absolutePath) ||
-        relativePath.includes("/poses/") ||
-        relativePath.includes("/pose/control/") ||
-        relativePath.includes("/color/")
-      ) {
-        return null;
-      }
-      const constraint = findConstraint(
-        inputConstraints,
-        absolutePath,
-        relativePath,
-      );
-      const min = Number.isFinite(Number(constraint?.min ?? entry.range?.min))
-        ? Number(constraint?.min ?? entry.range?.min)
-        : -1;
-      const max = Number.isFinite(Number(constraint?.max ?? entry.range?.max))
-        ? Number(constraint?.max ?? entry.range?.max)
-        : 1;
-      const defaultValue = Number.isFinite(
-        Number(constraint?.defaultValue ?? entry.defaultValue),
-      )
-        ? Number(constraint?.defaultValue ?? entry.defaultValue)
-        : 0;
-      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
-        return null;
-      }
-      const label =
-        typeof entry.label === "string" && entry.label.trim().length > 0
-          ? entry.label
-          : formatPathLabel(relativePath);
-      const lowered = `${label} ${relativePath}`.toLowerCase();
-      const priority = prioritizedNeedles.findIndex((needle) =>
-        lowered.includes(needle),
-      );
-      return {
-        absolutePath,
-        relativePath,
-        label,
-        min,
-        max,
-        defaultValue,
-        priority: priority === -1 ? prioritizedNeedles.length + 1 : priority,
-      };
-    })
-    .filter((candidate): candidate is RankedGenericControl =>
-      Boolean(candidate),
-    )
-    .sort((left, right) => {
-      if (left.priority !== right.priority) {
-        return left.priority - right.priority;
-      }
-      return left.label.localeCompare(right.label);
-    })
-    .slice(0, 8);
-
-  return candidates.map(({ priority: _priority, ...rest }) => rest);
-}
-
+/**
+ * The face's rig inputs as sliders, from `describe(glb).rigInputs`: the
+ * blink and a few featured scalars. Each slider writes its input at
+ * `runtime.path(input.path)`.
+ */
 export function FaceControlsPanel() {
-  const { assetBundle, inputConstraints, setInput } = useVizijRuntime();
-  const faceControls = useMemo(
-    () =>
-      resolveFaceControls(
-        assetBundle,
-        assetBundle.faceId ?? assetBundle.pose?.config?.faceId ?? null,
-        inputConstraints,
-      ),
-    [assetBundle, inputConstraints],
-  );
+  const { runtime, description } = useVizijRuntime();
+  const inputs = useMemo(() => description?.rigInputs ?? [], [description]);
 
-  const excludedPaths = useMemo(() => {
-    const next = new Set<string>();
-    const controls: Array<FaceScalarControl | null> = [
-      faceControls.eyes.leftX,
-      faceControls.eyes.leftY,
-      faceControls.eyes.rightX,
-      faceControls.eyes.rightY,
-      faceControls.eyelids.leftUpper,
-      faceControls.eyelids.rightUpper,
-      faceControls.blink,
-    ];
-    controls.forEach((control) => {
-      if (control?.path) {
-        next.add(control.path);
-      }
-    });
-    return next;
-  }, [faceControls]);
+  const { blink, featured } = useMemo(() => {
+    const controls = inputs
+      .map(controlOf)
+      .filter(
+        (control): control is Control =>
+          control !== null && !LEFT_TO_THE_FACE.test(control.path),
+      );
+    const blink = controls.find((c) => /(^|\/)blink$/.test(c.path)) ?? null;
+    const featured = controls
+      .filter(
+        (control) =>
+          control !== blink &&
+          !/(^|\/)poses\/|\/pose\/control\/|\/color\//.test(control.path),
+      )
+      .map((control) => {
+        const lowered = `${control.label} ${control.path}`.toLowerCase();
+        const rank = FEATURED_NEEDLES.findIndex((needle) =>
+          lowered.includes(needle),
+        );
+        return { control, rank: rank === -1 ? FEATURED_NEEDLES.length : rank };
+      })
+      .sort(
+        (left, right) =>
+          left.rank - right.rank ||
+          left.control.label.localeCompare(right.control.label),
+      )
+      .slice(0, FEATURED_COUNT)
+      .map(({ control }) => control);
+    return { blink, featured };
+  }, [inputs]);
 
-  const genericControls = useMemo(
-    () =>
-      buildGenericControls(
-        faceControls.faceId,
-        assetBundle.rig?.inputMetadata ?? [],
-        inputConstraints,
-        excludedPaths,
-      ),
-    [
-      assetBundle.rig?.inputMetadata,
-      excludedPaths,
-      faceControls.faceId,
-      inputConstraints,
-    ],
-  );
-  const defaultGenericValues = useMemo(
-    () =>
-      Object.fromEntries(
-        genericControls.map((control) => [
-          control.absolutePath,
-          control.defaultValue,
-        ]),
-      ),
-    [genericControls],
-  );
-  const controlsResetKey = useMemo(
-    () =>
-      JSON.stringify({
-        blinkDefault: faceControls.blink?.defaultValue ?? 0,
-        genericControls: genericControls.map((control) => [
-          control.absolutePath,
-          control.defaultValue,
-        ]),
-      }),
-    [faceControls.blink?.defaultValue, genericControls],
-  );
-
-  const [gazeX, setGazeX] = useState(0);
-  const [gazeY, setGazeY] = useState(0);
-  const [blink, setBlink] = useState(faceControls.blink?.defaultValue ?? 0);
-  const [genericValues, setGenericValues] = useState<Record<string, number>>(
-    {},
-  );
+  const [blinkValue, setBlinkValue] = useState(0);
+  const [values, setValues] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    setGazeX(0);
-    setGazeY(0);
-    setBlink(faceControls.blink?.defaultValue ?? 0);
-    setGenericValues(defaultGenericValues);
-  }, [
-    controlsResetKey,
-    defaultGenericValues,
-    faceControls.blink?.defaultValue,
-  ]);
+    setBlinkValue(blink?.defaultValue ?? 0);
+    setValues(
+      Object.fromEntries(featured.map((c) => [c.path, c.defaultValue])),
+    );
+  }, [blink, featured]);
 
-  const applyToControls = (
-    controls: Array<FaceScalarControl | null>,
-    normalized: number,
-  ) => {
-    controls.forEach((control) => {
-      if (!control) {
-        return;
-      }
-      setInput(control.path, {
-        float: mapNormalizedControlValue(control, normalized),
-      });
-    });
+  const write = (entries: Array<[Control, number]>) => {
+    if (!runtime) return;
+    runtime.writeValues(
+      Object.fromEntries(
+        entries.map(([control, value]) => [runtime.path(control.path), value]),
+      ),
+    );
   };
 
   const resetControls = () => {
-    setGazeX(0);
-    setGazeY(0);
-    setBlink(faceControls.blink?.defaultValue ?? 0);
-    applyToControls([faceControls.eyes.leftX, faceControls.eyes.rightX], 0);
-    applyToControls([faceControls.eyes.leftY, faceControls.eyes.rightY], 0);
-    if (faceControls.blink) {
-      setInput(faceControls.blink.path, {
-        float: faceControls.blink.defaultValue,
-      });
-    }
-    setGenericValues(defaultGenericValues);
-    genericControls.forEach((control) => {
-      setInput(control.absolutePath, { float: control.defaultValue });
-    });
+    setBlinkValue(blink?.defaultValue ?? 0);
+    setValues(
+      Object.fromEntries(featured.map((c) => [c.path, c.defaultValue])),
+    );
+    write(
+      [...(blink ? [blink] : []), ...featured].map((control) => [
+        control,
+        control.defaultValue,
+      ]),
+    );
   };
-
-  const noControls =
-    !faceControls.eyes.leftX &&
-    !faceControls.eyes.leftY &&
-    !faceControls.eyes.rightX &&
-    !faceControls.eyes.rightY &&
-    !faceControls.blink &&
-    genericControls.length === 0;
 
   const runtimeExamples = useMemo(() => {
     const examples: Array<{ label: string; code: string }> = [];
-
-    if (faceControls.eyes.leftX || faceControls.eyes.rightX) {
-      const gazeLines = [
-        "const normalized = 0.35;",
-        "// The slider fans out across any resolved horizontal gaze inputs.",
-      ];
-      if (faceControls.eyes.leftX) {
-        gazeLines.push(
-          `setInput(${JSON.stringify(faceControls.eyes.leftX.path)}, {`,
-          "  float: mapNormalizedControlValue(faceControls.eyes.leftX, normalized),",
-          "});",
-        );
-      }
-      if (faceControls.eyes.rightX) {
-        gazeLines.push(
-          `setInput(${JSON.stringify(faceControls.eyes.rightX.path)}, {`,
-          "  float: mapNormalizedControlValue(faceControls.eyes.rightX, normalized),",
-          "});",
-        );
-      }
+    if (blink) {
       examples.push({
-        label: "Gaze input",
-        code: gazeLines.join("\n"),
+        label: "Blink",
+        code: `runtime.setValue(runtime.path(${JSON.stringify(blink.path)}), 1);`,
       });
     }
-
-    if (faceControls.blink) {
+    if (featured[0]) {
+      const control = featured[0];
       examples.push({
-        label: "Blink scalar",
-        code: [
-          `const blinkPath = ${JSON.stringify(faceControls.blink.path)};`,
-          `setInput(blinkPath, { float: ${formatExampleNumber(
-            Math.min(
-              faceControls.blink.max,
-              faceControls.blink.defaultValue + 0.35,
-            ),
-          )} });`,
-        ].join("\n"),
+        label: "Rig input",
+        code: `runtime.setValue(runtime.path(${JSON.stringify(control.path)}), ${formatExampleNumber(
+          fromNormalized(control, 0.25),
+        )});`,
       });
     }
-
-    if (genericControls[0]) {
-      examples.push({
-        label: "Authored control",
-        code: [
-          `const controlPath = ${JSON.stringify(genericControls[0].absolutePath)};`,
-          `setInput(controlPath, { float: ${formatExampleNumber(
-            Math.min(
-              genericControls[0].max,
-              genericControls[0].defaultValue +
-                (genericControls[0].max - genericControls[0].min) * 0.25,
-            ),
-          )} });`,
-        ].join("\n"),
-      });
-    }
-
     return examples;
-  }, [faceControls, genericControls]);
+  }, [blink, featured]);
+
+  const noControls = !blink && featured.length === 0;
 
   return (
     <section className="panel" aria-labelledby="face-controls-title">
       <header className="panel-header">
         <div>
-          <p className="eyebrow">Metadata-driven</p>
+          <p className="eyebrow">Rig inputs</p>
           <h2 id="face-controls-title">Face controls</h2>
         </div>
         <IconButton
@@ -348,95 +165,45 @@ export function FaceControlsPanel() {
       </header>
       <div className="panel-body">
         {noControls ? (
-          <div className="panel-empty">
-            This bundle does not expose authored control metadata.
-          </div>
+          <div className="panel-empty">This face's rig declares no inputs.</div>
         ) : null}
 
-        {faceControls.eyes.leftX || faceControls.eyes.rightX ? (
-          <div className="control-card">
-            <div className="control-card-header">
-              <strong>Gaze steering</strong>
-              <span>Normalized around each authored default.</span>
-            </div>
-            <label className="range-field">
-              <span>Horizontal</span>
-              <input
-                type="range"
-                min={-1}
-                max={1}
-                step={0.01}
-                value={gazeX}
-                onChange={(event) => {
-                  const nextValue = Number(event.target.value);
-                  setGazeX(nextValue);
-                  applyToControls(
-                    [faceControls.eyes.leftX, faceControls.eyes.rightX],
-                    nextValue,
-                  );
-                }}
-              />
-              <output>{gazeX.toFixed(2)}</output>
-            </label>
-            <label className="range-field">
-              <span>Vertical</span>
-              <input
-                type="range"
-                min={-1}
-                max={1}
-                step={0.01}
-                value={gazeY}
-                onChange={(event) => {
-                  const nextValue = Number(event.target.value);
-                  setGazeY(nextValue);
-                  applyToControls(
-                    [faceControls.eyes.leftY, faceControls.eyes.rightY],
-                    nextValue,
-                  );
-                }}
-              />
-              <output>{gazeY.toFixed(2)}</output>
-            </label>
-          </div>
-        ) : null}
-
-        {faceControls.blink ? (
+        {blink ? (
           <div className="control-card">
             <div className="control-card-header">
               <strong>Blink</strong>
-              <span>{faceControls.blink.path}</span>
+              <span>{blink.path}</span>
             </div>
             <label className="range-field">
               <span>Intensity</span>
               <input
                 type="range"
-                min={faceControls.blink.min}
-                max={faceControls.blink.max}
+                min={blink.min}
+                max={blink.max}
                 step={0.01}
-                value={blink}
+                value={blinkValue}
                 onChange={(event) => {
-                  const nextValue = Number(event.target.value);
-                  setBlink(nextValue);
-                  setInput(faceControls.blink!.path, { float: nextValue });
+                  const next = Number(event.target.value);
+                  setBlinkValue(next);
+                  write([[blink, next]]);
                 }}
               />
-              <output>{blink.toFixed(2)}</output>
+              <output>{blinkValue.toFixed(2)}</output>
             </label>
           </div>
         ) : null}
 
-        {genericControls.length > 0 ? (
+        {featured.length > 0 ? (
           <div className="control-card">
             <div className="control-card-header">
               <strong>Featured scalar controls</strong>
-              <span>Lifted from authored input ranges and defaults.</span>
+              <span>From the rig's declared ranges and defaults.</span>
             </div>
             <div className="scalar-grid">
-              {genericControls.map((control) => {
-                const value =
-                  genericValues[control.absolutePath] ?? control.defaultValue;
+              {featured.map((control) => {
+                const value = values[control.path] ?? control.defaultValue;
                 return (
-                  <label key={control.absolutePath} className="scalar-field">
+                  <label key={control.path} className="scalar-field">
                     <span>{control.label}</span>
                     <div className="scalar-field-row">
                       <input
@@ -446,17 +213,17 @@ export function FaceControlsPanel() {
                         step={0.01}
                         value={value}
                         onChange={(event) => {
-                          const nextValue = Number(event.target.value);
-                          setGenericValues((current) => ({
+                          const next = Number(event.target.value);
+                          setValues((current) => ({
                             ...current,
-                            [control.absolutePath]: nextValue,
+                            [control.path]: next,
                           }));
-                          setInput(control.absolutePath, { float: nextValue });
+                          write([[control, next]]);
                         }}
                       />
                       <output>{value.toFixed(2)}</output>
                     </div>
-                    <small>{control.absolutePath}</small>
+                    <small>{control.path}</small>
                   </label>
                 );
               })}
@@ -466,7 +233,7 @@ export function FaceControlsPanel() {
 
         <RuntimeApiDisclosure
           title="Runtime control calls"
-          description="Illustrative runtime-react calls for the control types surfaced in this face."
+          description="The writes behind these sliders, on the face's Runtime."
           examples={runtimeExamples}
         />
       </div>
