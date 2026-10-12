@@ -1,16 +1,5 @@
-import type { PoseHotkeyBinding } from "../hooks/usePoseHotkeys";
-
-export const EMOTION_NEEDLES = [
-  "emotion",
-  "mood",
-  "affect",
-  "feel",
-  "happy",
-  "sad",
-  "angry",
-  "calm",
-];
-
+/** Free-form emotion words the agent may use, by the face standard's
+ * expression they read as. */
 const EMOTION_SYNONYMS: Record<string, string> = {
   smile: "happy",
   grin: "happy",
@@ -20,39 +9,33 @@ const EMOTION_SYNONYMS: Record<string, string> = {
   laugh: "happy",
   chuckle: "happy",
   hype: "excited",
-  excited: "excited",
   pumped: "excited",
   thrilled: "excited",
-  wow: "surprised",
-  surprised: "surprised",
+  wow: "amazed",
+  surprise: "surprised",
   shock: "surprised",
-  amazed: "surprised",
-  astonished: "surprised",
-  sad: "sad",
+  astonished: "amazed",
   frown: "sad",
   gloomy: "sad",
   upset: "sad",
-  disappointed: "sad",
-  angry: "angry",
   mad: "angry",
-  furious: "angry",
-  annoyed: "angry",
-  rage: "angry",
-  calm: "calm",
-  relaxed: "calm",
-  chill: "calm",
-  serene: "calm",
-  neutral: "neutral",
+  rage: "furious",
+  calm: "neutral",
+  relaxed: "neutral",
+  chill: "neutral",
+  serene: "neutral",
   blank: "neutral",
-  bored: "neutral",
-  disgust: "disgust",
-  grossed_out: "disgust",
-  yuck: "disgust",
-  fear: "afraid",
-  afraid: "afraid",
-  scared: "afraid",
-  nervous: "afraid",
-  shy: "afraid",
+  disgust: "disgusted",
+  grossed_out: "disgusted",
+  yuck: "disgusted",
+  fear: "scared",
+  afraid: "scared",
+  nervous: "scared",
+  shy: "embarrassed",
+  worried: "concerned",
+  sympathy: "concerned",
+  sympathetic: "concerned",
+  sleepy: "sleepy",
 };
 
 export function slugifyEmotion(value: string): string {
@@ -63,46 +46,21 @@ export function slugifyEmotion(value: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-export function canonicalEmotionName(raw: string): string {
+/**
+ * The expression of `names` — the face standard's — that `raw` asks for: the
+ * name itself, the expression a synonym reads as, or the first name that
+ * starts with it. `null` when none matches.
+ */
+export function resolveExpression(
+  raw: string,
+  names: readonly string[],
+): string | null {
   const slug = slugifyEmotion(raw);
-  return EMOTION_SYNONYMS[slug] ?? slug;
-}
-
-export function isEmotionBinding(binding: PoseHotkeyBinding): boolean {
-  if (binding.semanticKind === "emotion") {
-    return true;
-  }
-  const target = [binding.pose.group, binding.pose.name, binding.pose.id]
-    .filter(Boolean)
-    .map((value) => value?.toLowerCase() ?? "")
-    .join(" ");
-  return EMOTION_NEEDLES.some((needle) => target.includes(needle));
-}
-
-export function scoreEmotionBinding(
-  binding: PoseHotkeyBinding,
-  targetSlug: string,
-): number {
-  if (!targetSlug) return 0;
-  const pieces = [
-    slugifyEmotion(binding.semanticKey ?? ""),
-    slugifyEmotion(binding.pose.name ?? ""),
-    slugifyEmotion(binding.pose.id ?? ""),
-    slugifyEmotion(binding.pose.group ?? ""),
-    slugifyEmotion(binding.relativePath),
-  ];
-
-  let best = 0;
-  for (const piece of pieces) {
-    if (!piece) continue;
-    if (piece === targetSlug) {
-      best = Math.max(best, 6);
-    } else if (piece.startsWith(targetSlug) || targetSlug.startsWith(piece)) {
-      best = Math.max(best, 4);
-    } else if (piece.includes(targetSlug) || targetSlug.includes(piece)) {
-      best = Math.max(best, 3);
-    }
-  }
-
-  return best;
+  if (!slug) return null;
+  const wanted = EMOTION_SYNONYMS[slug] ?? slug;
+  if (names.includes(wanted)) return wanted;
+  return (
+    names.find((name) => name.startsWith(wanted) || wanted.startsWith(name)) ??
+    null
+  );
 }

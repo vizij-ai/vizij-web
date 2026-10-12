@@ -26,6 +26,8 @@ export const STANDALONE_DEMOS: StandaloneDemo[] = [
   { filter: "vizij-standalone", port: offsetPort(5203) },
   // The minimal face page (its own spec checks an expression shows).
   { filter: "fullscreen-face", port: offsetPort(5204) },
+  // The agent face (its own spec checks the face and its debug controls).
+  { filter: "tutorial-agent-face", port: offsetPort(5206) },
 ];
 
 /** The base URL a demo is served on. */
