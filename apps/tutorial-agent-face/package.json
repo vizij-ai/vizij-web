@@ -8,17 +8,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "pnpm exec eslint \"src/**/*.{ts,tsx}\""
+    "lint": "pnpm exec eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest --run"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.5.0",
+    "@vizij/render": "workspace:*",
+    "@vizij/runtime": "^6.0.0",
     "@vizij/runtime-react": "workspace:*",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "three": "^0.170.0",
-    "zustand": "^5.0.2"
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.7",

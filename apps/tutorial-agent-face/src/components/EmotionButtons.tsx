@@ -1,79 +1,24 @@
-import { useMemo, useCallback, useEffect, useRef } from "react";
-import {
-  EXPRESSIVE_EMOTION_POSE_KEYS,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
-import { isEmotionBinding } from "../utils/emotions";
-import type { PoseHotkeyBinding } from "../hooks/usePoseHotkeys";
+import { useShowExpression } from "../hooks/useExpressions";
 
-const DEFAULT_POSE_WEIGHT = 0.7;
+/** The expressions the debug panel offers, those of the face standard's that
+ * read clearly on a face. */
+const FEATURED = ["happy", "sad", "surprised", "angry", "concerned", "sleepy"];
 
-type EmotionButtonsProps = {
-  ready: boolean;
-  bindings: PoseHotkeyBinding[];
-  setPoseWeight: (
-    binding: PoseHotkeyBinding,
-    weight: number,
-    duration?: number,
-  ) => void;
-};
+const PEAK = 0.7;
+const ATTACK_SECONDS = 0.25;
+const RELEASE_SECONDS = 1.2;
 
 export function EmotionButtons({
   ready,
-  bindings,
-  setPoseWeight,
-}: EmotionButtonsProps) {
-  const { animateValue } = useVizijRuntime();
-  const timeoutRef = useRef<Map<string, number>>(new Map());
+  expressions,
+}: {
+  ready: boolean;
+  expressions: string[];
+}) {
+  const { show } = useShowExpression();
+  const offered = FEATURED.filter((name) => expressions.includes(name));
 
-  const emotionBindings = useMemo(() => {
-    const candidates = bindings.filter((binding) => isEmotionBinding(binding));
-    const byKey = new Map(
-      candidates
-        .filter((binding) => binding.semanticKey)
-        .map((binding) => [binding.semanticKey, binding] as const),
-    );
-    const expressive = EXPRESSIVE_EMOTION_POSE_KEYS.map((key) =>
-      byKey.get(key),
-    ).filter((binding): binding is (typeof candidates)[number] =>
-      Boolean(binding),
-    );
-    if (expressive.length > 0) {
-      return expressive;
-    }
-    return candidates.filter((binding) => binding.semanticKey !== "neutral");
-  }, [bindings]);
-
-  const trigger = useCallback(
-    (bindingId: string) => {
-      const binding = emotionBindings.find((b) => b.pose.id === bindingId);
-      if (!binding) return;
-      void animateValue(
-        binding.weightPath,
-        { float: DEFAULT_POSE_WEIGHT },
-        { duration: 0.25 },
-      );
-      const existing = timeoutRef.current.get(bindingId);
-      if (existing) {
-        window.clearTimeout(existing);
-      }
-      const timeout = window.setTimeout(() => {
-        setPoseWeight(binding, 0);
-        timeoutRef.current.delete(bindingId);
-      }, 1200);
-      timeoutRef.current.set(bindingId, timeout);
-    },
-    [animateValue, emotionBindings, setPoseWeight],
-  );
-
-  useEffect(() => {
-    return () => {
-      timeoutRef.current.forEach((id) => window.clearTimeout(id));
-      timeoutRef.current.clear();
-    };
-  }, []);
-
-  if (!ready || emotionBindings.length === 0) {
+  if (!ready || offered.length === 0) {
     return null;
   }
 
@@ -81,13 +26,19 @@ export function EmotionButtons({
     <div className="emotion-buttons">
       <p className="label">Emotions</p>
       <div className="emotion-grid">
-        {emotionBindings.map((binding) => (
+        {offered.map((name) => (
           <button
-            key={binding.pose.id}
+            key={name}
             type="button"
-            onClick={() => trigger(binding.pose.id)}
+            onClick={() =>
+              void show(name, {
+                peak: PEAK,
+                attackSeconds: ATTACK_SECONDS,
+                releaseSeconds: RELEASE_SECONDS,
+              })
+            }
           >
-            {binding.pose.name ?? binding.pose.id}
+            {name}
           </button>
         ))}
       </div>

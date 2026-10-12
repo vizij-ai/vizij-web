@@ -387,12 +387,12 @@ importers:
       '@google/genai':
         specifier: ^1.30.0
         version: 1.30.0
-      '@react-three/drei':
-        specifier: ^10.7.7
-        version: 10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@types/react@19.2.9)(@types/three@0.170.0)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
-      '@react-three/fiber':
-        specifier: ^9.5.0
-        version: 9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0)
+      '@vizij/render':
+        specifier: workspace:*
+        version: link:../../packages/@vizij/render
+      '@vizij/runtime':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -402,12 +402,6 @@ importers:
       react-dom:
         specifier: ^19.2.3
         version: 19.2.3(react@19.2.3)
-      three:
-        specifier: ^0.170.0
-        version: 0.170.0
-      zustand:
-        specifier: 5.0.9
-        version: 5.0.9(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
     devDependencies:
       '@types/react':
         specifier: ^19.2.7
