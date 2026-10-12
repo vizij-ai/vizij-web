@@ -8,8 +8,8 @@ import {
 } from "../pixels";
 
 // The agent face without an agent (no Gemini key in CI): its slot reports the
-// face ready, the canvas shows it — a non-uniform pixel sample — and an
-// emotion button of the debug controls changes what it shows. The face's
+// face ready, the canvas shows it — a non-uniform pixel sample — and holding
+// an expression's hotkey in the debug controls changes what it shows. The face's
 // program moves the face all along, so the check is against that motion:
 // around the mouth, which the expression reshapes, a frame with the
 // expression must lie farther from every one of a set of idle frames than a
@@ -21,11 +21,12 @@ const agentFace = STANDALONE_DEMOS.find(
 const EXPRESSION_OVER_IDLE = 2.5;
 const IDLE_FRAMES = 5;
 const FRAME_MS = 400;
-const PEAK_FRAMES = 6;
+const PEAK_FRAMES = 2;
+const HOLD_MS = 3_000;
 /** The mouth's part of the slot. */
 const MOUTH = { x: 0.3, y: 0.55, width: 0.4, height: 0.25 };
 
-test("the agent face shows its face and an emotion button changes it", async ({
+test("the agent face shows its face and an expression hotkey changes it", async ({
   page,
 }) => {
   // Compiling the Bevy shaders on SwiftShader takes a while the first time,
@@ -40,11 +41,9 @@ test("the agent face shows its face and an emotion button changes it", async ({
     timeout: 180_000,
   });
   await page.getByRole("button", { name: "Show debug controls" }).click();
-  const surprised = page.getByRole("button", {
-    name: "surprised",
-    exact: true,
-  });
-  await expect(surprised).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "surprised", exact: true }),
+  ).toBeVisible();
   await page.waitForTimeout(1_000);
 
   const first = await sampleElement(slot);
@@ -62,21 +61,22 @@ test("the agent face shows its face and an emotion button changes it", async ({
     Math.min(...idleFrames.map((idleFrame) => changedPixels(idleFrame, frame)));
   const idle = distance(await sampleElementRegion(page, slot, MOUTH));
 
-  // The expression peaks a quarter second after the click and eases back;
-  // frames are taken through that span, as fast as the renderer draws.
-  await surprised.click();
+  // `5` holds the face standard's fifth expression, `surprised`: its weight
+  // fades up over two seconds and stays while the key is down.
+  await page.keyboard.down("5");
+  await page.waitForTimeout(HOLD_MS);
   let expressed = 0;
   for (let i = 0; i < PEAK_FRAMES; i += 1) {
-    await page.waitForTimeout(FRAME_MS / 2);
     expressed = Math.max(
       expressed,
       distance(await sampleElementRegion(page, slot, MOUTH)),
     );
   }
+  await page.keyboard.up("5");
 
   expect(
     expressed,
-    `the emotion changed the face (${expressed} pixels changed, ${idle} while idle)`,
+    `the expression changed the face (${expressed} pixels changed, ${idle} while idle)`,
   ).toBeGreaterThan(EXPRESSION_OVER_IDLE * Math.max(idle, 200));
 
   expect(
