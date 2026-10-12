@@ -1,269 +1,117 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import {
-  usePoseHotkeys,
-  type PoseHotkeyBinding,
-} from "../hooks/usePoseHotkeys";
-import { useIdleGazeBehavior } from "../hooks/useIdleGazeBehavior";
+import { HERO_EXPRESSIONS, useExpressions } from "../hooks/useExpressions";
 
 const EMOTION_DURATION_RANGE: readonly [number, number] = [2000, 3000];
 const EMOTION_COUNT_RANGE: readonly [number, number] = [2, 3];
-const VIZEME_DURATION_RANGE: readonly [number, number] = [50, 100];
-const VIZEME_COUNT_RANGE: readonly [number, number] = [19, 20];
+const VISEME_DURATION_RANGE: readonly [number, number] = [90, 160];
+const VISEME_COUNT_RANGE: readonly [number, number] = [14, 20];
 const EMOTION_PAUSE_RANGE: readonly [number, number] = [1200, 2600];
-const VIZEME_PAUSE_RANGE: readonly [number, number] = [1000, 4000];
+const VISEME_PAUSE_RANGE: readonly [number, number] = [1000, 4000];
+const EXPRESSION_WEIGHT = 0.75;
+const VISEME_WEIGHT = 0.75;
+
+/** The face standard's visemes, but silence. */
+const VISEMES = [
+  "PP",
+  "FF",
+  "TH",
+  "DD",
+  "kk",
+  "CH",
+  "SS",
+  "nn",
+  "RR",
+  "aa",
+  "E",
+  "ih",
+  "oh",
+  "ou",
+] as const;
+
+/**
+ * The hero's passive routine, beside the face's own program: a few
+ * expressions, a pause, a burst of visemes as if speaking, a pause, again.
+ * Expressions fade the face standard's weights; visemes play through the
+ * device's `play_viseme`.
+ */
 export function HeroPassiveBehavior({ enabled = true }: { enabled?: boolean }) {
-  const { ready, assetBundle } = useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const { bindings, setPoseWeight } = usePoseHotkeys(
-    poseConfig,
-    ready && enabled,
-  );
+  const { runtime, status } = useVizijRuntime();
+  const { set } = useExpressions();
+  const ready = status === "ready";
 
-  const emotionBindings = useMemo(
-    () => bindings.filter((binding) => binding.semanticKind === "emotion"),
-    [bindings],
-  );
-  const vizemeBindings = useMemo(
-    () => bindings.filter((binding) => binding.semanticKind === "viseme"),
-    [bindings],
-  );
-
-  useIdleGazeBehavior({ enabled: ready && enabled, pointerActive: false });
-  useAlternatingEmotionVizemeRoutine({
-    enabled: ready && enabled,
-    emotionBindings,
-    vizemeBindings,
-    setPoseWeight,
-  });
-
-  return null;
-}
-
-type AlternatorOptions = {
-  enabled: boolean;
-  emotionBindings: PoseHotkeyBinding[];
-  vizemeBindings: PoseHotkeyBinding[];
-  setPoseWeight: ReturnType<typeof usePoseHotkeys>["setPoseWeight"];
-};
-
-function useAlternatingEmotionVizemeRoutine({
-  enabled,
-  emotionBindings,
-  vizemeBindings,
-  setPoseWeight,
-}: AlternatorOptions) {
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
+    if (!enabled || !ready || !runtime) return;
     let cancelled = false;
     const timers = new Set<number>();
-    let activeEmotion: PoseHotkeyBinding | null = null;
-    let activeVizeme: PoseHotkeyBinding | null = null;
-
-    const clearTimers = () => {
-      timers.forEach((id) => window.clearTimeout(id));
-      timers.clear();
-    };
-
-    const stopEmotion = (immediate = false) => {
-      if (activeEmotion) {
-        if (immediate) {
-          animateBinding(activeEmotion, 0, 0);
-        } else {
-          animateBinding(activeEmotion, 0, 0.2);
-        }
-        activeEmotion = null;
-      }
-    };
-
-    const stopVizeme = (immediate = false) => {
-      if (activeVizeme) {
-        animateBinding(activeVizeme, 0, immediate ? 0 : 0.15);
-        activeVizeme = null;
-      }
-    };
+    let activeExpression: string | null = null;
 
     const schedule = (fn: () => void, delay: number) => {
       const id = window.setTimeout(() => {
         timers.delete(id);
-        fn();
+        if (!cancelled) fn();
       }, delay);
       timers.add(id);
     };
-
-    const animateBinding = (
-      binding: PoseHotkeyBinding,
-      value: number,
-      duration: number,
-    ) => {
-      setPoseWeight(binding, value, duration);
+    const showExpression = (name: string | null) => {
+      if (activeExpression && activeExpression !== name) {
+        void set(activeExpression, 0, 0.25);
+      }
+      if (name) void set(name, EXPRESSION_WEIGHT, 0.25);
+      activeExpression = name;
     };
+    const playViseme = (shape: string) =>
+      void runtime.invoke("play_viseme", { shape, weight: VISEME_WEIGHT });
 
-    type Stage = "emotion" | "emotionPause" | "vizeme" | "vizemePause";
-
-    const enterStage = (nextStage: Stage) => {
-      if (cancelled) {
-        return;
-      }
-      switch (nextStage) {
-        case "emotion": {
-          stopVizeme();
-          if (emotionBindings.length === 0) {
-            enterStage("vizeme");
-            return;
-          }
-          const target = randomIntRange(EMOTION_COUNT_RANGE);
-          runEmotionCycle(target);
-          break;
-        }
-        case "emotionPause": {
-          stopEmotion();
-          stopVizeme();
-          const pause = randomRangeMs(EMOTION_PAUSE_RANGE);
-          schedule(() => enterStage("vizeme"), pause);
-          break;
-        }
-        case "vizeme": {
-          stopEmotion();
-          if (vizemeBindings.length === 0) {
-            enterStage("vizemePause");
-            return;
-          }
-          const target = randomIntRange(VIZEME_COUNT_RANGE);
-          runVizemeCycle(target);
-          break;
-        }
-        case "vizemePause": {
-          stopEmotion();
-          stopVizeme();
-          const pause = randomRangeMs(VIZEME_PAUSE_RANGE);
-          schedule(() => enterStage("emotion"), pause);
-          break;
-        }
-      }
-    };
-
-    const runEmotionCycle = (remaining: number) => {
-      if (cancelled) {
-        return;
-      }
+    const expressions = (remaining: number) => {
       if (remaining <= 0) {
-        stopEmotion();
-        enterStage("emotionPause");
+        showExpression(null);
+        schedule(
+          () => visemes(randomInt(VISEME_COUNT_RANGE)),
+          randomMs(EMOTION_PAUSE_RANGE),
+        );
         return;
       }
-      const next = pickRandomBinding(emotionBindings, activeEmotion);
-      if (!next) {
-        enterStage("vizeme");
-        return;
-      }
-      if (activeEmotion && activeEmotion.pose.id !== next.pose.id) {
-        animateBinding(activeEmotion, 0, 0.25);
-      }
-      activeEmotion = next;
-      animateBinding(next, 0.75, 0.25);
-      const hold = randomRangeMs(EMOTION_DURATION_RANGE);
-      schedule(() => {
-        if (activeEmotion && activeEmotion.pose.id === next.pose.id) {
-          animateBinding(next, 0, 0.25);
-          activeEmotion = null;
-        }
-        runEmotionCycle(remaining - 1);
-      }, hold);
+      showExpression(pick(HERO_EXPRESSIONS, activeExpression));
+      schedule(
+        () => expressions(remaining - 1),
+        randomMs(EMOTION_DURATION_RANGE),
+      );
     };
-
-    const runVizemeCycle = (remaining: number) => {
-      if (cancelled) {
-        return;
-      }
+    const visemes = (remaining: number) => {
       if (remaining <= 0) {
-        stopVizeme();
-        enterStage("vizemePause");
+        playViseme("sil");
+        schedule(
+          () => expressions(randomInt(EMOTION_COUNT_RANGE)),
+          randomMs(VISEME_PAUSE_RANGE),
+        );
         return;
       }
-      const next = pickRandomBinding(vizemeBindings, activeVizeme);
-      if (!next) {
-        enterStage("vizemePause");
-        return;
-      }
-      if (activeVizeme && activeVizeme.pose.id !== next.pose.id) {
-        animateBinding(activeVizeme, 0, 0.12);
-      }
-      activeVizeme = next;
-      const hold = randomRangeMs(VIZEME_DURATION_RANGE);
-      animateBinding(next, 0.75, 0.12);
-      schedule(() => {
-        if (activeVizeme && activeVizeme.pose.id === next.pose.id) {
-          animateBinding(next, 0, 0.12);
-          activeVizeme = null;
-        }
-        runVizemeCycle(remaining - 1);
-      }, hold);
+      playViseme(pick(VISEMES, null));
+      schedule(() => visemes(remaining - 1), randomMs(VISEME_DURATION_RANGE));
     };
 
-    const warmupBindings = [...emotionBindings, ...vizemeBindings];
-    if (warmupBindings.length > 0) {
-      warmupBindings.forEach((binding, index) => {
-        const delay = index * 20;
-        schedule(() => {
-          if (cancelled) {
-            return;
-          }
-          animateBinding(binding, 0.75, 0.1);
-          schedule(() => {
-            animateBinding(binding, 0, 0.1);
-          }, 100);
-        }, delay);
-      });
-      const totalWarmup = warmupBindings.length * 20 + 120;
-      schedule(() => enterStage("emotion"), totalWarmup);
-    } else {
-      enterStage("emotion");
-    }
-
+    expressions(randomInt(EMOTION_COUNT_RANGE));
     return () => {
       cancelled = true;
-      clearTimers();
-      stopEmotion(true);
-      stopVizeme(true);
+      timers.forEach((id) => window.clearTimeout(id));
+      showExpression(null);
     };
-  }, [emotionBindings, enabled, setPoseWeight, vizemeBindings]);
+  }, [enabled, ready, runtime, set]);
+
+  return null;
 }
 
-function randomRangeMs(range: readonly [number, number]) {
-  const [min, max] = range;
+function randomMs([min, max]: readonly [number, number]) {
   return Math.random() * (max - min) + min;
 }
 
-function randomIntRange(range: readonly [number, number]) {
-  const [min, max] = range;
-  const lower = Math.ceil(min);
-  const upper = Math.floor(max);
-  return Math.max(
-    lower,
-    Math.floor(Math.random() * (upper - lower + 1)) + lower,
-  );
+function randomInt([min, max]: readonly [number, number]) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function pickRandomBinding(
-  bindings: PoseHotkeyBinding[],
-  exclude: PoseHotkeyBinding | null,
-) {
-  if (bindings.length === 0) {
-    return null;
-  }
-  if (bindings.length === 1) {
-    return bindings[0];
-  }
-  const available = exclude
-    ? bindings.filter((binding) => binding.pose.id !== exclude.pose.id)
-    : bindings;
-  if (available.length === 0) {
-    return bindings[0];
-  }
-  const index = Math.floor(Math.random() * available.length);
-  return available[index];
+function pick<T extends string>(options: readonly T[], exclude: T | null): T {
+  const available = options.filter((option) => option !== exclude);
+  const from = available.length > 0 ? available : options;
+  return from[Math.floor(Math.random() * from.length)];
 }

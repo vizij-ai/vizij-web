@@ -2,18 +2,18 @@
 
 ## Purpose
 
-Expanded showcase for a fullscreen Vizij face demo. Builds on the tutorial by exposing rig input staging, pose hotkeys, gaze steering, and other playground controls so product/design can review everything in one place.
+The multi-surface showcase: one section per capability (expressions, gaze, voice, rig controls), each with its own Vizij face, all drawn on one `<VizijCanvas>`.
 
 ## Runbook
 
 - Dev server: `pnpm --filter vizij-showcase dev`
 - Build/preview: `pnpm --filter vizij-showcase build` / `pnpm --filter vizij-showcase preview`
-- Typecheck: `pnpm --filter vizij-showcase typecheck`
+- Typecheck and lint: `pnpm --filter vizij-showcase typecheck`, `pnpm --filter vizij-showcase lint`
+- e2e: `e2e/tests/vizij-showcase.spec.ts`, served on port 5205.
 
 ## Integration Tips
 
-- All assets live under `public/assets/`; update `src/FaceApp.tsx` if you swap GLBs or change bundle namespaces.
-- Runtime namespaces are generated per surface from `src/lib/faceAssets.ts` and currently look like `vizij-showcase-<section>`. Keep those names stable enough that runtime debug wiring stays aligned.
-- Staged rig inputs write directly through `setInput`. If you add new driver UIs, ensure they clamp/validate values to avoid NaN churn.
-- `usePoseHotkeys` logs all resolved weight paths once per session—handy for debugging pose naming issues before exporting bundles.
-- The voice section defaults to the staging Cloud Function base (`https://us-central1-semio-vizij.cloudfunctions.net/api`). Set `VITE_API_URL` only if you need to override that endpoint for another environment.
+- The faces load `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` through `src/lib/faceAssets.ts`.
+- Each section's face is `showcase-<section>`; it loads once the section enters the viewport and runs only while visible.
+- Faces are driven through the face standard (`standard/vizij/*`) and the device's methods. The gaze target needs Quori's program, so only the sections that use it run the program.
+- The voice section defaults to the staging Cloud Function base (`https://us-central1-semio-vizij.cloudfunctions.net/api`) for `say`. Set `VITE_API_URL` only if you need to override that endpoint for another environment.

@@ -7,6 +7,10 @@ import { SpeechOverlay } from "../components/SpeechOverlay";
 import { FaceFramePlaceholder } from "../components/FaceFramePlaceholder";
 import { useSectionInView } from "../hooks/useSectionInView";
 import { type SpeechStatus } from "../data/speech";
+import { getApiBase } from "../services/apiBase";
+
+/** The text-to-speech service `say` calls. */
+const SPEECH_OPTIONS = { program: "none", speechApiUrl: getApiBase() };
 
 export function VoiceSection() {
   const [speechStatus, setSpeechStatus] = useState<SpeechStatus>("idle");
@@ -44,17 +48,13 @@ export function VoiceSection() {
       <SectionIntro
         eyebrow="Speech sync"
         title="Stream visemes into rendered faces."
-        description="Kick off the sample Amazon Polly read to see how audio events map to nuanced facial expressions. You can swap in your own viseme-generating model to compare."
+        description="Let the face say a line: its say method synthesises the speech and streams the visemes into its lips. Any voice that produces visemes drives the same face standard."
       />
       <ShowcaseRuntime
         namespace="voice"
-        asset="quoriCurrentExtended"
         active={hasEntered}
-        autostart={isVisible}
-        driveRuntime
         visible={isVisible}
-        hiddenStepHz={1}
-        label="Voice"
+        options={SPEECH_OPTIONS}
         fallback={<VoiceFallback />}
       >
         <div className="section-grid two-col">
@@ -66,7 +66,7 @@ export function VoiceSection() {
           <RuntimeFaceFrame
             variant="lg"
             label="Voice reactive"
-            subtitle="Polly timeline scaffold"
+            subtitle="The face's say method"
             pointerTargetRef={facePointerRef}
             overlay={
               showOverlay ? <SpeechOverlay status={speechStatus} /> : null
@@ -85,14 +85,14 @@ function VoiceFallback() {
         <p className="feature-card__eyebrow">Speech pipeline</p>
         <h3>Voice demo warming up.</h3>
         <p className="feature-card__description">
-          Amazon Polly + Vizij viseme playback boots as soon as the section is
-          visible, keeping initial load snappy.
+          The face loads as soon as the section is visible, keeping initial load
+          snappy.
         </p>
       </div>
       <FaceFramePlaceholder
         variant="lg"
         label="Voice reactive"
-        subtitle="Viseme playback scaffold"
+        subtitle="The face's say method"
       />
     </div>
   );
