@@ -1,60 +1,49 @@
-import { useCallback, useRef } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
+import { useCallback, useEffect, useRef } from "react";
+import { useAnimateValue, useVizijRuntime } from "@vizij/runtime-react";
+import { useGazeTarget } from "./useGazeTarget";
 
-const EYE_PATHS = {
-  leftX: "standard/left_eye/pos/x",
-  leftY: "standard/left_eye/pos/y",
-  rightX: "standard/right_eye/pos/x",
-  rightY: "standard/right_eye/pos/y",
-} as const;
+const BLINK = "standard/vizij/blink";
 
-const BLINK_PATH = "blink";
-
+/**
+ * A glance before the agent speaks: a quick blink, the eyes down and to the
+ * left through the gaze target, then back to the face's own gaze. `leadMs`
+ * is how long before the speech the glance starts.
+ */
 export function useSpeechAnticipation(leadMs: number, enabled: boolean) {
-  const { animateValue, faceId: runtimeFaceId } = useVizijRuntime();
+  const { runtime } = useVizijRuntime();
+  const { animateValue } = useAnimateValue();
+  const gaze = useGazeTarget();
   const timeouts = useRef<number[]>([]);
-  const faceSegment = (runtimeFaceId ?? "face").toLowerCase();
 
-  const clearTimers = () => {
+  const clearTimers = useCallback(() => {
     timeouts.current.forEach((id) => window.clearTimeout(id));
     timeouts.current = [];
-  };
+  }, []);
+
+  useEffect(() => clearTimers, [clearTimers]);
 
   const cueSpeechStart = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !runtime) return;
     clearTimers();
-    const prefix = `rig/${faceSegment}/`;
-    const to = (path: string, value: number, duration: number) =>
-      animateValue(`${prefix}${path}`, { float: value }, { duration });
-
     const total = Math.max(leadMs / 1000, 0.05);
-    const downDur = Math.min(total * 0.6, 0.35);
-    const upDur = Math.min(total * 0.4, 0.25);
+    const downSeconds = Math.min(total * 0.6, 0.35);
+    const upSeconds = Math.min(total * 0.4, 0.25);
 
-    // Blink quick
-    void to(BLINK_PATH, 0.9, 0.06);
+    const blink = runtime.path(BLINK);
+    void animateValue(blink, 0.9, { duration: 0.06 });
     timeouts.current.push(
       window.setTimeout(() => {
-        void to(BLINK_PATH, 0, 0.12);
+        void animateValue(blink, 0, { duration: 0.12 });
       }, 80),
     );
 
-    // Look down-left
-    void to(EYE_PATHS.leftX, -0.35, downDur);
-    void to(EYE_PATHS.rightX, -0.32, downDur);
-    void to(EYE_PATHS.leftY, -0.25, downDur);
-    void to(EYE_PATHS.rightY, -0.28, downDur);
-
-    // Return to center
+    void gaze.look(-0.33, -0.27, downSeconds);
     timeouts.current.push(
       window.setTimeout(() => {
-        void to(EYE_PATHS.leftX, 0, upDur);
-        void to(EYE_PATHS.rightX, 0, upDur);
-        void to(EYE_PATHS.leftY, 0, upDur);
-        void to(EYE_PATHS.rightY, 0, upDur);
-      }, downDur * 1000),
+        void gaze.release(upSeconds);
+      }, downSeconds * 1000),
     );
-  }, [animateValue, enabled, faceSegment, leadMs]);
+  }, [animateValue, clearTimers, enabled, gaze, leadMs, runtime]);
 
   return { cueSpeechStart, clearTimers };
 }

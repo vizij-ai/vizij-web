@@ -1,8 +1,5 @@
 import { useEffect, useRef } from "react";
-import {
-  buildSemanticPoseWeightPathMap,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import {
   PHONEME_TO_VISEME,
   buildPhonemeTimeline,
@@ -14,63 +11,46 @@ import {
   type PhonemeEvent,
 } from "../phoneme-core";
 import type { AudioManager } from "../utils/audioManager";
-import { FACE_VISEME_SEGMENTS, mapPollyViseme } from "../visemeMapping";
+import { standardShape } from "../standardVisemes";
 
-const DEFAULT_POSE_WEIGHT = 0.7;
+/** The weight each viseme plays at. */
+const VISEME_WEIGHT = 0.7;
+const ALIGN_MAX_RUN_MS = 30;
 
+/**
+ * Drive the lips from the agent's speech: a timeline of visemes built from
+ * the audio being played and its transcript (`mode`), read at the playhead
+ * plus `leadMs`, and each new viseme played through the device's
+ * `play_viseme` — whose viseme players own the envelope and the crossfade.
+ */
 export function useVisemeMouth({
   audioManager,
   currentOutput,
   enabled,
   mode,
-  transitionMs,
   leadMs,
 }: {
   audioManager: AudioManager;
   currentOutput: string;
   enabled: boolean;
   mode: "baseline" | "synth" | "align";
-  transitionMs: number; // ms for crossfade
   leadMs: number; // ms to lead visemes (positive = earlier)
 }) {
-  const { setInput, animateValue, faceId, assetBundle } = useVizijRuntime();
+  const { runtime } = useVizijRuntime();
   const outputRef = useRef(currentOutput);
-
-  const ALIGN_MAX_RUN_MS = 30;
 
   useEffect(() => {
     outputRef.current = currentOutput;
   }, [currentOutput]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !runtime) return;
     let raf: number;
-
-    const poseConfig = assetBundle.pose?.config ?? null;
-    const poseWeightPaths = buildSemanticPoseWeightPathMap(
-      poseConfig?.poses ?? [],
-      poseConfig?.poseGroups,
-      poseConfig?.faceId ?? faceId ?? "face",
-      "viseme",
-    );
-    const resolveSegmentPath = (segment: string) =>
-      poseWeightPaths.get(segment) ??
-      poseWeightPaths.get(`pose_${segment}`) ??
-      null;
-    const visemePaths = FACE_VISEME_SEGMENTS.map(resolveSegmentPath).filter(
-      Boolean,
-    ) as string[];
-
     let lastFrameCount = -1;
     let lastFeatureCount = -1;
     let lastOutput = "";
     let keyframes: VisemeKeyframe[] = [];
-    let activePath: string | null = null;
-
-    const zeroAll = () => {
-      visemePaths.forEach((path) => setInput(path, { float: 0 }));
-      activePath = null;
-    };
+    let playing: string | null = null;
 
     const rebuildKeyframes = () => {
       const frames = audioManager.getPhonemeFrames();
@@ -91,7 +71,6 @@ export function useVisemeMouth({
       const textEvents = baseline.events as PhonemeEvent[];
 
       let built = false;
-
       if (
         mode === "align" &&
         frames.length > 0 &&
@@ -106,12 +85,9 @@ export function useVisemeMouth({
           frames,
           phonemes,
           wordIdx,
-          {
-            durationGuide: textEvents,
-          },
+          { durationGuide: textEvents },
         );
-        const runtime = performance.now() - started;
-        if (aligned.length && runtime <= ALIGN_MAX_RUN_MS) {
+        if (aligned.length && performance.now() - started <= ALIGN_MAX_RUN_MS) {
           keyframes = aligned.map((evt) => ({
             viseme: PHONEME_TO_VISEME[evt.phoneme as Phoneme],
             start: evt.startTime,
@@ -120,20 +96,18 @@ export function useVisemeMouth({
           built = true;
         }
       }
-
       if (!built) {
-        const useSynth = mode === "synth" && frames.length > 0;
-
-        if (useSynth) {
-          const synthFrames = synthesizePhonemes(frames, textEvents, 20);
-          keyframes = synthFramesToEvents(synthFrames, 0.02);
-        } else {
-          keyframes = baseline.events.map((evt) => ({
-            viseme: PHONEME_TO_VISEME[evt.phoneme as Phoneme],
-            start: evt.startTime,
-            end: evt.endTime,
-          }));
-        }
+        keyframes =
+          mode === "synth" && frames.length > 0
+            ? synthFramesToEvents(
+                synthesizePhonemes(frames, textEvents, 20),
+                0.02,
+              )
+            : baseline.events.map((evt) => ({
+                viseme: PHONEME_TO_VISEME[evt.phoneme as Phoneme],
+                start: evt.startTime,
+                end: evt.endTime,
+              }));
       }
 
       lastFrameCount = frames.length;
@@ -141,40 +115,22 @@ export function useVisemeMouth({
       lastOutput = text;
     };
 
-    const animateSwitch = (nextPath: string | null) => {
-      const dur = Math.max(transitionMs / 1000, 0.01);
-      if (activePath && activePath !== nextPath) {
-        void animateValue(activePath, { float: 0 }, { duration: dur });
-      }
-      if (nextPath && nextPath !== activePath) {
-        void animateValue(
-          nextPath,
-          { float: DEFAULT_POSE_WEIGHT },
-          { duration: dur },
-        );
-      }
-      activePath = nextPath;
-    };
-
     const tick = () => {
-      const frames = audioManager.getPhonemeFrames();
-      const features = audioManager.getFeatureFrames();
       if (
-        frames.length !== lastFrameCount ||
-        features.length !== lastFeatureCount ||
+        audioManager.getPhonemeFrames().length !== lastFrameCount ||
+        audioManager.getFeatureFrames().length !== lastFeatureCount ||
         outputRef.current !== lastOutput
       ) {
         rebuildKeyframes();
       }
-
       const playback = audioManager.getPlaybackState();
       const t = playback.played + leadMs / 1000;
       const idx = findKeyframeIndex(keyframes, t);
-      const viseme = idx >= 0 ? keyframes[idx].viseme : "sil";
-      const targetSegment = mapPollyViseme(viseme)?.segment ?? null;
-      const nextPath = targetSegment ? resolveSegmentPath(targetSegment) : null;
-      animateSwitch(nextPath);
-
+      const shape = standardShape(idx >= 0 ? keyframes[idx].viseme : "sil");
+      if (shape !== playing) {
+        playing = shape;
+        void runtime.invoke("play_viseme", { shape, weight: VISEME_WEIGHT });
+      }
       raf = requestAnimationFrame(tick);
     };
 
@@ -183,19 +139,9 @@ export function useVisemeMouth({
 
     return () => {
       cancelAnimationFrame(raf);
-      zeroAll();
+      void runtime.invoke("play_viseme", { shape: "sil", weight: 1 });
     };
-  }, [
-    animateValue,
-    audioManager,
-    assetBundle.pose?.config,
-    enabled,
-    faceId,
-    leadMs,
-    mode,
-    setInput,
-    transitionMs,
-  ]);
+  }, [audioManager, enabled, leadMs, mode, runtime]);
 }
 
 type VisemeKeyframe = {

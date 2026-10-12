@@ -16,6 +16,24 @@ export async function sampleElement(element: Locator): Promise<Buffer> {
   return PNG.sync.read(await element.screenshot()).data;
 }
 
+/** The RGBA pixels of a part of an element, given as fractions of its box
+ * (`{ x: 0.3, y: 0.5, width: 0.4, height: 0.3 }`), scrolled into view. */
+export async function sampleElementRegion(
+  page: Page,
+  element: Locator,
+  region: { x: number; y: number; width: number; height: number },
+): Promise<Buffer> {
+  await element.scrollIntoViewIfNeeded();
+  const box = await element.boundingBox();
+  if (!box) throw new Error("the element is not laid out");
+  return sampleRect(page, {
+    x: box.x + box.width * region.x,
+    y: box.y + box.height * region.y,
+    width: box.width * region.width,
+    height: box.height * region.height,
+  });
+}
+
 /** How many distinct colours the pixels hold: more than a few means the
  * canvas is not uniform. */
 export function distinctColours(pixels: Buffer): number {

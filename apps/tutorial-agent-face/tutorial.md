@@ -1,159 +1,139 @@
 # `tutorial-agent-face` Runtime Walkthrough
 
-`tutorial-agent-face` starts from the same runtime-react base as `tutorial-fullscreen-face`, then adds a live speech/agent control loop on top.
+`tutorial-agent-face` puts a live conversational agent in a Vizij face. It
+starts from the same base as `tutorial-fullscreen-face` — one canvas, one
+`VizijRuntimeProvider`, one face — and adds Gemini Live as the agent and its
+voice, lips from the agent's audio, and tools the agent calls to move the
+face. Everything the app does to the face goes through the face's Arora API,
+on the keys of the Vizij face standard.
 
-It is the clearest example in this repo of a face being driven by:
-
-- authored pose metadata
-- direct rig input writes
-- runtime face-control helpers
-- live model output
-- tool-driven emotion/gaze actions
-
-## 1. Runtime Bootstrap
-
-The runtime layer is still small:
+## 1. The face and its program
 
 ```tsx
-const assetBundle: VizijAssetBundle = {
-  namespace: "tutorial-agent-face",
-  glb: {
-    kind: "url",
-    src: faceAssetUrl,
-    aggressiveImport: true,
-  },
-  pose: {
-    stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-  },
-};
-
 export function FaceApp() {
   return (
-    <VizijRuntimeProvider assetBundle={assetBundle} autostart>
-      <AgentFaceRuntime />
-    </VizijRuntimeProvider>
+    <>
+      <VizijCanvas style={CANVAS_STYLE} />
+      <VizijRuntimeProvider glb={faceAssetUrl}>
+        <AgentFaceRuntime />
+      </VizijRuntimeProvider>
+    </>
   );
 }
 ```
 
-The runtime package still owns face loading, controller registration, and rendering. The rest of the app focuses on behavior layered on top of the resolved runtime state.
+The face is Quori. Its bundle carries a program, "Speaks", which runs from
+load: it keeps the face alive — idle eye movements, lids, brows, the mouth's
+shape — and reacts to two kinds of input the app writes:
 
-## 2. Runtime State As The Source Of Truth
+- **the conversation state**: the keys `speaking`, `user_speaking` and
+  `thinking` under `standard/vizij/conversation/`, each 1 or 0;
+- **the gaze target**, `standard/vizij/gaze/target/{x,y}` in `[0, 1]` across
+  the face (origin top-left, y down) and its `weight`: at 0 the program looks
+  where it likes, at 1 the eyes hold the target.
 
-Inside `AgentFaceRuntime`, the app reads:
+The app plays along with the program: it never writes the eye positions the
+program writes, and steers the eyes only through the gaze target.
 
-```tsx
-const { ready, loading, error, stagePoseNeutral, assetBundle } =
-  useVizijRuntime();
+## 2. The conversation state
+
+[`useConversationState`](./src/hooks/useConversationState.ts) writes who is
+speaking and whether the agent is thinking, as `useGeminiLive` reports them:
+
+```ts
+runtime.writeValues({
+  [runtime.path("standard/vizij/conversation/speaking")]: modelSpeaking ? 1 : 0,
+  [runtime.path("standard/vizij/conversation/user_speaking")]: userSpeaking
+    ? 1
+    : 0,
+  [runtime.path("standard/vizij/conversation/thinking")]: thinking ? 1 : 0,
+});
 ```
 
-The important detail is that the app uses the resolved `assetBundle` from runtime context. That means:
+## 3. The lips
 
-- pose config comes from the embedded bundle after load
-- the UI does not need hard-coded face metadata
-- the same interaction hooks stay aligned with whichever face bundle is loaded
+Gemini Live speaks with its own voice. [`useVisemeMouth`](./src/hooks/useVisemeMouth.ts)
+builds a viseme timeline from the audio being played and its transcript —
+text only, audio features plus text, or a Viterbi alignment of the two (the
+"Mouth source" selector) — reads it at the playhead plus a lead, and plays
+each new viseme through the device:
 
-As soon as the runtime is ready, the app calls `stagePoseNeutral()` so all later speech/emotion overlays start from a known baseline.
+```ts
+runtime.invoke("play_viseme", { shape, weight: 0.7 });
+```
 
-## 3. Interaction Layers Built On The Runtime
+`shape` is one of the face standard's 15 visemes
+([`standardVisemes.ts`](./src/standardVisemes.ts) maps the aligner's
+Polly-style ids onto them, as the device's own text-to-speech does). The
+device's viseme players own the envelope and the crossfade: a new viseme
+takes the lips over from the previous one.
 
-### Mouse + idle gaze
+## 4. The gaze
 
-- [`useMouseGaze`](./src/hooks/useMouseGaze.ts) stages direct eye inputs from pointer movement.
-- [`useIdleGazeBehavior`](./src/hooks/useIdleGazeBehavior.ts) keeps the face alive when the pointer and tool-driven gaze are inactive.
+[`useGazeTarget`](./src/hooks/useGazeTarget.ts) steers the eyes through the
+gaze target: `look(x, y, seconds)` eases the target there and the weight up
+to 1, `release(seconds)` eases the weight back to 0, handing the eyes back to
+the program. It is used by:
 
-### Pose hotkeys + warmup
+- the agent's `set_gaze(x, y, holdSeconds, …)` tool, which holds the target
+  for `holdSeconds` then releases it;
+- [`useSpeechAnticipation`](./src/hooks/useSpeechAnticipation.ts), a blink
+  and a glance down-left just before the agent speaks;
+- [`useMouseGaze`](./src/hooks/useMouseGaze.ts), the eyes following the
+  pointer while the debug controls are open.
 
-- [`usePoseHotkeys`](./src/hooks/usePoseHotkeys.ts) derives canonical pose-weight paths with `buildPoseWeightPathMap()`.
-- It also uses runtime-react helper utilities to prioritize current emotion-style poses without hard-coding face-specific names.
-- [`usePoseWarmup`](./src/hooks/usePoseWarmup.ts) briefly touches the resolved bindings so the face is ready before a conversation begins.
+## 5. Expressions
 
-### Speech and mouth behavior
+[`useShowExpression`](./src/hooks/useExpressions.ts) fades one face standard
+expression's weight, `standard/vizij/expression/<name>`, up to a peak and back,
+with `useAnimateValue`. The names come from the face standard's profile
+(`profile("vizij-face")`). It backs the agent's `express_emotion` tool (its
+options are those names; free-form words map onto them in
+[`utils/emotions.ts`](./src/utils/emotions.ts)), the debug panel's emotion
+buttons, and the debug hotkeys.
 
-- [`useVisemeMouth`](./src/hooks/useVisemeMouth.ts) drives mouth shapes from live text/audio timing.
-- [`useSpeechAnticipation`](./src/hooks/useSpeechAnticipation.ts) cues the face before model speech starts.
-- [`useVolumeChin`](./src/hooks/useVolumeChin.ts) maps audio energy to a chin control path.
+## 6. The agent loop
 
-Every one of these hooks ultimately drives the face through runtime-react methods such as `setInput()` or `animateValue()`.
-
-## 4. Tool-Driven Face Control
-
-[`src/hooks/useAgentFaceTools.ts`](./src/hooks/useAgentFaceTools.ts) is the main runtime-react-specific piece of the live agent layer.
-
-It uses:
-
-- `resolveFaceControls()`
-- `mapNormalizedControlValue()`
-- `mapUnitControlValue()`
-- `useVizijRuntime()`
-
-That allows the app to:
-
-- discover gaze/blink/eyelid control paths from runtime metadata
-- convert normalized tool arguments into control-specific ranges
-- animate eyes and eyelids without hard-coding one rig layout
-
-The hook exposes Gemini tool declarations such as:
-
-- `set_gaze(...)`
-- `express_emotion(...)`
-
-Those tool calls are then translated into runtime-react writes and animations.
-
-## 5. Live Model Loop
-
-[`useGeminiLive`](./src/hooks/useGeminiLive.ts) owns the Gemini session. `FaceApp.tsx` composes it with the runtime-driven behavior hooks:
+[`useGeminiLive`](./src/hooks/useGeminiLive.ts) owns the Gemini session.
+`FaceApp.tsx` hands it the tools from
+[`useAgentFaceTools`](./src/hooks/useAgentFaceTools.ts) and the speech
+callbacks:
 
 ```tsx
-const { tools, handleFunctionCalls, gazeActive } = useAgentFaceTools({
+const { tools, handleFunctionCalls } = useAgentFaceTools({
   enabled: ready,
-  bindings,
+  expressions,
+  allowEmotionTools: debugControlsOpen,
 });
 
 const {
-  status: geminiStatus,
-  connect,
-  disconnect,
+  status,
   userTranscript,
   agentTranscript,
+  userSpeaking,
+  thinking,
+  modelSpeaking,
+  connect,
+  disconnect,
 } = useGeminiLive(audioManager, voiceName, {
   onModelSpeechStart: cueSpeechStart,
   onModelSpeechEnd: clearTimers,
   enableTools: toolsEnabled,
   tools,
   handleFunctionCalls: toolsEnabled ? handleFunctionCalls : undefined,
-  systemInstruction: SYSTEM_INSTRUCTION,
+  systemInstruction,
+  initialUserTurn,
 });
 ```
 
-The runtime-react contract here is straightforward:
+The model decides what happens; the face's standard keys and methods are how
+it happens.
 
-- the model layer decides what should happen
-- runtime-react is the mechanism that actually moves the face
+## 7. What to reuse
 
-## 6. Why This App Uses Runtime Helpers Instead Of Hard-Coded Paths
-
-This app could have hard-coded every expression and gaze path, but it would drift as soon as the face export changed.
-
-Instead it relies on runtime-resolved data:
-
-- `assetBundle.pose?.config` for pose metadata
-- `buildPoseWeightPathMap()` for canonical pose input paths
-- pose groups as blend-group structure, not as path segments
-- `resolveFaceControls()` plus `inputConstraints` for gaze/blink discovery
-- runtime-react rig-input alias detection for pose-control bridging when the exported graph shape changes
-
-That is the main documentation takeaway for dependent apps:
-
-Prefer building behavior from the runtime’s resolved bundle and helper utilities, not from hard-coded face-specific paths.
-
-## 7. What To Reuse In Other Apps
-
-If you are building your own conversational face, the most reusable pieces are:
-
-- bundle-first provider setup from `FaceApp.tsx`
-- semantic pose ordering from `usePoseHotkeys.ts`
-- runtime-aware gaze discovery from `useAgentFaceTools.ts`
-- direct rig input staging from the gaze/viseme hooks
-
-If you only need the baseline runtime stack, use `tutorial-fullscreen-face` instead.
+- the provider and the canvas from `FaceApp.tsx`;
+- `useConversationState` and `useGazeTarget` for any face whose program reads
+  the conversation state and the gaze target;
+- `useVisemeMouth` for a voice the device does not produce itself — a voice
+  the device speaks goes through its `say` method, which drives the lips on
+  its own.

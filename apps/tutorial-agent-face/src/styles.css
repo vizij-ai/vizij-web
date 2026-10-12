@@ -42,6 +42,7 @@ body,
 }
 
 .status {
+  z-index: 2;
   position: absolute;
   inset: 0;
   display: flex;
@@ -79,6 +80,7 @@ body,
 }
 
 .hud-error {
+  z-index: 2;
   position: absolute;
   top: 24px;
   left: 50%;
@@ -93,6 +95,7 @@ body,
 }
 
 .hint {
+  z-index: 2;
   position: absolute;
   bottom: 24px;
   left: 50%;
@@ -173,6 +176,7 @@ body,
 }
 
 .hud {
+  z-index: 2;
   position: absolute;
   top: 24px;
   left: 24px;
