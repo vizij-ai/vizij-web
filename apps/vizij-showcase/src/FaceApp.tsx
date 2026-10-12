@@ -1,3 +1,4 @@
+import { VizijCanvas } from "@vizij/render";
 import { SectionMenu, type SectionMenuItem } from "./components/SectionMenu";
 import { HeroSection } from "./sections/HeroSection";
 import { AboutSection } from "./sections/AboutSection";
@@ -12,8 +13,17 @@ import { CommunitySection } from "./sections/CommunitySection";
 import { RoadmapSection } from "./sections/RoadmapSection";
 import { StandardsSection } from "./sections/StandardsSection";
 import { FooterSection } from "./sections/FooterSection";
-import { RuntimeDebugOverlay } from "./components/RuntimeDebugOverlay";
 import "./styles.css";
+
+/** The page's one canvas, on which every section's face draws: fixed over
+ * the page, its pointer events off. Each face draws where its section's slot
+ * lies, cropped at the canvas's edge as the page scrolls. */
+const CANVAS_STYLE = {
+  position: "fixed",
+  inset: 0,
+  pointerEvents: "none",
+  zIndex: 1,
+} as const;
 
 const SECTION_LINKS: SectionMenuItem[] = [
   { id: "hero", label: "Overview" },
@@ -33,6 +43,7 @@ const SECTION_LINKS: SectionMenuItem[] = [
 export function FaceApp() {
   return (
     <>
+      <VizijCanvas style={CANVAS_STYLE} />
       <SectionMenu sections={SECTION_LINKS} />
       <div className="showcase-shell">
         <HeroSection />
@@ -49,7 +60,6 @@ export function FaceApp() {
         <StandardsSection />
         <FooterSection />
       </div>
-      <RuntimeDebugOverlay />
     </>
   );
 }

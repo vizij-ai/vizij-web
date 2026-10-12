@@ -5,6 +5,9 @@ import { RuntimeFaceFrame } from "../components/RuntimeFaceFrame";
 import { HeroPassiveBehavior } from "../components/HeroPassiveBehavior";
 import { useSectionInView } from "../hooks/useSectionInView";
 
+/** Quori's program keeps the hero alive: idle gaze, blinks, brows. */
+const WITH_PROGRAM = { program: "auto" } as const;
+
 export function HeroSection() {
   const { ref, isVisible, hasEntered } = useSectionInView<HTMLElement>({
     threshold: 0.2,
@@ -93,15 +96,14 @@ export function HeroSection() {
         </div>
       </div>
       <div className="hero-face-grid">
-        {HERO_FACES.map((face, index) => (
+        {HERO_FACES.map((face) => (
           <ShowcaseRuntime
             namespace={face.namespace}
             asset={face.asset}
             key={face.namespace}
             active={hasEntered}
             visible={isVisible}
-            driveRuntime={index === 0}
-            label={face.label}
+            options={WITH_PROGRAM}
           >
             <HeroPassiveBehavior enabled={isVisible} />
             <RuntimeFaceFrame
@@ -115,8 +117,8 @@ export function HeroSection() {
       </div>
       <div className="section-description">
         <p>
-          <a href="https://quori.org">Quori</a> is driven by Vizij rigs and
-          controllers, combining expressions, visemes, blinks, and saccades to
+          <a href="https://quori.org">Quori</a> is driven by Vizij rigs and its
+          own program, combining expressions, visemes, blinks, and saccades to
           create a communicative rendered robot face. Below, feature-specific
           demos unpack the building blocks: rig controls, poses, gaze behaviors,
           and speech blending.
