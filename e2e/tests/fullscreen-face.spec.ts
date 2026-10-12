@@ -105,20 +105,20 @@ test("the fullscreen face shows its loading view until drawn, then its face, and
   // compiled.
   await drawWindow(page);
 
-  const first = await sampleElement(page, slot);
+  const first = await sampleElement(slot);
   expect(
     distinctColours(first),
     "the canvas shows more than one colour",
   ).toBeGreaterThan(8);
 
   await drawWindow(page);
-  const before = await sampleElement(page, slot);
+  const before = await sampleElement(slot);
   const idle = changedPixels(first, before);
 
   // `4` holds the face standard's fourth expression, `happy`.
   await page.keyboard.down("4");
   await drawWindow(page);
-  const after = await sampleElement(page, slot);
+  const after = await sampleElement(slot);
   await page.keyboard.up("4");
   const expressed = changedPixels(before, after);
 

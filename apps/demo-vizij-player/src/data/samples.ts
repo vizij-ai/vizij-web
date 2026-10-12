@@ -1,4 +1,4 @@
-import type { VizijAssetBundle } from "@vizij/runtime-react";
+import type { VizijSource } from "@vizij/runtime-react";
 import type { DemoFaceSource, DemoSampleId } from "../state/types";
 
 const SAMPLE_ASSET_URLS = {
@@ -61,50 +61,14 @@ export function getSampleDefinition(
   return DEMO_SAMPLES.find((sample) => sample.id === id);
 }
 
-function buildNamespace(source: DemoFaceSource): string {
-  return `demo-vizij-player-${source.id}`;
-}
-
-export function buildAssetBundleForSource(
-  source: DemoFaceSource,
-): VizijAssetBundle {
-  const base = {
-    namespace: buildNamespace(source),
-    pose: {
-      stageNeutralFilter: (_id: string, path: string) =>
-        !path.includes("/color/"),
-    },
-  } satisfies Pick<VizijAssetBundle, "namespace" | "pose">;
-
-  if (source.kind === "sample") {
-    const sample = getSampleDefinition(source.id);
-    if (!sample) {
-      throw new Error(`Unknown demo sample "${source.id}".`);
-    }
-    return {
-      ...base,
-      glb: {
-        kind: "url",
-        src: sample.assetUrl,
-        aggressiveImport: true,
-      },
-      metadata: {
-        sampleId: sample.id,
-        sampleLabel: sample.label,
-      },
-    };
+/** The GLB a source shows: a sample's URL or an uploaded file. */
+export function glbOfSource(source: DemoFaceSource): VizijSource {
+  if (source.kind === "upload") {
+    return source.file;
   }
-
-  return {
-    ...base,
-    glb: {
-      kind: "blob",
-      blob: source.file,
-      aggressiveImport: true,
-    },
-    metadata: {
-      uploadFileName: source.fileName,
-      uploadLabel: source.label,
-    },
-  };
+  const sample = getSampleDefinition(source.id);
+  if (!sample) {
+    throw new Error(`Unknown demo sample "${source.id}".`);
+  }
+  return sample.assetUrl;
 }

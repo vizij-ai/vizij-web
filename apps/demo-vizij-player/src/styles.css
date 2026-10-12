@@ -487,6 +487,7 @@ button.secondary {
 
 .viewer-overlay {
   position: absolute;
+  z-index: 2;
   inset: auto 0.55rem 0.55rem 0.55rem;
   border-radius: 0.55rem;
   background: var(--viewer-overlay-bg);
