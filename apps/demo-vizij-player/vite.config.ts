@@ -9,6 +9,11 @@ export default defineConfig({
   assetsInclude: ["**/*.glb"],
   resolve: {
     alias: {
+      "@vizij/runtime-react": resolve(
+        workspaceRoot,
+        "packages/@vizij/runtime-react/src",
+      ),
+      "@vizij/render": resolve(workspaceRoot, "packages/@vizij/render/src"),
       "@vizij/node-graph-authoring": resolve(
         workspaceRoot,
         "packages/@vizij/node-graph-authoring/src",

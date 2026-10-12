@@ -10,14 +10,10 @@ export async function sampleRect(
   return PNG.sync.read(await page.screenshot({ clip })).data;
 }
 
-/** The RGBA pixels of an element as it shows on the page — a face's slot. */
-export async function sampleElement(
-  page: Page,
-  element: Locator,
-): Promise<Buffer> {
-  const box = await element.boundingBox();
-  if (!box) throw new Error("the element is not laid out");
-  return sampleRect(page, box);
+/** The RGBA pixels of an element as it shows on the page — a face's slot,
+ * with whatever the page's canvas draws over it — scrolled into view. */
+export async function sampleElement(element: Locator): Promise<Buffer> {
+  return PNG.sync.read(await element.screenshot()).data;
 }
 
 /** How many distinct colours the pixels hold: more than a few means the

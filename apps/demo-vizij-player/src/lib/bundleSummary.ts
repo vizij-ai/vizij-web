@@ -1,12 +1,9 @@
-import type {
-  PoseDefinition,
-  PoseGroupDefinition,
-  VizijAssetBundle,
-} from "@vizij/runtime-react";
+import type { Pose, PoseGroup, VizijDescription } from "@vizij/runtime";
 
 export type DemoBundleSummary = {
   faceId: string | null;
   graphKinds: string[];
+  /** Each bundle graph's `kind:id`, or its kind alone when it has no id. */
   graphIds: string[];
   graphCount: number;
   rigCount: number;
@@ -25,9 +22,11 @@ export type DemoBundleSummary = {
   animationLabels: string[];
   programLabels: string[];
   poseGroupLabels: string[];
-  poseGroups: PoseGroupDefinition[];
-  poses: PoseDefinition[];
+  poseGroups: PoseGroup[];
+  poses: Pose[];
 };
+
+const RIG_KINDS = new Set(["rig", "low-level", "pose-driver"]);
 
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean))).sort((left, right) =>
@@ -35,88 +34,50 @@ function uniqueSorted(values: string[]): string[] {
   );
 }
 
-export function summarizeAssetBundle(
-  assetBundle: VizijAssetBundle,
+/** What the panels show of a face, from `describe(glb)`. */
+export function summarizeDescription(
+  description: VizijDescription | null,
 ): DemoBundleSummary {
-  const bundle = assetBundle.bundle;
-  const graphs = Array.isArray(bundle?.graphs) ? bundle.graphs : [];
-  const poses = Array.isArray(assetBundle.pose?.config?.poses)
-    ? assetBundle.pose?.config?.poses
-    : [];
-  const poseGroups = Array.isArray(assetBundle.pose?.config?.poseGroups)
-    ? assetBundle.pose?.config?.poseGroups
-    : [];
-  const graphKinds = uniqueSorted(
-    graphs.map((entry) =>
-      typeof entry.kind === "string" ? entry.kind : "unknown",
-    ),
-  );
-  const graphIds = uniqueSorted(
-    graphs
-      .map((entry) => (typeof entry.id === "string" ? entry.id : ""))
-      .filter(Boolean),
-  );
-  const animationCount = Array.isArray(assetBundle.animations)
-    ? assetBundle.animations.length
-    : 0;
-  const programCount = Array.isArray(assetBundle.programs)
-    ? assetBundle.programs.length
-    : 0;
-  const rigCount = graphs.filter((entry) => {
-    const kind = typeof entry.kind === "string" ? entry.kind.toLowerCase() : "";
-    return kind === "rig" || kind === "low-level" || kind === "pose-driver";
-  }).length;
-  const metadataKeys = uniqueSorted(
-    Object.keys({
-      ...(bundle?.metadata ?? {}),
-      ...(assetBundle.metadata ?? {}),
-    }),
-  );
-  const animationLabels = uniqueSorted(
-    (assetBundle.animations ?? []).map((animation) =>
-      typeof animation.clip?.name === "string" && animation.clip.name.trim()
-        ? animation.clip.name
-        : animation.id,
-    ),
-  );
-  const programLabels = uniqueSorted(
-    (assetBundle.programs ?? []).map((program) =>
-      typeof program.label === "string" && program.label.trim()
-        ? program.label
-        : program.id,
-    ),
-  );
-  const poseGroupLabels = uniqueSorted(
-    poseGroups.map((group) =>
-      typeof group.name === "string" && group.name.trim()
-        ? group.name
-        : group.id,
-    ),
-  );
+  const graphs = description?.graphs ?? [];
+  const poses = description?.poses ?? [];
+  const poseGroups = description?.poseGroups ?? [];
+  const animations = description?.animations ?? [];
+  const programs = description?.programs ?? [];
+  const rigCount = graphs.filter((graph) =>
+    RIG_KINDS.has(graph.kind.toLowerCase()),
+  ).length;
 
   return {
-    faceId: assetBundle.faceId ?? assetBundle.pose?.config?.faceId ?? null,
-    graphKinds,
-    graphIds,
+    faceId: description?.faceId ?? null,
+    graphKinds: uniqueSorted(graphs.map((graph) => graph.kind)),
+    graphIds: uniqueSorted(
+      graphs.map((graph) =>
+        graph.id ? `${graph.kind}:${graph.id}` : graph.kind,
+      ),
+    ),
     graphCount: graphs.length,
     rigCount,
-    animationCount,
-    programCount,
+    animationCount: animations.length,
+    programCount: programs.length,
     poseCount: poses.length,
     poseGroupCount: poseGroups.length,
     capabilities: {
-      rig: rigCount > 0 || Boolean(assetBundle.rig),
+      rig: rigCount > 0,
       poses: poses.length > 0,
-      animations: animationCount > 0,
-      programs: programCount > 0,
+      animations: animations.length > 0,
+      programs: programs.length > 0,
     },
-    metadataKeys,
-    controlInputCount: Array.isArray(assetBundle.rig?.inputMetadata)
-      ? assetBundle.rig.inputMetadata.length
-      : 0,
-    animationLabels,
-    programLabels,
-    poseGroupLabels,
+    metadataKeys: uniqueSorted(Object.keys(description?.metadata ?? {})),
+    controlInputCount: description?.rigInputs.length ?? 0,
+    animationLabels: uniqueSorted(
+      animations.map((animation) => animation.name?.trim() || animation.id),
+    ),
+    programLabels: uniqueSorted(
+      programs.map((program) => program.label?.trim() || program.id),
+    ),
+    poseGroupLabels: uniqueSorted(
+      poseGroups.map((group) => group.name?.trim() || group.id),
+    ),
     poseGroups,
     poses,
   };

@@ -1,48 +1,87 @@
 import { test, expect } from "@playwright/test";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
+import { changedPixels, distinctColours, sampleElement } from "../pixels";
 
-// Regression for the arora value-marshalling bug: `demo-vizij-player` mounts the
-// arora runtime (`@vizij/runtime-react` → `@vizij/runtime`). Loading a
-// sample drives `setValue` with vizij `ValueJSON` shorthand (`{"float": …}`,
-// `{"vec3": …}`); the arora store speaks the canonical `Value` serde (`{"f32": …}`),
-// so before @vizij/arora-web-wasm@0.1.2 every write threw `unknown variant 'float'`
-// and surfaced as "Failed to initialize the engine". The boot-only smoke
-// (standalone-demos-smoke) never loaded a sample, so it missed this. This test
-// loads the curated sample and asserts the runtime accepts the values.
-//
-// It ignores WebGL context errors: the three.js face renderer needs a GL context,
-// which only exists headlessly via the swiftshader launch flags in
-// playwright.config.ts; a GL hiccup is not what this test guards.
+// demo-vizij-player loads the curated sample onto the page's canvas: its slot
+// reports the face ready and the canvas shows it (a non-uniform pixel
+// sample). Moving the blink slider writes the rig's blink input and closes
+// the eyes, measured against the face's own motion over the same interval;
+// playing an embedded animation puts its player in `playing`.
+// Runtime value errors — a write of the wrong shape, an engine that failed
+// to start — fail the test wherever they surface.
 const player = STANDALONE_DEMOS.find((d) => d.filter === "demo-vizij-player");
 if (!player) throw new Error("demo-vizij-player missing from STANDALONE_DEMOS");
 
 const RUNTIME_ERROR =
   /unknown variant|Failed to initialize the engine|expected magic word|failed to init wasm/i;
+const INTERVAL_MS = 1_500;
+const CHANGE_OVER_IDLE = 2.5;
 
-test("demo-vizij-player loads a sample without a runtime value error", async ({
+test("demo-vizij-player shows the sample, drives its rig and plays an animation", async ({
   page,
 }) => {
+  // Compiling the Bevy shaders on SwiftShader takes a while the first time.
+  test.setTimeout(240_000);
   const runtimeErrors: string[] = [];
+  const pageErrors: string[] = [];
   const record = (msg: string) => {
     if (RUNTIME_ERROR.test(msg)) runtimeErrors.push(msg);
   };
-  page.on("pageerror", (e) => record(e.message));
+  page.on("pageerror", (e) => {
+    pageErrors.push(e.message);
+    record(e.message);
+  });
   page.on("console", (m) => {
     if (m.type() === "error" || m.type() === "warning") record(m.text());
   });
 
   await page.goto(demoUrl(player));
-  // The curated-library "Load sample" button loads the Quori bundle and creates
-  // the arora device with its real graph, then drives it.
   await page
     .getByRole("button", { name: /load sample/i })
     .first()
     .click();
-  // Let the device create + a few frames of setValue/step run.
-  await page.waitForTimeout(8_000);
+
+  const slot = page.locator('[data-vizij-id="player"]');
+  await expect(slot).toHaveAttribute("data-vizij-ready", "true", {
+    timeout: 180_000,
+  });
+  await slot.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1_000);
+
+  const first = await sampleElement(slot);
+  expect(
+    distinctColours(first),
+    "the canvas shows more than one colour",
+  ).toBeGreaterThan(8);
+
+  await page.waitForTimeout(INTERVAL_MS);
+  const before = await sampleElement(slot);
+  const idle = changedPixels(first, before);
+
+  const blink = page
+    .locator("label.range-field", { hasText: "Intensity" })
+    .locator("input[type=range]");
+  await blink.fill("1");
+  await page.waitForTimeout(INTERVAL_MS);
+  const after = await sampleElement(slot);
+  const moved = changedPixels(before, after);
+  expect(
+    moved,
+    `the blink slider changed the face (${moved} pixels changed, ${idle} while idle)`,
+  ).toBeGreaterThan(CHANGE_OVER_IDLE * Math.max(idle, 200));
+
+  const firstAnimation = page
+    .locator('[data-testid^="animation-state-"]')
+    .first();
+  await page
+    .getByRole("button", { name: /^Play / })
+    .first()
+    .click();
+  await expect(firstAnimation).toHaveText("playing", { timeout: 10_000 });
 
   expect(
     runtimeErrors,
     `arora runtime value errors:\n${runtimeErrors.join("\n")}`,
   ).toHaveLength(0);
+  expect(pageErrors, `page errors: ${pageErrors.join("; ")}`).toHaveLength(0);
 });
