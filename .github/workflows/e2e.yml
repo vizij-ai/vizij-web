@@ -41,10 +41,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Two independent signals rather than one pass/fail. `smoke` is the one
-        # worth blocking a merge on once it has proven stable; `workflow` is the
-        # slow half and is expected to be the flaky one, so keep them separable.
-        project: [smoke, workflow]
+        # The `workflow` project: the slow half, kept a signal of its own. The
+        # `smoke` project runs in ci.yml's `authoring-smoke` job, on every pull
+        # request and on main, so it is not run again here.
+        project: [workflow]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
