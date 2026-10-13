@@ -62,25 +62,11 @@ jobs:
       # on unresolved imports.
       - run: pnpm run build:packages
 
-      # Browser binaries are not in the pnpm store. Cached on the resolved
-      # Playwright version, so this is a download per version bump rather than
-      # per run.
-      - name: Resolve Playwright version
-        id: pw
-        run: |
-          version="$(pnpm --filter vizij-authoring exec playwright --version | awk '{print $2}')"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter vizij-authoring exec playwright install --with-deps chromium
-      # System libraries live outside the cached directory, so they are still
-      # needed on a cache hit.
-      - if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter vizij-authoring exec playwright install-deps chromium
+      # Downloaded on every run, not cached: the system libraries Chromium needs
+      # come from apt either way, and that is most of the step's time; a cache
+      # written by a pull request is visible to that pull request alone, as
+      # this workflow never runs on main.
+      - run: pnpm --filter vizij-authoring exec playwright install --with-deps chromium
 
       # `--workers=1`, because the first CI run failed on contention rather than
       # on anything the tests were asserting. `fullyParallel: false` still let
