@@ -25,11 +25,6 @@ import { TweenContext, createTweens } from "./tweens";
  * a second, and less as the page stays hidden) unless it plays audio. */
 const HIDDEN_STEP_MS = 10;
 
-/** The longest the provider leaves the device's changes undrained, in
- * milliseconds: how often it drains while nothing listens or the page draws
- * no frames. */
-const IDLE_DRAIN_MS = 1000;
-
 /** A face's GLB: a URL to fetch, or its bytes. */
 export type VizijSource = string | URL | Blob | ArrayBuffer | Uint8Array;
 
@@ -77,9 +72,10 @@ interface Loaded {
  * It is the one caller of the runtime's `drainChanges`, whose cursor is one
  * per `Runtime`. While something listens (`useVizijChanges`,
  * `useVizijValues`) it drains once per animation frame and hands each batch
- * to every listener; while nothing does, or the page draws no frames, it
- * drains every {@link IDLE_DRAIN_MS} — the runtime keeps every change until
- * it is drained. The first batch after a (re)load is the whole store.
+ * to every listener; while nothing does, it does not drain. The runtime
+ * holds what is not drained as the latest value per key, so a batch is the
+ * net change since the previous drain, however long ago that was. The first
+ * batch after a (re)load is the whole store.
  *
  * Showing the face is the page's `<Vizij>` slot, bound to this provider by
  * `<VizijRuntimeFace>`.
@@ -262,17 +258,13 @@ export function VizijRuntimeProvider({
     };
   }, [runtime]);
 
-  // The one drain of the face's store: per animation frame for its
-  // listeners, and at least every IDLE_DRAIN_MS so that what nobody reads
-  // does not pile up in the runtime.
+  // The one drain of the face's store, per animation frame while something
+  // listens. What nobody reads stays in the runtime as one value per key.
   useEffect(() => {
-    let drained = performance.now();
     const drain = () => {
       const live = current.current;
-      drained = performance.now();
       if (!live) return;
       const changes = live.drainChanges();
-      if (listeners.current.size === 0) return;
       if (Object.keys(changes).length > 0) {
         for (const listener of listeners.current) listener(changes);
       }
@@ -281,13 +273,7 @@ export function VizijRuntimeProvider({
       if (listeners.current.size > 0) drain();
       frame = requestAnimationFrame(onFrame);
     });
-    const idle = setInterval(() => {
-      if (performance.now() - drained >= IDLE_DRAIN_MS) drain();
-    }, IDLE_DRAIN_MS);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(idle);
-    };
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const value = useMemo<VizijRuntimeContextValue>(
