@@ -7,8 +7,9 @@ except authoring) and [VIZ-148](https://linear.app/semio-ai/issue/VIZ-148) (the
 authoring app). Umbrella: [VIZ-158](https://linear.app/semio-ai/issue/VIZ-158).
 The apps' line references are to vizij-web `8f9ea296`; the runtime's are to
 `@vizij/runtime` 6.0.0 and vizij-rs `origin/main` at `4c6e0fe`. `@vizij/runtime-react`
-requires `@vizij/runtime` `^6.1.0`, the release whose device step costs a tenth of
-6.0.0's.
+requires `@vizij/runtime` `^6.1.1`: 6.1.0 is the release whose device step costs a
+tenth of 6.0.0's, and 6.1.1 holds what a page has not drained as the latest
+value per key.
 
 Every Vizij face in the browser is drawn by the Bevy view of the vizij-rs
 `vizij` crate, shipped as [`@vizij/runtime`](https://github.com/vizij-ai/vizij-rs/blob/main/npm/@vizij/runtime/README.md).
@@ -259,7 +260,7 @@ The types of these signatures are exported with them (`VizijSource`,
 | Export                                       | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `VizijRuntimeProvider`                       | A face's lifecycle in React: fetch the bytes, `describe`, `loadVizij` once `canvasMounted()` resolves, `whenReady`, and the device's pace as `run` says (below). A new `glb` reloads through `loadVizij` on the same `vizijId` (the previous scene draws until the new one is ready) and the previous `Runtime` is stopped and disposed once the new one exists; on unmount `stop`, `unloadVizij`, `dispose`. Loads and teardowns run one at a time, in order, so StrictMode's double effects load once. |
-| — its change drain                           | `drainChanges()` has one cursor per `Runtime`, so the provider is its only caller, from the moment a (re)loaded `Runtime` exists, whose first drain is the whole state. While a subscriber below listens, it drains once per animation frame and fans each batch out; while none does, or the page draws no frames, it drains once a second and drops the batch, since the runtime keeps every change until it is drained.                                                                               |
+| — its change drain                           | `drainChanges()` has one cursor per `Runtime`, so the provider is its only caller, from the moment a (re)loaded `Runtime` exists, whose first drain is the whole state. While a subscriber below listens, it drains once per animation frame and fans each batch out; while none does, it does not drain: the runtime (6.1.1) holds what is not drained as the latest value per key, so the next batch is the net change since the previous drain.                                                       |
 | `useVizijRuntime`, `useOptionalVizijRuntime` | Read the context. `runtime` is `@vizij/runtime`'s `Runtime` as is: every device operation is called on it.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `status`, `error`, `behaviorError`           | Load state as React state; `behaviorError` follows `runtime.behaviorErrorChanged()`.                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `description`                                | `describe(glb)` as React state, for the controls a page builds (poses, rig inputs, programs, animations, metadata, `rootBounds`).                                                                                                                                                                                                                                                                                                                                                                        |
@@ -471,12 +472,13 @@ them.
 
 Each is a capability an app depends on; none is worked around in an app.
 
-| Capability                                                                                                                                                                     | Needed by                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| **Any slot rectangle.** `placeVizij` frames the face on the whole rectangle and draws the part on the canvas; an empty rectangle, or one wholly off the canvas, draws nothing. | vizij-showcase (five slots on a scrolling page); any slot that scrolls; a slot unmounting |
-| **A program's output keys.** `outputKeys(graph)` lists the keys a run of `graph` writes and leaves holding when halted: what `reset_keys` takes to return them to rest.        | demo-vizij-player `ProgramsPanel.tsx:139`; authoring `Viewer.tsx:543-569`                 |
-| **Graph ids.** `describe(glb).graphs` is `[{ id, kind }]`.                                                                                                                     | demo-vizij-player `lib/bundleSummary.ts:65-68`                                            |
-| **Typed standard controls.** `listKeys` reports each `standard/vizij/*` input as an `f32` resting at the profile's rest.                                                       | `useAnimateValue` on a key nothing has written yet                                        |
+| Capability                                                                                                                                                                                | Needed by                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Any slot rectangle.** `placeVizij` frames the face on the whole rectangle and draws the part on the canvas; an empty rectangle, or one wholly off the canvas, draws nothing.            | vizij-showcase (five slots on a scrolling page); any slot that scrolls; a slot unmounting |
+| **A program's output keys.** `outputKeys(graph)` lists the keys a run of `graph` writes and leaves holding when halted: what `reset_keys` takes to return them to rest.                   | demo-vizij-player `ProgramsPanel.tsx:139`; authoring `Viewer.tsx:543-569`                 |
+| **Graph ids.** `describe(glb).graphs` is `[{ id, kind }]`.                                                                                                                                | demo-vizij-player `lib/bundleSummary.ts:65-68`                                            |
+| **Typed standard controls.** `listKeys` reports each `standard/vizij/*` input as an `f32` resting at the profile's rest.                                                                  | `useAnimateValue` on a key nothing has written yet                                        |
+| **A bounded change backlog.** What `drainChanges` has not handed over is held as the latest value per key (6.1.1), so a drain is the net change since the previous one, however long ago. | The provider, which drains only while a subscriber listens                                |
 
 Also checked: placing a face before it loads works (the placement is stored by
 id); `setView` before load is documented; the animation transport the apps
@@ -582,7 +584,7 @@ links); the website's guidebook sync (`vizij-ai.github.io`,
   merges.
 - `@vizij/speech-react`: `npm deprecate @vizij/speech-react "<message>"` (a
   manual step for Victor); no further version.
-- `@vizij/runtime`: `@vizij/runtime-react` requires `^6.1.0`; the other packages
+- `@vizij/runtime`: `@vizij/runtime-react` requires `^6.1.1`; the other packages
   and the apps require `^6.0.0`.
 - `@vizij/render` has a pending `major` changeset on `main` already (the
   headless exporter, [#134](https://github.com/vizij-ai/vizij-web/pull/134)).

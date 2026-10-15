@@ -314,7 +314,7 @@ describe("the device's pace", () => {
 });
 
 describe("the change fan-out", () => {
-  it("drains per frame only while something listens, and at least once a second", async () => {
+  it("drains per frame only while something listens", async () => {
     takeFrames();
     let listening = false;
     function Listener() {
@@ -335,15 +335,13 @@ describe("the change fan-out", () => {
       expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
     );
     const face = loaded[0];
-    // Nothing listens: frames drain nothing...
+    // Nothing listens: neither frames nor time drain anything; the runtime
+    // holds what is not drained as one value per key.
     const idle = face.drains;
     frame();
     frame();
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     expect(face.drains).toBe(idle);
-    // ...and the changes are still drained, once a second, unheard.
-    await waitFor(() => expect(face.drains).toBeGreaterThan(idle), {
-      timeout: 3000,
-    });
 
     rerender(<Page listen />);
     expect(listening).toBe(true);

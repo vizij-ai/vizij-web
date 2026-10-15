@@ -99,7 +99,9 @@ method, and for the keys a composed mapping or a running program writes over.
 
 The provider is the only caller of `runtime.drainChanges()`, whose cursor is
 one per `Runtime`; read changes through the two hooks. It drains once per
-animation frame while one of them listens, and once a second otherwise.
+animation frame while one of them listens, and not at all otherwise: the
+runtime holds what is not drained as the latest value per key, so the next
+batch is the net change since the previous drain.
 
 ## Development
 
