@@ -75,8 +75,9 @@ method, and for the keys a composed mapping or a running program writes over.
 - **`<VizijRuntimeProvider glb vizijId? options? run?>`** — fetches the GLB
   (a URL, a `Blob` or bytes), reads it with `describe`, waits for the page's
   `<VizijCanvas>`, loads the face with `loadVizij(vizijId, bytes, options)` and
-  runs its device (`run`, default `true`; `false` leaves the page to call
-  `runtime.step(dtMs)`). A new `glb` reloads the face in place; unmounting
+  steps its device (`run`, default `true`): once per animation frame while the
+  page is visible, on a timer while it is hidden; `false` leaves the page to
+  call `runtime.step(dtMs)`. A new `glb` reloads the face in place; unmounting
   unloads it. `options` are `loadVizij`'s, read at each load.
 - **`useVizijRuntime()`** — the face: `vizijId`, `status` (`loading`,
   `ready`, `error`), `error`, `behaviorError` (the device's standing behavior
@@ -97,7 +98,8 @@ method, and for the keys a composed mapping or a running program writes over.
   provider's face.
 
 The provider is the only caller of `runtime.drainChanges()`, whose cursor is
-one per `Runtime`; read changes through the two hooks.
+one per `Runtime`; read changes through the two hooks. It drains once per
+animation frame while one of them listens, and once a second otherwise.
 
 ## Development
 

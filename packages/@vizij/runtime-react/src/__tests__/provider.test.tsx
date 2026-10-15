@@ -25,6 +25,8 @@ class FakeRuntime {
     this.running = true;
     return new Promise<void>(() => undefined);
   });
+  step = vi.fn();
+  drains = 0;
   stop = vi.fn(() => {
     this.running = false;
   });
@@ -41,6 +43,7 @@ class FakeRuntime {
     this.changes = { ...(this.changes ?? {}), [path]: value };
   }
   drainChanges() {
+    this.drains += 1;
     // The first drain is the whole store, as the runtime's is.
     const drained = this.changes ?? { ...this.store };
     this.changes = {};
@@ -88,6 +91,8 @@ beforeEach(() => {
 });
 afterEach(async () => {
   cleanup();
+  vi.unstubAllGlobals();
+  setVisibility("visible");
   // Let the unmounted providers' teardowns run before the next test.
   await new Promise((resolve) => setTimeout(resolve, 0));
   vi.clearAllMocks();
@@ -104,6 +109,38 @@ function Status() {
 }
 
 const bytes = (n: number) => new Uint8Array([n]);
+
+/** Animation frames the test hands out itself: `frame()` runs the ones
+ * requested so far, as the browser does on its next frame. */
+let requested: Map<number, FrameRequestCallback>;
+function takeFrames() {
+  requested = new Map();
+  let next = 1;
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    requested.set(next, callback);
+    return next++;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+    requested.delete(id);
+  });
+}
+function frame() {
+  const due = [...requested.values()];
+  requested.clear();
+  act(() => due.forEach((callback) => callback(performance.now())));
+}
+
+let visibility: DocumentVisibilityState = "visible";
+Object.defineProperty(document, "visibilityState", {
+  configurable: true,
+  get: () => visibility,
+});
+function setVisibility(state: DocumentVisibilityState) {
+  if (visibility === state) return;
+  visibility = state;
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("VizijRuntimeProvider", () => {
   it("loads the face and hands out its Runtime unwrapped", async () => {
@@ -125,7 +162,7 @@ describe("VizijRuntimeProvider", () => {
     expect(runtime.loadVizij).toHaveBeenCalledWith("hero", bytes(1), {
       program: "none",
     });
-    expect(loaded[0].run).toHaveBeenCalledTimes(1);
+    expect(loaded[0].run).not.toHaveBeenCalled();
     expect(screen.getByTestId("slot").getAttribute("data-vizij-id")).toBe(
       "hero",
     );
@@ -157,6 +194,8 @@ describe("VizijRuntimeProvider", () => {
     );
     expect(loaded[0].run).not.toHaveBeenCalled();
     expect(loaded[0].stop).toHaveBeenCalled();
+    await sleep(50);
+    expect(loaded[0].step).not.toHaveBeenCalled();
   });
 
   it("reloads in place on a new glb, disposing the previous Runtime", async () => {
@@ -218,7 +257,102 @@ describe("VizijRuntimeProvider", () => {
   });
 });
 
+describe("the device's pace", () => {
+  it("steps the device once per animation frame while the page is visible", async () => {
+    takeFrames();
+    render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
+    );
+    const face = loaded[0];
+    const before = face.step.mock.calls.length;
+    frame();
+    frame();
+    frame();
+    expect(face.step.mock.calls.length - before).toBe(3);
+    expect(face.step.mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
+    expect(face.run).not.toHaveBeenCalled();
+  });
+
+  it("steps on a timer while hidden, until the first frame after the page returns", async () => {
+    takeFrames();
+    render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
+    );
+    const face = loaded[0];
+    act(() => setVisibility("hidden"));
+    // The browser draws no frame while hidden; the timer steps.
+    const hidden = face.step.mock.calls.length;
+    await waitFor(() =>
+      expect(face.step.mock.calls.length).toBeGreaterThan(hidden + 2),
+    );
+
+    // Shown again, before its first frame: the timer still steps.
+    act(() => setVisibility("visible"));
+    const shown = face.step.mock.calls.length;
+    await waitFor(() =>
+      expect(face.step.mock.calls.length).toBeGreaterThan(shown + 2),
+    );
+
+    // The first frame takes over: one step per frame, the timer gone.
+    frame();
+    const framed = face.step.mock.calls.length;
+    await sleep(50);
+    expect(face.step.mock.calls.length).toBe(framed);
+    frame();
+    expect(face.step.mock.calls.length).toBe(framed + 1);
+  });
+});
+
 describe("the change fan-out", () => {
+  it("drains per frame only while something listens, and at least once a second", async () => {
+    takeFrames();
+    let listening = false;
+    function Listener() {
+      useVizijChanges(() => undefined);
+      return null;
+    }
+    function Page({ listen }: { listen: boolean }) {
+      listening = listen;
+      return (
+        <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+          <Status />
+          {listen ? <Listener /> : null}
+        </VizijRuntimeProvider>
+      );
+    }
+    const { rerender } = render(<Page listen={false} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
+    );
+    const face = loaded[0];
+    // Nothing listens: frames drain nothing...
+    const idle = face.drains;
+    frame();
+    frame();
+    expect(face.drains).toBe(idle);
+    // ...and the changes are still drained, once a second, unheard.
+    await waitFor(() => expect(face.drains).toBeGreaterThan(idle), {
+      timeout: 3000,
+    });
+
+    rerender(<Page listen />);
+    expect(listening).toBe(true);
+    const heard = face.drains;
+    frame();
+    frame();
+    expect(face.drains).toBe(heard + 2);
+  });
+
   it("drains once per frame and hands each batch to every subscriber", async () => {
     const batches: VizijChanges[] = [];
     function Listener() {
