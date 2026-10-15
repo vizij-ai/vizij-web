@@ -20,6 +20,16 @@ import {
 } from "./context";
 import { TweenContext, createTweens } from "./tweens";
 
+/** How often the provider steps the device while the page is hidden, in
+ * milliseconds. The browser throttles a hidden page's timers (to about once
+ * a second, and less as the page stays hidden) unless it plays audio. */
+const HIDDEN_STEP_MS = 10;
+
+/** The longest the provider leaves the device's changes undrained, in
+ * milliseconds: how often it drains while nothing listens or the page draws
+ * no frames. */
+const IDLE_DRAIN_MS = 1000;
+
 /** A face's GLB: a URL to fetch, or its bytes. */
 export type VizijSource = string | URL | Blob | ArrayBuffer | Uint8Array;
 
@@ -32,8 +42,10 @@ export interface VizijRuntimeProviderProps {
   /** `loadVizij`'s options, passed through unchanged. Read at each load: a
    * change shows from the next `glb`. */
   options?: VizijOptions;
-  /** `true` (default): the device paces itself (`Runtime.run`). `false`: it
-   * is stopped, and the page steps it (`runtime.step(dtMs)`). */
+  /** `true` (default): the provider steps the device, once per animation
+   * frame while the page is visible and on a timer while it is hidden.
+   * `false`: the device is stopped, and the page steps it
+   * (`runtime.step(dtMs)`). */
   run?: boolean;
   children?: ReactNode;
 }
@@ -55,10 +67,19 @@ interface Loaded {
  * ready, and the previous `Runtime` is stopped and disposed once the new one
  * exists. Unmounting stops the device, unloads the face and disposes it.
  *
+ * Unless `run` is `false`, it steps the device: once per animation frame
+ * while the page is visible — one step per drawn frame, each by the time
+ * since the previous step — and every {@link HIDDEN_STEP_MS} while it is
+ * hidden, where the browser throttles timers and draws nothing. A page
+ * shown again keeps that timer until its first animation frame, so the
+ * device is never left unstepped between the two.
+ *
  * It is the one caller of the runtime's `drainChanges`, whose cursor is one
- * per `Runtime`: once per animation frame it drains the store's changes and
- * hands the batch to every `useVizijChanges` and `useVizijValues` below it.
- * The first batch after a (re)load is the whole store.
+ * per `Runtime`. While something listens (`useVizijChanges`,
+ * `useVizijValues`) it drains once per animation frame and hands each batch
+ * to every listener; while nothing does, or the page draws no frames, it
+ * drains every {@link IDLE_DRAIN_MS} — the runtime keeps every change until
+ * it is drained. The first batch after a (re)load is the whole store.
  *
  * Showing the face is the page's `<Vizij>` slot, bound to this provider by
  * `<VizijRuntimeFace>`.
@@ -162,22 +183,63 @@ export function VizijRuntimeProvider({
 
   const { runtime } = loaded;
 
+  // The device's pace: a step per animation frame while the page is
+  // visible, a timer while it is hidden.
   useEffect(() => {
     if (!runtime) return;
-    if (!run) {
-      runtime.stop();
-      return;
+    runtime.stop();
+    if (!run) return;
+    let last = performance.now();
+    let frame: number | undefined;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const fail = (error: unknown) => {
+      stopPacing();
+      if (current.current !== runtime) return;
+      setLoaded((state) => ({
+        ...state,
+        status: "error",
+        error: error instanceof Error ? error : new Error(String(error)),
+      }));
+    };
+    const step = () => {
+      const now = performance.now();
+      const dt = now - last;
+      last = now;
+      if (dt <= 0) return;
+      try {
+        runtime.step(dt);
+      } catch (error) {
+        fail(error);
+      }
+    };
+    const onFrame = () => {
+      // The page draws again: the hidden timer has done its part.
+      if (timer !== undefined) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+      step();
+      frame = requestAnimationFrame(onFrame);
+    };
+    const follow = () => {
+      if (document.visibilityState === "hidden") {
+        if (frame !== undefined) cancelAnimationFrame(frame);
+        frame = undefined;
+        timer ??= setInterval(step, HIDDEN_STEP_MS);
+      } else {
+        frame ??= requestAnimationFrame(onFrame);
+      }
+    };
+    function stopPacing() {
+      document.removeEventListener("visibilitychange", follow);
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      if (timer !== undefined) clearInterval(timer);
+      frame = undefined;
+      timer = undefined;
     }
-    if (!runtime.running) {
-      runtime.run().catch((error: unknown) => {
-        if (current.current !== runtime) return;
-        setLoaded((state) => ({
-          ...state,
-          status: "error",
-          error: error instanceof Error ? error : new Error(String(error)),
-        }));
-      });
-    }
+    follow();
+    document.addEventListener("visibilitychange", follow);
+    return stopPacing;
   }, [runtime, run]);
 
   // The device's standing behavior error, followed until it is disposed.
@@ -200,19 +262,32 @@ export function VizijRuntimeProvider({
     };
   }, [runtime]);
 
-  // The one drain of the face's store, fanned out per animation frame.
+  // The one drain of the face's store: per animation frame for its
+  // listeners, and at least every IDLE_DRAIN_MS so that what nobody reads
+  // does not pile up in the runtime.
   useEffect(() => {
-    let frame = requestAnimationFrame(function drain() {
+    let drained = performance.now();
+    const drain = () => {
       const live = current.current;
-      if (live) {
-        const changes = live.drainChanges();
-        if (Object.keys(changes).length > 0) {
-          for (const listener of listeners.current) listener(changes);
-        }
+      drained = performance.now();
+      if (!live) return;
+      const changes = live.drainChanges();
+      if (listeners.current.size === 0) return;
+      if (Object.keys(changes).length > 0) {
+        for (const listener of listeners.current) listener(changes);
       }
-      frame = requestAnimationFrame(drain);
+    };
+    let frame = requestAnimationFrame(function onFrame() {
+      if (listeners.current.size > 0) drain();
+      frame = requestAnimationFrame(onFrame);
     });
-    return () => cancelAnimationFrame(frame);
+    const idle = setInterval(() => {
+      if (performance.now() - drained >= IDLE_DRAIN_MS) drain();
+    }, IDLE_DRAIN_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearInterval(idle);
+    };
   }, []);
 
   const value = useMemo<VizijRuntimeContextValue>(
