@@ -1,5 +1,11 @@
 # @vizij/node-graph-react
 
+## 0.2.2
+
+### Patch Changes
+
+- 8360291: Depend on `@vizij/node-graph` 0.9. Its TypeScript API is the same as 0.7's; the runtime gains the `taskrun` node, and the arithmetic nodes take integer values as scalars.
+
 ## 0.2.1
 
 ### Patch Changes
