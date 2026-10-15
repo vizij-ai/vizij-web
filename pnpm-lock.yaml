@@ -630,7 +630,7 @@ importers:
         version: 2.10.1
       '@vizij/runtime':
         specifier: ^6.0.0
-        version: 6.0.0
+        version: 6.1.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -827,7 +827,7 @@ importers:
         version: 0.170.0
       '@vizij/runtime':
         specifier: ^6.0.0
-        version: 6.0.0
+        version: 6.1.0
       prettier:
         specifier: ^3.4.2
         version: 3.6.2
@@ -3510,9 +3510,6 @@ packages:
 
   '@vizij/runtime@3.0.0':
     resolution: {integrity: sha512-JKOEquvxuOlUMb9Z5NucL+lD1jAOi6CSF6ahwI2hAtOy/k1cEv3puYs55/FvE1jzp17MIliZlB+qZZwmfxabjQ==}
-
-  '@vizij/runtime@6.0.0':
-    resolution: {integrity: sha512-7aEGnjOw9DkYMos312adAB4KScOom0eWkZvz0F92ZY8igeS+Tb9pEQS4Wz4oBpgIbYFwMlei1xmvlkXrw9qkqQ==}
 
   '@vizij/runtime@6.1.0':
     resolution: {integrity: sha512-LKpmL+CO/vy/g3K6Gfy2Jo9yTSiwq9ZLyNVQwQsqgBR92laKy8xWHl5R3EF2YnZPLFlNLYP9vkvmBwE/+RBIVg==}
@@ -8997,11 +8994,6 @@ snapshots:
       '@vizij/wasm-loader': 0.1.5
 
   '@vizij/runtime@3.0.0':
-    dependencies:
-      '@vizij/value-json': 0.2.0
-      '@vizij/wasm-loader': 0.1.5
-
-  '@vizij/runtime@6.0.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
