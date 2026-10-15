@@ -1,5 +1,17 @@
 # vizij-authoring
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [adf2502]
+- Updated dependencies [8360291]
+- Updated dependencies [9dd663f]
+  - @vizij/runtime-react@0.4.1
+  - @vizij/node-graph-react@0.2.2
+  - @vizij/node-graph-authoring@0.2.2
+  - @vizij/render@1.0.0
+
 ## 0.2.0
 
 ### Minor Changes
