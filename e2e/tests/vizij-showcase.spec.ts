@@ -16,8 +16,10 @@ const SECTIONS = ["hero", "expressions", "gaze", "voice", "controls"];
 test("the showcase draws each section's face on one canvas", async ({
   page,
 }) => {
-  // Compiling the Bevy shaders on SwiftShader takes a while the first time.
-  test.setTimeout(300_000);
+  // Five faces load in turn, each compiling its pipelines on SwiftShader. On
+  // a CI runner shared with another Bevy page a face can take a minute or more
+  // to report ready; on a workstation the five take under a minute.
+  test.setTimeout(600_000);
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
   await page.goto(demoUrl(showcase));
