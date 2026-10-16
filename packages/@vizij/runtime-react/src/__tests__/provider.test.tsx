@@ -194,8 +194,10 @@ describe("VizijRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
     );
+    // The provider stops the device from an effect that runs once the face
+    // is set, which React may flush after the page shows "ready".
+    await waitFor(() => expect(loaded[0].stop).toHaveBeenCalled());
     expect(loaded[0].run).not.toHaveBeenCalled();
-    expect(loaded[0].stop).toHaveBeenCalled();
     await sleep(50);
     expect(loaded[0].step).not.toHaveBeenCalled();
   });
@@ -353,6 +355,12 @@ describe("the device's pace", () => {
       expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
     );
     const face = loaded[0];
+    // The provider paces the device from an effect that runs once the face
+    // is set, which React may flush after the page shows "ready".
+    await waitFor(() => {
+      frame();
+      expect(face.step).toHaveBeenCalled();
+    });
     const before = face.step.mock.calls.length;
     frame();
     frame();
