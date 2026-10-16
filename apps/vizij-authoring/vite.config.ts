@@ -84,14 +84,6 @@ export default defineConfig(({ mode }) => {
           workspaceRoot,
           "packages/@vizij/node-graph-react/src",
         ),
-        "@vizij/runtime-react": path.resolve(
-          workspaceRoot,
-          "packages/@vizij/runtime-react/src",
-        ),
-        "@vizij/render": path.resolve(
-          workspaceRoot,
-          "packages/@vizij/render/src",
-        ),
         "@vizij/utils": path.resolve(
           workspaceRoot,
           "packages/@vizij/utils/src",

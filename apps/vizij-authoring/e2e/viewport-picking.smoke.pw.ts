@@ -3,10 +3,6 @@ import { expect, test, type Page } from "@playwright/test";
 import { bootAuthoring, loadMainPreset, waitForMainFaceReady } from "./helpers";
 import { PRIMITIVES, primitivesGlb } from "./primitivesFixture";
 import { centroidWhere, samplePage } from "./viewportPixels";
-import {
-  VIEWPORT_PORT_PENDING,
-  VIEWPORT_PORT_PENDING_REASON,
-} from "./viewportPort";
 import { drawnFace, pagePoint, viewportMiddle } from "./viewportRegion";
 
 /**
@@ -52,7 +48,6 @@ function besideFace(
 test("a press on a face element selects it, and a press beside the face clears the selection @smoke", async ({
   page,
 }) => {
-  test.fail(VIEWPORT_PORT_PENDING, VIEWPORT_PORT_PENDING_REASON);
   await bootAuthoring(page);
   await loadMainPreset(page, "quori:latest");
 
@@ -78,7 +73,6 @@ test("a press on a face element selects it, and a press beside the face clears t
 test("a press on an ellipse or a rectangle selects it @smoke", async ({
   page,
 }, testInfo) => {
-  test.fail(VIEWPORT_PORT_PENDING, VIEWPORT_PORT_PENDING_REASON);
   await bootAuthoring(page);
   const glb = testInfo.outputPath("primitives.glb");
   await writeFile(glb, primitivesGlb());
