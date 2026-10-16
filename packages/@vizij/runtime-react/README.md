@@ -78,7 +78,10 @@ method, and for the keys a composed mapping or a running program writes over.
   steps its device (`run`, default `true`): once per animation frame while the
   page is visible, on a timer while it is hidden; `false` leaves the page to
   call `runtime.step(dtMs)`. A new `glb` reloads the face in place; unmounting
-  unloads it. `options` are `loadVizij`'s, read at each load.
+  unloads it. `options` are `loadVizij`'s, read at each load. It reports the
+  face's stages to `@vizij/render`'s `setVizijProgress` — the GLB's bytes as
+  they arrive, `loadVizij`, the first frame — which the face's slot shows in
+  its loading view.
 - **`useVizijRuntime()`** — the face: `vizijId`, `status` (`loading`,
   `ready`, `error`), `error`, `behaviorError` (the device's standing behavior
   error), `runtime` (the `Runtime`) and `description` (`describe(glb)`: poses,

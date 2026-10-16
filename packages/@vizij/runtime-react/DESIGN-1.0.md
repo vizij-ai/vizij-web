@@ -97,6 +97,8 @@ gives it pointer events — `className` and `style` replace the default
   showSafeArea?: boolean
   selection?: string[]
   onPick?: (pick: Pick) => void
+  loadingImage?: ReactNode
+  loading?: ((loading: VizijLoading) => ReactNode) | null
 />
 ```
 
@@ -118,6 +120,29 @@ the whole slot gives it. One slot shows a face at a time.
 | `showSafeArea`        | kept → an outline at `safeArea(vizijId)`   | a DOM overlay over the framed bounds                                                                 |
 | `showSelectionGlow`   | `selection` → `setSelection(vizijId, ids)` | the glow is the view's; the selection was read from the render store, which no longer feeds the view |
 | `onPointerMissed`     | `onPick`                                   | a miss is a pick with `elementId: null`; one callback covers presses on and off elements             |
+
+Until its face is first drawn, the slot shows a **loading view** over its
+border box: an image (a face outline `@vizij/render` ships as inline SVG, or
+the page's `loadingImage`), a progress bar and the stage's label — or the
+page's own element (`loading`), or none (`loading={null}`). The stages come
+from one model in `@vizij/render`, keyed by `vizijId`:
+
+- **the runtime's**, fed by `<VizijCanvas>`: `@vizij/runtime`'s
+  `onInitProgress` (the wasm's download in bytes, its compile, its start), then
+  `mount`, which builds the page's App after `init()` resolves;
+- **the face's**, fed by whoever loads it through `setVizijProgress(vizijId,
+progress)`: the GLB's bytes, `loadVizij`, the first frame. The provider
+  reports them (section 5.1); a page loading a face itself reports the same.
+
+The view hides once the canvas's loop reads `ready(vizijId)`, and stays hidden
+through reloads, whose previous scene draws until the new one is ready;
+`setVizijProgress(vizijId, null)` (the face unloaded) shows it again. A failure
+of either shows as the view's label. The face's stages are reported to the
+model rather than passed as a prop of `<Vizij>` because the loader is where
+they happen and the slot is named by the face's id: a GLB's bytes reach the
+slot without passing through React state that re-renders the provider's
+consumers per chunk, and a slot placed away from its provider shows its face's
+stages without the page threading them.
 
 ### 3.3 Deleted
 
@@ -260,6 +285,7 @@ The types of these signatures are exported with them (`VizijSource`,
 | Export                                       | Justification                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `VizijRuntimeProvider`                       | A face's lifecycle in React: fetch the bytes, `describe`, `loadVizij` once `canvasMounted()` resolves, `whenReady`, and the device's pace as `run` says (below). A new `glb` reloads through `loadVizij` on the same `vizijId` (the previous scene draws until the new one is ready) and the previous `Runtime` is stopped and disposed once the new one exists; on unmount `stop`, `unloadVizij`, `dispose`. Loads and teardowns run one at a time, in order, so StrictMode's double effects load once. |
+| — its progress reports                       | The face's stages for its slot's loading view (section 3.2), through `@vizij/render`'s `setVizijProgress`: the GLB's bytes as they arrive (`total` unknown when the response is compressed), `loadVizij`, the first frame, or the failure; cleared when the face is unloaded. The provider is where they happen.                                                                                                                                                                                         |
 | — its change drain                           | `drainChanges()` has one cursor per `Runtime`, so the provider is its only caller, from the moment a (re)loaded `Runtime` exists, whose first drain is the whole state. While a subscriber below listens, it drains once per animation frame and fans each batch out; while none does, it does not drain: the runtime (6.1.1) holds what is not drained as the latest value per key, so the next batch is the net change since the previous drain.                                                       |
 | `useVizijRuntime`, `useOptionalVizijRuntime` | Read the context. `runtime` is `@vizij/runtime`'s `Runtime` as is: every device operation is called on it.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `status`, `error`, `behaviorError`           | Load state as React state; `behaviorError` follows `runtime.behaviorErrorChanged()`.                                                                                                                                                                                                                                                                                                                                                                                                                     |
