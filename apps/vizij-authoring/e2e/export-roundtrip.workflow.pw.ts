@@ -8,10 +8,6 @@ import {
   loadMainPreset,
   waitForMainFaceReady,
 } from "./helpers";
-import {
-  VIEWPORT_PORT_PENDING,
-  VIEWPORT_PORT_PENDING_REASON,
-} from "./viewportPort";
 
 /**
  * An exported face, imported and exported again, is the same face. A face is
@@ -173,7 +169,6 @@ function face({ json: gltf, bin }: { json: Gltf; bin: Buffer }): Json {
 test("an exported face, imported and exported again, is the same face @workflow", async ({
   page,
 }, testInfo) => {
-  test.fail(VIEWPORT_PORT_PENDING, VIEWPORT_PORT_PENDING_REASON);
   await bootAuthoring(page);
   await loadMainPreset(page, "quori:latest");
 

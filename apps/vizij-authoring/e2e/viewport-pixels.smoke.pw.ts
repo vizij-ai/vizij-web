@@ -6,10 +6,6 @@ import {
   samplePage,
   type Rect,
 } from "./viewportPixels";
-import {
-  VIEWPORT_PORT_PENDING,
-  VIEWPORT_PORT_PENDING_REASON,
-} from "./viewportPort";
 import { drawnFace } from "./viewportRegion";
 
 /**
@@ -39,7 +35,6 @@ async function settle(page: Page) {
 test("the viewport draws the face, and an input change shows on it @smoke", async ({
   page,
 }) => {
-  test.fail(VIEWPORT_PORT_PENDING, VIEWPORT_PORT_PENDING_REASON);
   await bootAuthoring(page);
   await loadMainPreset(page, "quori:latest");
 
