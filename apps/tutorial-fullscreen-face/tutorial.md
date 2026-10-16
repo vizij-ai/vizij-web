@@ -30,8 +30,10 @@ export function FaceApp() {
   face with `loadVizij` and runs its device. `options` are `loadVizij`'s: the
   face's active program runs from load only with `?autoplay`.
 - `<VizijRuntimeFace>` is the slot where the face draws: a `<div>` the canvas
-  places the face over. It carries `data-vizij-ready="true"` once the face
-  shows.
+  places the face over. Until the face shows, it shows `@vizij/render`'s
+  loading view — the runtime's download and start, then the face's GLB, its
+  load and its first frame — and it carries `data-vizij-ready="true"` once the
+  face shows.
 
 The face is Quori, from
 `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb`: its bundle
@@ -42,8 +44,8 @@ standard's keys onto the rig.
 
 `useVizijRuntime()` returns the face: `status` (`loading`, `ready`, `error`),
 `error`, and `runtime`, the face's `Runtime` from `@vizij/runtime`. The slot
-renders from the start; the page shows a loading overlay until `status` is
-`ready`.
+renders from the start, showing its loading view until the face is drawn; the
+hotkeys bind once `status` is `ready`, and an `error` shows over the page.
 
 ## 3. Expressions and visemes
 

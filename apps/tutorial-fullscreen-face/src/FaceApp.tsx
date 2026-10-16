@@ -35,7 +35,6 @@ function FaceRuntime() {
       <div className="canvas-wrapper">
         <VizijRuntimeFace className="face-canvas" />
       </div>
-      {status === "loading" && <div className="status">Loading face…</div>}
       {error && <div className="status error hud-error">{error.message}</div>}
       {ready && hintsVisible && (
         <div className="hint">
