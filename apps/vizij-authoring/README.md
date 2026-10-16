@@ -102,6 +102,8 @@ pnpm --filter vizij-authoring validate
 pnpm --filter vizij-authoring test:e2e:smoke
 ```
 
+The e2e ports, and running e2e from several worktrees at once, are covered in the root README's [End-to-end Tests](../../README.md#end-to-end-tests).
+
 The checked-in sample assets currently live under [`public/assets`](./public/assets).
 
 ## Docs

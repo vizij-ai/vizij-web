@@ -1,5 +1,12 @@
 import { defineConfig } from "@playwright/test";
+import { offsetPort } from "./ports";
 import { STANDALONE_DEMOS } from "./standalone-demos";
+
+const AUTHORING_PORT = offsetPort(5199);
+const AUTHORING_URL = `http://127.0.0.1:${AUTHORING_PORT}`;
+// A server already answering on a port fails the run unless reuse is asked
+// for: it may be another checkout's, serving another build.
+const reuseExistingServer = process.env.VIZIJ_E2E_REUSE_SERVER === "1";
 
 // The light suite boots the authoring workspace (the editing surface) and each
 // standalone demo, and asserts they render without page errors — cheap enough
@@ -10,7 +17,7 @@ export default defineConfig({
   timeout: 60_000,
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: "http://127.0.0.1:5199",
+    baseURL: AUTHORING_URL,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
     launchOptions: {
@@ -26,21 +33,20 @@ export default defineConfig({
     },
   },
   // One dev server per app under test. Playwright boots them all and waits for
-  // each URL before running. The authoring specs use the shared baseURL (5199);
-  // the standalone-demo specs navigate to their own ports (see standalone-demos.ts).
+  // each URL before running. The authoring specs use the shared baseURL; the
+  // standalone-demo specs navigate to their own ports (see standalone-demos.ts).
   webServer: [
     {
-      command:
-        "pnpm --filter vizij-authoring exec vite --port 5199 --strictPort --host 127.0.0.1",
-      url: "http://127.0.0.1:5199",
-      reuseExistingServer: !process.env.CI,
+      command: `pnpm --filter vizij-authoring exec vite --port ${AUTHORING_PORT} --strictPort --host 127.0.0.1`,
+      url: AUTHORING_URL,
+      reuseExistingServer,
       timeout: 120_000,
       cwd: "..",
     },
     ...STANDALONE_DEMOS.map((demo) => ({
       command: `pnpm --filter ${demo.filter} exec vite --port ${demo.port} --strictPort --host 127.0.0.1`,
       url: `http://127.0.0.1:${demo.port}`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 120_000,
       cwd: "..",
     })),

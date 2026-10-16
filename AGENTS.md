@@ -9,6 +9,7 @@ This repo is the implementation home for Vizij's web packages, demos, tutorials,
 - After modifying any `package.json`, run `pnpm install` so workspace links stay correct.
 - Run `pnpm run prep` before handing off substantial changes; use `pnpm run prep:push` when you need the full clean build + validation sweep.
 - Install local git hooks with `bash scripts/install-git-hooks.sh`.
+- The e2e suites start their own servers on fixed ports. When another checkout may run e2e at the same time, give this one its own `VIZIJ_E2E_PORT_OFFSET` (README › End-to-end Tests).
 - Prefer incremental fixes over wide refactors unless asked otherwise.
 
 ## Documentation & Source Of Truth

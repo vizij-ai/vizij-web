@@ -5,8 +5,8 @@
 # failure is attributable on sight.
 #
 # `playwright.config.ts` was already written for CI — `retries: CI ? 1 : 0`, the
-# html reporter, `reuseExistingServer: !CI`, trace on-first-retry, screenshot
-# only-on-failure, video retain-on-failure. None of it was ever invoked from CI.
+# html reporter, trace on-first-retry, screenshot only-on-failure, video
+# retain-on-failure. None of it was ever invoked from CI.
 # The two upload steps at the end are most of the value here: without them a
 # failure is a bare stack trace on a run nobody can reproduce.
 

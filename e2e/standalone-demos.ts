@@ -1,3 +1,5 @@
+import { offsetPort } from "./ports";
+
 // The standalone demo apps covered by the smoke suite. Each runs on its own
 // vite dev server (booted by playwright.config.ts) and is smoke-tested by
 // tests/standalone-demos-smoke.spec.ts. Keep this list and the ports in sync —
@@ -9,16 +11,19 @@
 export interface StandaloneDemo {
   /** pnpm workspace filter / package name. */
   filter: string;
-  /** Dedicated dev-server port (must be unique across the list + authoring 5199). */
+  /**
+   * Dedicated dev-server port: a base port unique across the list and
+   * authoring's 5199, shifted by the e2e port offset (see ports.ts).
+   */
   port: number;
 }
 
 export const STANDALONE_DEMOS: StandaloneDemo[] = [
-  { filter: "demo-vizij-player", port: 5200 },
-  { filter: "demo-animation-studio", port: 5201 },
-  { filter: "demo-graph-studio", port: 5202 },
+  { filter: "demo-vizij-player", port: offsetPort(5200) },
+  { filter: "demo-animation-studio", port: offsetPort(5201) },
+  { filter: "demo-graph-studio", port: offsetPort(5202) },
   // The face page on the Bevy view (its own spec checks the face shows).
-  { filter: "vizij-standalone", port: 5203 },
+  { filter: "vizij-standalone", port: offsetPort(5203) },
 ];
 
 /** The base URL a demo is served on. */
