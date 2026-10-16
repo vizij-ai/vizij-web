@@ -8,6 +8,13 @@ import {
 
 const MAIN_RUNTIME_READY_TIMEOUT_MS = 120_000;
 const REFERENCE_RUNTIME_READY_TIMEOUT_MS = 120_000;
+/**
+ * How long to wait for Save or an export to become available after a face
+ * loads. They wait for the face's import to finish, which comes seconds after
+ * the runtime reports ready: the bundle's rig graph and poses are imported
+ * into the editor after the face is drawn.
+ */
+export const FACE_IMPORT_TIMEOUT_MS = 120_000;
 
 export function sanitizePresetId(presetId: string): string {
   return presetId.replace(/[:/]/g, "-");

@@ -1,6 +1,7 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { StandardRigInput } from "@vizij/utils";
+import { usePoseRigStore } from "../poseRig/store";
 import type { PoseDefinition } from "../poseRig/types";
 import { PoseRigProvider } from "./PoseRigProvider";
 
@@ -22,6 +23,7 @@ const bindingState = {
   inputValues: {} as Record<string, number>,
   hiddenDriverIds: [] as string[],
   standardInputSchema: null as { id: string; version: string } | null,
+  rigImportRevision: 0,
   handleInputValueChange: vi.fn(),
   applyStandardInputBatch: vi.fn(),
   handleCreateCustomStandardInput: vi.fn(),
@@ -98,6 +100,7 @@ describe("PoseRigProvider pose weight synchronization", () => {
     bindingState.inputValues = {};
     bindingState.hiddenDriverIds = [];
     bindingState.standardInputSchema = null;
+    bindingState.rigImportRevision = 0;
     bindingState.handleInputValueChange.mockReset();
     bindingState.applyStandardInputBatch.mockReset();
     bindingState.handleCreateCustomStandardInput.mockReset();
@@ -300,6 +303,56 @@ describe("PoseRigProvider pose weight synchronization", () => {
         poseGraphSpec,
         poseConfig: poseConfigDraft,
       });
+    });
+  });
+
+  it("records which rig graph imports the pose rig's inputs hold", async () => {
+    const importedInput = makeInput("mouth_smile", "/mouth/smile");
+    bindingState.standardInputs = [importedInput];
+    bindingState.standardInputsByPath = new Map([
+      [importedInput.path, importedInput],
+    ]);
+    bindingState.managedStandardInputs = [
+      { input: importedInput, source: "custom" },
+    ];
+    bindingState.rigImportRevision = 2;
+
+    function PoseRigInputs() {
+      const inputIds = usePoseRigStore((state) =>
+        state.standardInputs.map((input) => input.id).join(","),
+      );
+      const revision = usePoseRigStore(
+        (state) => state.syncedRigImportRevision,
+      );
+      return (
+        <div data-testid="pose-rig-inputs">{`${inputIds}@${revision}`}</div>
+      );
+    }
+
+    const { rerender } = render(
+      <PoseRigProvider rootId="root">
+        <PoseRigInputs />
+      </PoseRigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("pose-rig-inputs").textContent).toBe(
+        "mouth_smile@2",
+      );
+    });
+
+    // An import whose inputs equal the previous ones still moves the revision.
+    bindingState.rigImportRevision = 3;
+    rerender(
+      <PoseRigProvider rootId="root">
+        <PoseRigInputs />
+      </PoseRigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("pose-rig-inputs").textContent).toBe(
+        "mouth_smile@3",
+      );
     });
   });
 });

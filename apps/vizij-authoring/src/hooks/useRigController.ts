@@ -1446,6 +1446,15 @@ export function useRigController(
   const autoInputsRef = useRef(autoInputs);
   const [customInputs, setCustomInputs] = useState<StandardRigInput[]>([]);
   const customInputsRef = useRef(customInputs);
+  // Set in the same update as the inputs a rig graph import applies, so the
+  // revision published with the standard inputs says which imports they hold.
+  const rigImportRevisionRef = useRef(0);
+  const [rigImportRevision, setRigImportRevision] = useState(0);
+  const markRigImportApplied = useCallback(() => {
+    rigImportRevisionRef.current += 1;
+    setRigImportRevision(rigImportRevisionRef.current);
+    return rigImportRevisionRef.current;
+  }, []);
   const [selectedStandardInputRoots, setSelectedStandardInputRoots] = useState<
     string[]
   >([]);
@@ -4097,6 +4106,8 @@ export function useRigController(
     debugLog,
     pendingFaceRenameRef,
     setPipelineMetadataV1,
+    markRigImportApplied,
+    rigImportRevisionRef,
     onImportPhaseChange: emitLoadPhase,
   });
 
@@ -4468,6 +4479,7 @@ export function useRigController(
       standardInputs,
       standardInputsById,
       standardInputsByPath,
+      rigImportRevision,
       rigOutputLookup,
       validOutputTargets,
       pipelineMetadataV1: mergedPipelineMetadataV1,
@@ -4588,6 +4600,7 @@ export function useRigController(
     lockedPropsRigInputIds,
     pipelineConfigByInputId,
     mergedPipelineMetadataV1,
+    rigImportRevision,
     rigOutputLookup,
     selectedStandardInputRoots,
     selectedStandardInputSubgroups,

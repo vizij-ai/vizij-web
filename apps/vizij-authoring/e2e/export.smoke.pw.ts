@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   bootAuthoring,
   expectDownload,
+  FACE_IMPORT_TIMEOUT_MS,
   loadMainPreset,
   openAdvancedExportOptions,
   openExportDialog,
@@ -14,7 +15,9 @@ test("export dialog smoke flow @smoke", async ({ page }) => {
   await openExportDialog(page);
   await openAdvancedExportOptions(page);
 
-  await expect(page.getByTestId("export-rig-graph-button")).toBeEnabled();
+  await expect(page.getByTestId("export-rig-graph-button")).toBeEnabled({
+    timeout: FACE_IMPORT_TIMEOUT_MS,
+  });
 
   const download = await expectDownload(page, async () => {
     await page.getByTestId("export-rig-graph-button").click();

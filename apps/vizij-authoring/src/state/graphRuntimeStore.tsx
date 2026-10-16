@@ -52,7 +52,11 @@ export interface GraphRuntimeState {
       faceIdHint?: string;
       poseConfigHint?: PoseRigConfig | null;
     },
-  ) => Promise<{ faceChanged: boolean; importedFaceId: string | null }>;
+  ) => Promise<{
+    faceChanged: boolean;
+    importedFaceId: string | null;
+    inputsRevision: number;
+  }>;
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;
   stageRuntimeInput?: (graphPath: string, value: number) => void;
@@ -120,6 +124,7 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   handleImportGraphSpec: async () => ({
     faceChanged: false,
     importedFaceId: null,
+    inputsRevision: 0,
   }),
   setStoreState: (() => undefined) as unknown as VizijStoreSetter,
   setGraphPlaybackState: noop,

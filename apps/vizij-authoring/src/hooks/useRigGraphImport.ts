@@ -82,7 +82,21 @@ interface UseRigGraphImportOptions {
   }) => Promise<DiscrepancyResolutionResult>;
   alertDialog: (message: string) => void;
   debugLog: (...args: unknown[]) => void;
+  /** Records that an import's inputs were applied; returns the new revision. */
+  markRigImportApplied: () => number;
+  /** The current revision, returned by an import that applies nothing. */
+  rigImportRevisionRef: MutableRefObject<number>;
   onImportPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
+}
+
+interface RigGraphImportResult {
+  faceChanged: boolean;
+  importedFaceId: string | null;
+  /**
+   * The rig import revision of the editor's standard inputs after this import:
+   * the one it applied, or the current one when it applied nothing.
+   */
+  inputsRevision: number;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -354,6 +368,8 @@ export function useRigGraphImport({
   alertDialog,
   debugLog,
   pendingFaceRenameRef,
+  markRigImportApplied,
+  rigImportRevisionRef,
   onImportPhaseChange,
 }: UseRigGraphImportOptions & {
   pendingFaceRenameRef: MutableRefObject<string | null>;
@@ -374,7 +390,7 @@ export function useRigGraphImport({
         faceIdHint?: string;
         poseConfigHint?: PoseConfigSnapshot | null;
       },
-    ): Promise<{ faceChanged: boolean; importedFaceId: string | null }> => {
+    ): Promise<RigGraphImportResult> => {
       try {
         const poseConfigForRebuild =
           options?.poseConfigHint === undefined
@@ -688,7 +704,11 @@ export function useRigGraphImport({
           debugLog("skip discrepancy – signature accepted previously", {
             signatureKey,
           });
-          return { faceChanged: false, importedFaceId: importedFaceId ?? null };
+          return {
+            faceChanged: false,
+            importedFaceId: importedFaceId ?? null,
+            inputsRevision: rigImportRevisionRef.current,
+          };
         }
 
         let discrepancyResult: DiscrepancyResolutionResult | null = null;
@@ -835,7 +855,11 @@ export function useRigGraphImport({
               stepId: "rig-import-normalization",
               status: "error",
             });
-            return { faceChanged: false, importedFaceId: null };
+            return {
+              faceChanged: false,
+              importedFaceId: null,
+              inputsRevision: rigImportRevisionRef.current,
+            };
           }
         }
 
@@ -893,6 +917,7 @@ export function useRigGraphImport({
         setPipelineMetadataV1(importedPipelineMetadataV1);
         setSelectedStandardInputRoots([]);
         setSelectedStandardInputSubgroups([]);
+        const inputsRevision = markRigImportApplied();
         setTimeout(() => {
           skipPersistRef.current = false;
         }, 0);
@@ -918,6 +943,7 @@ export function useRigGraphImport({
         return {
           faceChanged: faceChangedDuringImport || Boolean(targetFaceId),
           importedFaceId: targetFaceId ?? importedFaceId ?? null,
+          inputsRevision,
         };
       } catch (error) {
         onImportPhaseChange?.({
@@ -929,7 +955,11 @@ export function useRigGraphImport({
             error instanceof Error ? error.message : String(error)
           }`,
         );
-        return { faceChanged: false, importedFaceId: null };
+        return {
+          faceChanged: false,
+          importedFaceId: null,
+          inputsRevision: rigImportRevisionRef.current,
+        };
       }
     },
     [
@@ -952,6 +982,8 @@ export function useRigGraphImport({
       openDiscrepancyReview,
       alertDialog,
       debugLog,
+      markRigImportApplied,
+      rigImportRevisionRef,
       onImportPhaseChange,
     ],
   );

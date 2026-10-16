@@ -80,6 +80,7 @@ import {
   type EditFocus,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
+import { usePoseRigStore } from "./poseRig/store";
 import {
   InspectorPanel,
   type AnimationInspectorSelection,
@@ -550,11 +551,6 @@ export default function App() {
         sessionToken,
         operationId,
       });
-      if (update.stepId === "bundle-sync" && update.status === "complete") {
-        assetLoader.markFaceLoadMilestone("bundle-synced", {
-          sessionToken,
-        });
-      }
       if (
         update.stepId === "runtime-stabilization" &&
         update.substepId === "settle-recompiles" &&
@@ -958,7 +954,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     setHiddenBundleProceduralTargetIds({});
   }, [rootId]);
 
-  const canExport = Boolean(rootId) && !isLoading;
+  // An export is built from the editor's state, so it waits until the whole
+  // face is in the editor.
+  const canExport = loader.isFaceLoaded;
 
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -1104,6 +1102,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   });
 
   const standardInputCount = poseRig.standardInputs.length;
+  const standardInputsRigImportRevision = usePoseRigStore(
+    (state) => state.syncedRigImportRevision,
+  );
 
   const faceId = useGraphRuntime((state) => state.faceId);
   const animatables = useGraphRuntime((state) => state.animatables);
@@ -3569,6 +3570,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId: loader.rootId,
     loadedBundle: loader.bundle,
     standardInputCount,
+    standardInputsRigImportRevision,
     skipDiscrepancyCheck,
     importGraphSpec: handleImportGraphSpec,
     canImportRigGraph: canImportRigGraphFromBundle,
