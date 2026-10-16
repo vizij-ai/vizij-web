@@ -14,7 +14,8 @@
   and hands each pointer pick to the slot it names.
 - **A face slot, `<Vizij>`.** A `<div>` marking where one face draws on that
   canvas. It renders no canvas of its own, so a page shows any number of faces
-  for the cost of one App.
+  for the cost of one App. Until its face is drawn, it shows a loading view:
+  the runtime's download and start, then the face's own stages.
 - **The loader and the exporter.** `loadGLTF`, `loadGLTFFromBlob` and their
   `WithBundle` forms turn a rigged GLB into the world model; `buildSceneGraph`
   and `exportScene` turn the world model back into GLB bytes. Both run in Node
@@ -35,7 +36,8 @@ binds one to a React tree.
 pnpm add @vizij/render @vizij/runtime three zustand @vizij/utils
 ```
 
-Peer requirements: `@vizij/runtime ^6`, `react >= 18`, `three ^0.170` (the
+Peer requirements: `@vizij/runtime ^6.2` (its `onInitProgress` feeds the
+loading view), `react >= 18`, `three ^0.170` (the
 loader and the exporter), `zustand ^5` (the store). `@vizij/runtime` is a peer
 so that a page resolves one copy of it, and therefore one wasm module.
 
@@ -92,7 +94,7 @@ The canvas's loop reads every slot's rectangle each frame and calls
 alike. `placeVizij` and `drainPicks` act on the whole page, which is why they
 have one caller.
 
-### `<Vizij vizijId className? style? toneMapping? fit? zoom? bounds? showSafeArea? selection? onPick? />`
+### `<Vizij vizijId className? style? toneMapping? fit? zoom? bounds? showSafeArea? selection? onPick? loadingImage? loading? />`
 
 | Prop                 | Effect                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -104,11 +106,70 @@ have one caller.
 | `showSafeArea`       | Outlines the framed bounds (`safeArea(vizijId)`) over the face, as a DOM overlay.                            |
 | `selection`          | The element ids whose outlines glow (`setSelection`). Absent, the slot leaves the face's selection as it is. |
 | `onPick`             | A press on the face: `{ vizijId, elementId }`, `elementId` `null` for a press that hit no element.           |
+| `loadingImage`       | The default loading view's image, in place of the face outline it ships; `null` for none.                    |
+| `loading`            | The slot's own loading view, `(loading: VizijLoading) => ReactNode`; `null` for none.                        |
 
 The slot carries `data-vizij-id` and `data-vizij-ready`, `"true"` once the
 face's scene shows its device's pose — what an e2e test waits on. When a slot
 unmounts, its face is placed on an empty rectangle, where it draws nothing.
 One slot shows a face at a time.
+
+### The loading view
+
+Until its face is first drawn, a slot shows a loading view over its border
+box, centred, in the slot's text colour: an image, a progress bar and a short
+label of the stage. The stages, in order:
+
+| Stage      | Label                                  | Bar           | Reported by                                  |
+| ---------- | -------------------------------------- | ------------- | -------------------------------------------- |
+| `download` | Downloading the runtime: 3.1 of 9.8 MB | the bytes     | `<VizijCanvas>`, from `onInitProgress`       |
+| `compile`  | Compiling the runtime                  | indeterminate | `<VizijCanvas>`, from `onInitProgress`       |
+| `start`    | Starting the runtime                   | indeterminate | `<VizijCanvas>`, from `onInitProgress`       |
+| `mount`    | Starting the view                      | indeterminate | `<VizijCanvas>`, until `mount` resolves      |
+| `fetch`    | Loading the face: 1.2 of 4.0 MB        | the bytes     | the face's loader, `setVizijProgress`        |
+| `load`     | Loading the face                       | indeterminate | the face's loader; the default after `mount` |
+| `draw`     | Drawing the face                       | indeterminate | the face's loader                            |
+| `failed`   | Loading failed                         | none          | `<VizijCanvas>` or the face's loader         |
+
+Without a known total, a byte count reads "3.1 MB" and its bar is
+indeterminate; before any byte, the label has no count. A failure shows first;
+the runtime's stages show before the face's, which wait on them. The view
+hides once the canvas's loop reads the face ready (`data-vizij-ready="true"`),
+and stays hidden through a reload, whose previous scene draws until the new
+one is ready.
+
+- **The face's stages** are reported by whoever loads the face, keyed by its
+  id: `setVizijProgress(vizijId, progress)`, with `progress` a
+  `VizijProgress` — `{ stage: "fetch", loaded, total }` (`total` `null` when
+  unknown), `{ stage: "load" }`, `{ stage: "draw" }` or
+  `{ stage: "failed", error }`. `@vizij/runtime-react`'s provider reports its
+  face. A page that calls `loadVizij` itself reports the same way, or leaves
+  its slot at "Loading the face" until the face is drawn. `null` says no face
+  is loaded under the id any more, and its slot shows the loading view again.
+- **Its image:** `loadingImage` replaces the face outline the view ships (a
+  small inline SVG drawn in the text colour); `null` leaves the image out.
+- **Its whole element:** `loading` is called with a `VizijLoading` —
+  `{ stage, label, fraction }`, `fraction` from 0 to 1 for a byte count with
+  a known total and `null` otherwise — and its result is shown over the slot
+  in place of the default view. `loading={null}` shows none.
+
+```tsx
+<Vizij vizijId="quori" loadingImage={<img src="/logo.svg" alt="" />} />
+<Vizij
+  vizijId="quori"
+  loading={({ label, fraction }) => (
+    <Spinner label={label} value={fraction ?? undefined} />
+  )}
+/>
+```
+
+The default bar is a `role="progressbar"` named "Loading the face", its
+`aria-valuetext` the label, and its `aria-valuenow` the percentage when the
+stage has a fraction (indeterminate otherwise); a failure is a
+`role="status"`. The view is a DOM overlay inside the slot, with pointer
+events off, so it shows wherever the canvas draws nothing — the whole slot
+until its face draws. `<VizijCanvas>` shows no loading view of its own: by default it
+covers the whole page, and every slot already shows the runtime's stages.
 
 ### Loading and exporting
 
@@ -157,8 +218,10 @@ pnpm --filter "@vizij/render" size
 ```
 
 The tests run on Node (`node --test`): the loader, the headless export round
-trip of the shipped faces and of an ellipse and a rectangle, and the canvas's
-frame loop. `size-limit` guards the bundle size.
+trip of the shipped faces and of an ellipse and a rectangle, the canvas's frame
+loop, and the loading view's stages, labels and overrides, against a stand-in of
+`@vizij/runtime` (`tests/runtime-stand-in.mjs`). `size-limit` guards the bundle
+size.
 
 ---
 
