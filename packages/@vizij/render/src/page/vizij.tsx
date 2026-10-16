@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   setSelection,
@@ -10,6 +10,8 @@ import {
 } from "@vizij/runtime";
 import { addSlot, canvasMounted } from "./canvas";
 import type { Slot } from "./frame";
+import { DefaultLoading, describeLoading, type VizijLoading } from "./loading";
+import { watchLoading, loadingStage, type LoadingStage } from "./progress";
 
 export interface VizijProps {
   /** The face this slot shows: the id it is loaded under (`loadVizij`). */
@@ -35,6 +37,13 @@ export interface VizijProps {
   /** A press on the face: the element under the pointer, or `null` for a
    * press that hit none. Picks need pointer events on the canvas. */
   onPick?: (pick: Pick) => void;
+  /** The image of the default loading view, in place of the face outline
+   * `@vizij/render` ships; `null` for none. */
+  loadingImage?: ReactNode;
+  /** The slot's own loading view, in place of the default: called with the
+   * stage, its label and its fraction while the face is not drawn. `null`
+   * shows none. */
+  loading?: ((loading: VizijLoading) => ReactNode) | null;
 }
 
 /**
@@ -45,6 +54,11 @@ export interface VizijProps {
  *
  * The element carries `data-vizij-id`, and `data-vizij-ready` — `"true"`
  * once the face's scene shows its device's pose (`ready(vizijId)`).
+ *
+ * Until its face is first drawn, the slot shows a loading view over its
+ * border box: the runtime's stages, then the face's (`setVizijProgress`).
+ * The view is a DOM overlay in the slot: under a canvas laid over the page,
+ * it shows wherever the canvas draws nothing.
  */
 export function Vizij({
   vizijId,
@@ -57,6 +71,8 @@ export function Vizij({
   showSafeArea = false,
   selection,
   onPick,
+  loadingImage,
+  loading,
 }: VizijProps): ReactNode {
   const element = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -109,6 +125,14 @@ export function Vizij({
     [vizijId, selected],
   );
 
+  const stage = useLoadingStage(vizijId);
+  const loadingView =
+    stage === null || loading === null ? null : loading ? (
+      loading(describeLoading(stage))
+    ) : (
+      <DefaultLoading loading={describeLoading(stage)} image={loadingImage} />
+    );
+
   return (
     <div
       ref={element}
@@ -116,7 +140,7 @@ export function Vizij({
       style={style}
       data-vizij-id={vizijId}
     >
-      {showSafeArea && (
+      {(showSafeArea || loadingView !== null) && (
         <div
           ref={frame}
           style={{
@@ -126,19 +150,36 @@ export function Vizij({
             pointerEvents: "none",
           }}
         >
-          <div
-            ref={outline}
-            style={{
-              position: "absolute",
-              display: "none",
-              boxSizing: "border-box",
-              border: "2px solid red",
-            }}
-          />
+          {loadingView !== null && (
+            <div
+              data-vizij-loading=""
+              style={{ position: "absolute", inset: 0 }}
+            >
+              {loadingView}
+            </div>
+          )}
+          {showSafeArea && (
+            <div
+              ref={outline}
+              style={{
+                position: "absolute",
+                display: "none",
+                boxSizing: "border-box",
+                border: "2px solid red",
+              }}
+            />
+          )}
         </div>
       )}
     </div>
   );
+}
+
+/** The stage face `vizijId`'s slot shows, `null` once the face is drawn. */
+function useLoadingStage(vizijId: string): LoadingStage | null {
+  const [stage, setStage] = useState(() => loadingStage(vizijId));
+  useEffect(() => watchLoading(vizijId, setStage), [vizijId]);
+  return stage;
 }
 
 /** Run `apply` once the page's canvas is mounted, unless the returned

@@ -2,13 +2,16 @@ import { useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   drainPicks,
+  init,
   mount,
+  onInitProgress,
   placeVizij,
   ready,
   safeArea,
   type MountOptions,
 } from "@vizij/runtime";
 import { frame, type Slot } from "./frame";
+import { setRuntimeStage } from "./progress";
 
 /** The page's canvas: created once, mounted once, kept for the page's
  * lifetime — `@vizij/runtime` runs one App per page. */
@@ -23,6 +26,10 @@ let settle: {
 const mounted = new Promise<HTMLCanvasElement>((resolve, reject) => {
   settle = { resolve, reject };
 });
+
+/** How long the canvas waits for a frame to paint the loading views' stage
+ * before a call that holds the main thread. */
+const PAINT_WAIT_MS = 100;
 
 /** The mounted `<Vizij>` slots. */
 const slots = new Set<Slot>();
@@ -82,10 +89,7 @@ export function VizijCanvas({
     const shown = pageCanvas();
     element.appendChild(shown);
     if (!mounting) {
-      mounting = mount(shown, firstOptions.current).then(() => {
-        live = true;
-        return shown;
-      });
+      mounting = mountOnce(shown, firstOptions.current);
       mounting.then(settle.resolve, settle.reject);
     }
     hosts += 1;
@@ -110,6 +114,58 @@ export function VizijCanvas({
       style={style ?? (className ? undefined : DEFAULT_STYLE)}
     />
   );
+}
+
+/**
+ * Mount the page's App on `shown`, feeding the slots' loading views the
+ * runtime's stages: `init()`'s, then `mount`, which builds the App once
+ * `init()` has resolved.
+ *
+ * `mount` and the faces' `loadVizij` hold the main thread while they run, so
+ * a stage set just before one of them would never be painted: the browser
+ * gets a frame to paint "Starting the view" before `mount`, and the faces'
+ * own stages before `canvasMounted()` resolves and their loads start.
+ */
+async function mountOnce(
+  shown: HTMLCanvasElement,
+  options: MountOptions | undefined,
+): Promise<HTMLCanvasElement> {
+  const unfollow = onInitProgress((progress) => {
+    setRuntimeStage(progress.stage === "ready" ? { stage: "mount" } : progress);
+  });
+  try {
+    await init();
+    await afterPaint();
+    await mount(shown, options);
+  } catch (error) {
+    setRuntimeStage({ stage: "failed", error: asError(error) });
+    throw error;
+  } finally {
+    unfollow();
+  }
+  live = true;
+  setRuntimeStage(null);
+  await afterPaint();
+  return shown;
+}
+
+/** Resolves once the browser has had a frame to paint what was rendered
+ * before the call, or after {@link PAINT_WAIT_MS} where no frame comes, as
+ * on a hidden page. */
+function afterPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, PAINT_WAIT_MS);
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        clearTimeout(timer);
+        resolve();
+      }, 0),
+    );
+  });
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function pageCanvas(): HTMLCanvasElement {

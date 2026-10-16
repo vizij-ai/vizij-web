@@ -1,4 +1,5 @@
 import type { Pick, Rect } from "@vizij/runtime";
+import { markDrawn } from "./progress";
 
 /** A mounted `<Vizij>`: where face `vizijId` draws on the page. */
 export interface Slot {
@@ -23,9 +24,9 @@ export interface FrameView {
 
 /**
  * One animation frame of the page's canvas: each slot's face placed over the
- * slot's rectangle when it moved, its `data-vizij-ready` and safe-area
- * outline brought up to date, then the page's picks handed to the slots they
- * name.
+ * slot's rectangle when it moved, its `data-vizij-ready`, loading view and
+ * safe-area outline brought up to date, then the page's picks handed to the
+ * slots they name.
  *
  * Reading every rectangle each frame follows scrolling, resizes and layout
  * shifts alike.
@@ -44,9 +45,10 @@ export function frame(
       view.placeVizij(slot.vizijId, rect);
       slot.placed = rect;
     }
-    const ready = String(view.ready(slot.vizijId));
-    if (slot.element.getAttribute("data-vizij-ready") !== ready) {
-      slot.element.setAttribute("data-vizij-ready", ready);
+    const ready = view.ready(slot.vizijId);
+    if (ready) markDrawn(slot.vizijId);
+    if (slot.element.getAttribute("data-vizij-ready") !== String(ready)) {
+      slot.element.setAttribute("data-vizij-ready", String(ready));
     }
     if (slot.safeArea) {
       outline(slot.safeArea, view.safeArea(slot.vizijId), origin);
