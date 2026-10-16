@@ -480,8 +480,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0(@react-three/drei@10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@types/react@19.2.9)(@types/three@0.170.0)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(three@0.170.0)(zustand@5.0.9(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@vizij/runtime':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^6.2.0
+        version: 6.2.0
       '@vizij/runtime-react':
         specifier: ^0.4.1
         version: 0.4.1(@react-three/drei@10.7.7(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@types/react@19.2.9)(@types/three@0.170.0)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(@react-three/fiber@9.5.0(@types/react@19.2.9)(immer@10.2.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(three@0.170.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tailwindcss@4.1.18)(three@0.170.0)(zustand@5.0.9(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
@@ -3500,9 +3500,6 @@ packages:
 
   '@vizij/runtime@2.4.0':
     resolution: {integrity: sha512-+BA6bxpvjOvHueZyRgHo6Z8f+9fbK2xuVgPiwXaE+fZQVE02Qf8gKkpWWQpUrWXphVK5JlwRtbdOLigVz8RClw==}
-
-  '@vizij/runtime@3.0.0':
-    resolution: {integrity: sha512-JKOEquvxuOlUMb9Z5NucL+lD1jAOi6CSF6ahwI2hAtOy/k1cEv3puYs55/FvE1jzp17MIliZlB+qZZwmfxabjQ==}
 
   '@vizij/runtime@6.2.0':
     resolution: {integrity: sha512-T5SYItTdr0pkseR6t7D+N9SV9W23na3/EiAIDEzTwOvk+IHydxKnuxlUUhcFL5pV+0xqeqG5oejH6tx8mghNsg==}
@@ -9035,11 +9032,6 @@ snapshots:
       - zustand
 
   '@vizij/runtime@2.4.0':
-    dependencies:
-      '@vizij/value-json': 0.2.0
-      '@vizij/wasm-loader': 0.1.5
-
-  '@vizij/runtime@3.0.0':
     dependencies:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
