@@ -298,10 +298,60 @@ function isRectangleFeatures(
   }
 }
 
+/**
+ * Half the extent of the unit shape an `ellipse` or a `rectangle` element is
+ * drawn from, along its node's X and Y: a circle of radius 1 and a 1 × 1
+ * square in the XY plane, which the node's scale stretches to the element's
+ * `width` and `height`.
+ */
+const PRIMITIVE_HALF_EXTENT: Readonly<Record<string, number>> = {
+  ellipse: 1,
+  rectangle: 0.5,
+};
+
+/**
+ * Grow `box` by every `ellipse` and `rectangle` node under `root`: such a
+ * node carries no mesh — the renderer draws it from its RobotData — so its
+ * extent is its unit shape under its world matrix. An ellipse grows the box
+ * by its exact extent; a rectangle by its four corners'.
+ */
+function expandByPrimitives(box: THREE.Box3, root: Object3D): void {
+  const center = new THREE.Vector3();
+  const half = new THREE.Vector3();
+  root.traverse((object) => {
+    if ((object as Mesh).isMesh) {
+      return;
+    }
+    const type = object.userData?.gltfExtensions?.RobotData?.type;
+    const extent =
+      typeof type === "string" ? PRIMITIVE_HALF_EXTENT[type] : undefined;
+    if (extent === undefined) {
+      return;
+    }
+    // Columns 0 and 1 of the world matrix carry the node's X and Y axes.
+    const e = object.matrixWorld.elements;
+    const along =
+      type === "ellipse"
+        ? (a: number, b: number) => Math.hypot(a, b)
+        : (a: number, b: number) => Math.abs(a) + Math.abs(b);
+    half.set(along(e[0], e[4]), along(e[1], e[5]), along(e[2], e[6]));
+    half.multiplyScalar(extent);
+    center.setFromMatrixPosition(object.matrixWorld);
+    box.expandByPoint(center.clone().sub(half));
+    box.expandByPoint(center.clone().add(half));
+  });
+}
+
+/**
+ * The bounds of everything under `group` in the XY plane: its meshes, and its
+ * `ellipse` and `rectangle` elements' shapes. `null` when it holds neither.
+ */
 export function deriveRootBounds(
-  group: Group,
+  group: Object3D,
 ): { center: RawVector2; size: RawVector2 } | null {
   const boundingBox = new THREE.Box3().setFromObject(group);
+  // `setFromObject` has brought every world matrix under `group` up to date.
+  expandByPrimitives(boundingBox, group);
   if (boundingBox.isEmpty()) {
     return null;
   }
