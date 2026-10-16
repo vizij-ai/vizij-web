@@ -816,6 +816,9 @@ importers:
       '@types/react':
         specifier: ^19.2.7
         version: 19.2.9
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.9)
       '@types/three':
         specifier: ^0.170.0
         version: 0.170.0
@@ -828,6 +831,9 @@ importers:
       react:
         specifier: ^19.2.3
         version: 19.2.3
+      react-dom:
+        specifier: ^19.2.3
+        version: 19.2.3(react@19.2.3)
       size-limit:
         specifier: ^11.1.7
         version: 11.2.0

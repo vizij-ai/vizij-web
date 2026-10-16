@@ -20,6 +20,12 @@ const WORKSPACE_UTILS_ENTRY = pathToFileURL(
   fileURLToPath(new URL("../../utils/src/index.ts", import.meta.url)),
 ).href;
 
+// The page components run against a stand-in of `@vizij/runtime`'s view: the
+// wasm module needs a browser.
+const RUNTIME_STAND_IN = pathToFileURL(
+  fileURLToPath(new URL("./runtime-stand-in.mjs", import.meta.url)),
+).href;
+
 function isTypeScriptSpecifier(specifier) {
   try {
     const { pathname } = new URL(specifier);
@@ -74,6 +80,10 @@ export async function resolve(specifier, context, defaultResolve) {
       format: "module",
       shortCircuit: true,
     };
+  }
+
+  if (specifier === "@vizij/runtime") {
+    return { url: RUNTIME_STAND_IN, format: "module", shortCircuit: true };
   }
 
   if (isTypeScriptSpecifier(specifier)) {
