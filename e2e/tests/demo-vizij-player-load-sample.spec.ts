@@ -77,7 +77,10 @@ test("demo-vizij-player shows the sample, drives its rig and plays an animation"
     .getByRole("button", { name: /^Play / })
     .first()
     .click();
-  await expect(firstAnimation).toHaveText("playing", { timeout: 10_000 });
+  // Play is three calls (seek, set_weight, play), each landing at a device
+  // step, and the players' state reads back at a later one. The device steps
+  // once per drawn frame, about one a second under SwiftShader.
+  await expect(firstAnimation).toHaveText("playing", { timeout: 60_000 });
 
   expect(
     runtimeErrors,
