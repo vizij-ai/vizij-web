@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 const serverMode =
   process.env.VIZIJ_E2E_SERVER_MODE === "dev" ? "dev" : "preview";
-const port = serverMode === "dev" ? 4176 : 4175;
+const port = offsetPort(serverMode === "dev" ? 4176 : 4175);
 const host = "127.0.0.1";
 const baseURL = `http://${host}:${port}`;
 
@@ -56,11 +56,28 @@ export default defineConfig({
   webServer: {
     command:
       serverMode === "dev"
-        ? `NODE_ENV=development pnpm --filter vizij-authoring dev --host ${host} --port ${port}`
-        : `pnpm --filter vizij-authoring build && pnpm --filter vizij-authoring preview --host ${host} --port ${port}`,
+        ? `NODE_ENV=development pnpm --filter vizij-authoring dev --host ${host} --port ${port} --strictPort`
+        : `pnpm --filter vizij-authoring build && pnpm --filter vizij-authoring preview --host ${host} --port ${port} --strictPort`,
     cwd: "../..",
     url: baseURL,
     timeout: 120_000,
-    reuseExistingServer: !process.env.CI,
+    // A server already answering on the port fails the run unless reuse is
+    // asked for: it may be another checkout's, serving another build.
+    reuseExistingServer: process.env.VIZIJ_E2E_REUSE_SERVER === "1",
   },
 });
+
+/**
+ * `base` shifted by `VIZIJ_E2E_PORT_OFFSET` (default 0), so that checkouts
+ * running this suite at the same time each serve on their own port.
+ */
+function offsetPort(base: number): number {
+  const raw = process.env.VIZIJ_E2E_PORT_OFFSET ?? "0";
+  const port = base + Number(raw);
+  if (!/^\d+$/.test(raw) || port > 65_535) {
+    throw new Error(
+      `VIZIJ_E2E_PORT_OFFSET must be a non-negative integer that keeps port ${base} within 65535, got "${raw}"`,
+    );
+  }
+  return port;
+}

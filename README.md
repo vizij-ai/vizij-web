@@ -16,9 +16,10 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via th
 6. [Local WASM Development](#local-wasm-development)
 7. [Development Tips](#development-tips)
 8. [Validation Workflow](#validation-workflow)
-9. [Publishing & Versioning](#publishing--versioning)
-10. [Deployments](#deployments)
-11. [Related Repositories](#related-repositories)
+9. [End-to-end Tests](#end-to-end-tests)
+10. [Publishing & Versioning](#publishing--versioning)
+11. [Deployments](#deployments)
+12. [Related Repositories](#related-repositories)
 
 ---
 
@@ -261,6 +262,30 @@ To ensure your git hooks are correctly installed, run:
 ```
 
 If the check fails, run `./scripts/install-git-hooks.sh` to fix it.
+
+## End-to-end Tests
+
+Two Playwright suites, each starting the servers it tests. Both need `pnpm run build:packages` first.
+
+| Suite                                                              | Command                                                                     | Serves on                                                                                                           |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Authoring ([`apps/vizij-authoring/e2e`](apps/vizij-authoring/e2e)) | `pnpm --filter vizij-authoring test:e2e:smoke` (`test:e2e` adds `workflow`) | `4175`, a preview of a fresh build; `4176`, a dev server, with `VIZIJ_E2E_SERVER_MODE=dev`                          |
+| Workspace and standalone demos ([`e2e/`](e2e))                     | `pnpm run e2e` (`e2e:heavy` adds the journeys)                              | `5199` for authoring, then one port per demo in [`e2e/standalone-demos.ts`](e2e/standalone-demos.ts), `5200`–`5203` |
+
+Two variables keep a run on servers it started itself:
+
+- **`VIZIJ_E2E_PORT_OFFSET`** (default `0`) is added to every port above. Checkouts that run e2e at the same time each need their own offset; give each worktree a multiple of 100, which keeps every port of one checkout clear of every port of another:
+
+  ```bash
+  # in one worktree
+  pnpm --filter vizij-authoring test:e2e:smoke
+  # in another, at the same time
+  VIZIJ_E2E_PORT_OFFSET=100 pnpm --filter vizij-authoring test:e2e:smoke
+  ```
+
+  Specs reach their servers through the configs' `baseURL` and `e2e/standalone-demos.ts`, which apply the offset. A new server or a spec that builds a URL takes its port from those, never from a literal, or it stops following the offset.
+
+- **`VIZIJ_E2E_REUSE_SERVER=1`** lets a run test a server that already answers on its port instead of starting one. Without it, a port already in use fails the run (`http://127.0.0.1:4175 is already used`), because the server holding it may belong to another checkout and serve another build. Set it only for a server you started from the same checkout, such as a dev server you are iterating against.
 
 ## Publishing & Versioning
 
