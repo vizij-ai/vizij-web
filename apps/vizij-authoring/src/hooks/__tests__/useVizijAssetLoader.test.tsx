@@ -186,4 +186,86 @@ describe("useVizijAssetLoader", () => {
     expect(result.current.bundle).toBeNull();
     expect(addWorldElementsMock).not.toHaveBeenCalled();
   });
+
+  it("reports a face loaded only once its import session completes", async () => {
+    const { result } = renderHook(() => useVizijAssetLoader());
+    expect(result.current.isFaceLoaded).toBe(false);
+
+    let first!: string;
+    act(() => {
+      first = result.current.beginImportFlow("first.glb");
+    });
+    await act(async () => {
+      await result.current.loadVizij(
+        () => Promise.resolve(createLoadedAsset("root-first")),
+        "first.glb",
+        { sessionToken: first },
+      );
+    });
+
+    // The asset is read; its bundle has yet to reach the editor.
+    expect(result.current.rootId).toBe("root-first");
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isFaceLoaded).toBe(false);
+
+    act(() => {
+      result.current.completeImportFlow({ sessionToken: first });
+    });
+    expect(result.current.isFaceLoaded).toBe(true);
+
+    // A new import begins: the previous face is still shown, but it is no
+    // longer the face being loaded.
+    act(() => {
+      result.current.beginImportFlow("second.glb");
+    });
+    expect(result.current.rootId).toBe("root-first");
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isFaceLoaded).toBe(false);
+  });
+
+  it("marks the bundle synced when the bundle-sync step completes, not one of its substeps", async () => {
+    const { result } = renderHook(() => useVizijAssetLoader());
+
+    let sessionToken!: string;
+    act(() => {
+      sessionToken = result.current.beginImportFlow("face.glb");
+    });
+    await act(async () => {
+      await result.current.loadVizij(
+        () => Promise.resolve(createLoadedAsset("root-face")),
+        "face.glb",
+        { sessionToken },
+      );
+    });
+    expect(result.current.faceLoadMilestones["asset-loaded"]).not.toBeNull();
+
+    act(() => {
+      result.current.updateExternalPhase({
+        stepId: "bundle-sync",
+        status: "active",
+        sessionToken,
+      });
+      result.current.updateExternalPhase({
+        stepId: "bundle-sync",
+        substepId: "import-rig-graph",
+        status: "complete",
+        sessionToken,
+      });
+      result.current.updateExternalPhase({
+        stepId: "rig-import-normalization",
+        status: "complete",
+        sessionToken,
+      });
+    });
+    expect(result.current.faceLoadMilestones["bundle-synced"]).toBeNull();
+
+    act(() => {
+      result.current.updateExternalPhase({
+        stepId: "bundle-sync",
+        status: "complete",
+        sessionToken,
+      });
+    });
+    expect(result.current.faceLoadMilestones["bundle-synced"]).not.toBeNull();
+  });
 });

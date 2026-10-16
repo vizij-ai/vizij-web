@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VizijBundleExtension, VizijStarredItem } from "@vizij/render";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
 import type { PoseRigConfigFile } from "../poseRig/types";
@@ -25,6 +25,11 @@ interface UseBundleSynchronizerOptions {
   rootId: string | null;
   loadedBundle: VizijBundleExtension | null;
   standardInputCount: number;
+  /**
+   * The rig import revision the pose rig's standard inputs hold (see
+   * `PoseRigState.syncedRigImportRevision`).
+   */
+  standardInputsRigImportRevision: number;
   skipDiscrepancyCheck: boolean;
   importGraphSpec: (
     spec: GraphSpec,
@@ -32,6 +37,8 @@ interface UseBundleSynchronizerOptions {
   ) => Promise<{
     faceChanged: boolean;
     importedFaceId: string | null;
+    /** The rig import revision of the inputs once this import returns. */
+    inputsRevision: number;
   } | void>;
   canImportRigGraph?: boolean;
   adoptFaceId?: (nextFaceId: string) => void;
@@ -153,6 +160,7 @@ export function useBundleSynchronizer({
   rootId,
   loadedBundle,
   standardInputCount,
+  standardInputsRigImportRevision,
   skipDiscrepancyCheck,
   importGraphSpec,
   canImportRigGraph,
@@ -178,6 +186,13 @@ export function useBundleSynchronizer({
   const importedFaceIdByFingerprintRef = useRef<Map<string, string | null>>(
     new Map(),
   );
+  const rigInputsRevisionByFingerprintRef = useRef<Map<string, number>>(
+    new Map(),
+  );
+  // Bumped when an import finishes in a run that a newer run superseded. The
+  // newer run found that import in flight and left the next stage to it, so
+  // the sync re-runs here rather than waiting for an unrelated change.
+  const [supersededImportRevision, setSupersededImportRevision] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,6 +229,7 @@ export function useBundleSynchronizer({
         inflightPoseFingerprintsRef.current.clear();
         poseResetKeysRef.current.clear();
         importedFaceIdByFingerprintRef.current.clear();
+        rigInputsRevisionByFingerprintRef.current.clear();
         return;
       }
 
@@ -233,6 +249,7 @@ export function useBundleSynchronizer({
           resetPoseState();
         }
         importedFaceIdByFingerprintRef.current.clear();
+        rigInputsRevisionByFingerprintRef.current.clear();
 
         emitPhase({
           stepId: "bundle-sync",
@@ -381,6 +398,10 @@ export function useBundleSynchronizer({
             poseConfigHint: asPoseRigConfigFile(loadedBundle.poses?.config),
           });
           importedFaceIdFromRig = result?.importedFaceId ?? null;
+          rigInputsRevisionByFingerprintRef.current.set(
+            fingerprint,
+            result?.inputsRevision ?? 0,
+          );
           importedRigFingerprintsRef.current.add(fingerprint);
           importedFaceIdByFingerprintRef.current.set(
             fingerprint,
@@ -403,6 +424,9 @@ export function useBundleSynchronizer({
           );
         } finally {
           inflightRigFingerprintsRef.current.delete(fingerprint);
+          if (cancelled) {
+            setSupersededImportRevision((revision) => revision + 1);
+          }
         }
         if (cancelled) {
           return;
@@ -429,8 +453,19 @@ export function useBundleSynchronizer({
         }
       }
 
-      if (standardInputCount === 0) {
-        if (rigComplete) {
+      // The pose config is normalized against the pose rig's inputs, so it is
+      // imported once they are the face's: after a rig graph import, once the
+      // inputs it brings have reached the pose rig (which holds the face's
+      // earlier inputs until then); without one, once there are any. The
+      // bundle is not synced until the pose config is imported.
+      const rigInputsRevision =
+        rigInputsRevisionByFingerprintRef.current.get(fingerprint);
+      const poseInputsReady =
+        rigInputsRevision === undefined
+          ? standardInputCount > 0
+          : standardInputsRigImportRevision >= rigInputsRevision;
+      if (!poseInputsReady) {
+        if (rigComplete && !loadedBundle.poses?.config) {
           emitPhase({
             stepId: "bundle-sync",
             status: "complete",
@@ -487,6 +522,9 @@ export function useBundleSynchronizer({
           );
         } finally {
           inflightPoseFingerprintsRef.current.delete(fingerprint);
+          if (cancelled) {
+            setSupersededImportRevision((revision) => revision + 1);
+          }
         }
         if (cancelled) {
           return;
@@ -522,6 +560,8 @@ export function useBundleSynchronizer({
     rootId,
     skipDiscrepancyCheck,
     standardInputCount,
+    standardInputsRigImportRevision,
+    supersededImportRevision,
   ]);
 
   // Mirror the starred set from the loaded glb — the bundle is the single

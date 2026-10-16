@@ -558,6 +558,11 @@ export interface PoseRigState {
   neutralMode: "face-default" | "explicit";
   currentValues: Record<StandardInputId, number>;
   standardInputs: StandardRigInput[];
+  /**
+   * The binding store's `rigImportRevision` when `standardInputs` were last
+   * synced from it: these inputs hold every rig graph import up to it.
+   */
+  syncedRigImportRevision: number;
   poses: PoseDefinition[];
   hiddenInputIds: string[];
 
@@ -738,6 +743,7 @@ const defaultState: Omit<
   neutralMode: "face-default",
   currentValues: {},
   standardInputs: [],
+  syncedRigImportRevision: 0,
   poses: [],
   hiddenInputIds: [],
   selectedPoseId: NEUTRAL_POSE_ID,
