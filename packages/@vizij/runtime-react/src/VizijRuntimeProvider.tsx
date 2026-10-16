@@ -9,7 +9,7 @@ import {
   type VizijDescription,
   type VizijOptions,
 } from "@vizij/runtime";
-import { canvasMounted } from "@vizij/render";
+import { canvasMounted, setVizijProgress } from "@vizij/render";
 import {
   VizijChangeContext,
   VizijRuntimeContext,
@@ -77,6 +77,10 @@ interface Loaded {
  * net change since the previous drain, however long ago that was. The first
  * batch after a (re)load is the whole store.
  *
+ * It reports the face's stages to `@vizij/render` (`setVizijProgress`), for
+ * the loading view of the face's slot: the GLB's bytes as they arrive, then
+ * `loadVizij`, then the face's first frame. Unloading the face clears them.
+ *
  * Showing the face is the page's `<Vizij>` slot, bound to this provider by
  * `<VizijRuntimeFace>`.
  */
@@ -120,16 +124,18 @@ export function VizijRuntimeProvider({
   // Unmounting, or moving to another id, takes the face down.
   useEffect(
     () => () => {
-      queue.current = queue.current.then(() => {
-        const runtime = current.current;
-        if (!runtime) return;
-        current.current = null;
-        tweens.cancelAll();
-        runtime.stop();
-        unloadVizij(vizijId);
-        runtime.dispose();
-        setLoaded((previous) => ({ ...previous, runtime: null }));
-      });
+      queue.current = queue.current
+        .then(() => {
+          const runtime = current.current;
+          if (!runtime) return;
+          current.current = null;
+          tweens.cancelAll();
+          runtime.stop();
+          unloadVizij(vizijId);
+          runtime.dispose();
+          setLoaded((previous) => ({ ...previous, runtime: null }));
+        })
+        .finally(() => setVizijProgress(vizijId, null));
     },
     [vizijId, tweens],
   );
@@ -145,13 +151,20 @@ export function VizijRuntimeProvider({
         error: null,
       }));
       try {
-        const bytes = await bytesOf(latest.current.glb);
+        const bytes = await bytesOf(latest.current.glb, (loaded, total) => {
+          if (!load.cancelled) {
+            setVizijProgress(vizijId, { stage: "fetch", loaded, total });
+          }
+        });
+        if (load.cancelled) return;
+        setVizijProgress(vizijId, { stage: "load" });
         const description = await describe(bytes);
         if (load.cancelled) return;
         setLoaded((previous) => ({ ...previous, description }));
         await canvasMounted();
         if (load.cancelled) return;
         const next = await loadVizij(vizijId, bytes, latest.current.options);
+        setVizijProgress(vizijId, { stage: "draw" });
         const previous = current.current;
         current.current = next;
         if (previous) {
@@ -165,11 +178,10 @@ export function VizijRuntimeProvider({
         setLoaded((state) => ({ ...state, status: "ready" }));
       } catch (error) {
         if (load.cancelled) return;
-        setLoaded((state) => ({
-          ...state,
-          status: "error",
-          error: error instanceof Error ? error : new Error(String(error)),
-        }));
+        const failure =
+          error instanceof Error ? error : new Error(String(error));
+        setVizijProgress(vizijId, { stage: "failed", error: failure });
+        setLoaded((state) => ({ ...state, status: "error", error: failure }));
       }
     });
     return () => {
@@ -290,7 +302,12 @@ export function VizijRuntimeProvider({
   );
 }
 
-async function bytesOf(glb: VizijSource): Promise<Uint8Array> {
+/** The GLB's bytes; a URL is fetched, with `progress` told the bytes
+ * received so far and the total, `null` while it is unknown. */
+async function bytesOf(
+  glb: VizijSource,
+  progress: (loaded: number, total: number | null) => void,
+): Promise<Uint8Array> {
   if (glb instanceof Uint8Array) return glb;
   if (glb instanceof ArrayBuffer) return new Uint8Array(glb);
   if (glb instanceof Blob) return new Uint8Array(await glb.arrayBuffer());
@@ -298,5 +315,39 @@ async function bytesOf(glb: VizijSource): Promise<Uint8Array> {
   if (!response.ok) {
     throw new Error(`Fetching ${String(glb)}: ${response.status}`);
   }
-  return new Uint8Array(await response.arrayBuffer());
+  let total = declaredLength(response);
+  progress(0, total);
+  if (!response.body) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    progress(bytes.byteLength, total);
+    return bytes;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.byteLength;
+    // A body longer than its declared length was declared compressed.
+    if (total !== null && loaded > total) total = null;
+    progress(loaded, total);
+  }
+  const bytes = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+/** The byte count a response announces for its body: `Content-Length`,
+ * unless a `Content-Encoding` says it counts the compressed bytes. */
+function declaredLength(response: Response): number | null {
+  const encoding = response.headers.get("Content-Encoding");
+  if (encoding && encoding.toLowerCase() !== "identity") return null;
+  const length = Number(response.headers.get("Content-Length") ?? NaN);
+  return Number.isFinite(length) && length > 0 ? length : null;
 }

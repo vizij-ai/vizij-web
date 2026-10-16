@@ -68,8 +68,10 @@ const runtime = vi.hoisted(() => ({
   whenReady: vi.fn(),
 }));
 vi.mock("@vizij/runtime", () => runtime);
+const progress = vi.hoisted(() => vi.fn());
 vi.mock("@vizij/render", () => ({
   canvasMounted: () => Promise.resolve({}),
+  setVizijProgress: progress,
   Vizij: ({ vizijId }: { vizijId: string }) => (
     <div data-testid="slot" data-vizij-id={vizijId} />
   ),
@@ -254,6 +256,88 @@ describe("VizijRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.getByTestId("failure").textContent).toBe("error:no rig"),
     );
+  });
+});
+
+describe("the face's stages, for its slot's loading view", () => {
+  /** The stages reported for `vizijId`, in order. */
+  const reported = (vizijId: string) =>
+    progress.mock.calls
+      .filter(([id]) => id === vizijId)
+      .map(([, stage]) => stage);
+
+  it("reports a fetched GLB's bytes, then loadVizij, then its first frame", async () => {
+    const chunks = [new Uint8Array([1, 2]), new Uint8Array([3, 4, 5])];
+    vi.stubGlobal("fetch", async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk);
+          controller.close();
+        },
+      });
+      return new Response(body, { headers: { "Content-Length": "5" } });
+    });
+    render(
+      <VizijRuntimeProvider glb="/faces/quori.glb" vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
+    );
+    expect(reported("hero")).toEqual([
+      { stage: "fetch", loaded: 0, total: 5 },
+      { stage: "fetch", loaded: 2, total: 5 },
+      { stage: "fetch", loaded: 5, total: 5 },
+      { stage: "load" },
+      { stage: "draw" },
+    ]);
+    expect(runtime.loadVizij).toHaveBeenCalledWith(
+      "hero",
+      new Uint8Array([1, 2, 3, 4, 5]),
+      undefined,
+    );
+  });
+
+  it("reports a compressed body's total as unknown", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { "Content-Length": "2", "Content-Encoding": "gzip" },
+        }),
+    );
+    render(
+      <VizijRuntimeProvider glb="/faces/quori.glb" vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
+    );
+    expect(reported("hero").at(0)).toEqual({
+      stage: "fetch",
+      loaded: 0,
+      total: null,
+    });
+  });
+
+  it("goes straight to loadVizij for bytes, reports a failure, and clears on unmount", async () => {
+    runtime.loadVizij.mockRejectedValueOnce(new Error("no rig"));
+    const { unmount } = render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^error/),
+    );
+    expect(reported("hero")).toEqual([
+      { stage: "load" },
+      { stage: "failed", error: new Error("no rig") },
+    ]);
+    unmount();
+    await waitFor(() => expect(reported("hero").at(-1)).toBeNull());
   });
 });
 
