@@ -2,31 +2,74 @@ import { test, expect } from "@playwright/test";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
 import { changedPixels, distinctColours, sampleElement } from "../pixels";
 
-// The fullscreen face: its slot reports the face ready, the canvas shows it —
-// a non-uniform pixel sample — and holding an expression's hotkey changes
-// what it shows. The change is measured against the face's own motion over
-// the same interval, taken just before the key goes down.
+// The fullscreen face: its slot shows the loading view through the runtime's
+// and the face's stages, in order, and drops it once the face is drawn; its
+// slot reports the face ready, the canvas shows it — a non-uniform pixel
+// sample — and holding an expression's hotkey changes what it shows. The
+// change is measured against the face's own motion over the same interval,
+// taken just before the key goes down.
 const fullscreenFace = STANDALONE_DEMOS.find(
   (demo) => demo.filter === "fullscreen-face",
 )!;
+
+/** The loading view's stages, by the first words of their labels. */
+const STAGES = [
+  "Downloading the runtime",
+  "Compiling the runtime",
+  "Starting the runtime",
+  "Starting the view",
+  "Loading the face",
+  "Drawing the face",
+];
 
 /** How far the expression's change must exceed the idle change. */
 const EXPRESSION_OVER_IDLE = 2.5;
 const INTERVAL_MS = 2_500;
 
-test("the fullscreen face shows its face and an expression changes it", async ({
+test("the fullscreen face shows its loading view until drawn, then its face, and an expression changes it", async ({
   page,
 }) => {
   // Compiling the Bevy shaders on SwiftShader takes a while the first time.
   test.setTimeout(240_000);
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
+  // Every label the loading view's progress bar takes, in order.
+  await page.addInitScript(() => {
+    const labels: string[] = [];
+    (window as unknown as { loadingLabels: string[] }).loadingLabels = labels;
+    new MutationObserver(() => {
+      const bar = document.querySelector('[role="progressbar"]');
+      const label = bar?.getAttribute("aria-valuetext");
+      if (label && labels.at(-1) !== label) labels.push(label);
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["aria-valuetext"],
+    });
+  });
   await page.goto(demoUrl(fullscreenFace));
 
   const slot = page.locator("[data-vizij-id]");
+  await expect(
+    slot.getByRole("progressbar", { name: "Loading the face" }),
+  ).toBeVisible();
   await expect(slot).toHaveAttribute("data-vizij-ready", "true", {
     timeout: 180_000,
   });
+  await expect(slot.locator("[data-vizij-loading]")).toHaveCount(0);
+
+  const labels = await page.evaluate(
+    () => (window as unknown as { loadingLabels: string[] }).loadingLabels,
+  );
+  const stages = labels.map((label) =>
+    STAGES.findIndex((stage) => label.startsWith(stage)),
+  );
+  expect(stages, `labels: ${labels.join(" → ")}`).not.toContain(-1);
+  expect(stages, `the stages go forward: ${labels.join(" → ")}`).toEqual(
+    [...stages].sort((a, b) => a - b),
+  );
+  expect(labels.length, `labels: ${labels.join(" → ")}`).toBeGreaterThan(1);
   await page.waitForTimeout(1_000);
 
   const first = await sampleElement(page, slot);
