@@ -576,6 +576,14 @@ export function Viewer({
                   onPick={handlePick}
                 />
               </div>
+              {face.error ? (
+                <div
+                  data-testid="main-runtime-error"
+                  className="absolute inset-x-0 bottom-12 z-10 mx-auto w-fit max-w-lg rounded-md border border-red-800/60 bg-red-950/80 px-3 py-2 text-xs font-semibold text-red-200 shadow-lg"
+                >
+                  {face.error.message}
+                </div>
+              ) : null}
             </>
           ) : null
         ) : rootId ? (

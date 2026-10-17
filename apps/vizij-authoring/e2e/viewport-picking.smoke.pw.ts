@@ -3,7 +3,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { bootAuthoring, loadMainPreset, waitForMainFaceReady } from "./helpers";
 import { PRIMITIVES, primitivesGlb } from "./primitivesFixture";
 import { centroidWhere, samplePage } from "./viewportPixels";
-import { drawnFace, pagePoint, viewportMiddle } from "./viewportRegion";
+import {
+  drawnFace,
+  emptyPoint,
+  pagePoint,
+  viewportMiddle,
+} from "./viewportRegion";
 
 /**
  * A press on the viewport selects the element under the pointer, and a press
@@ -27,25 +32,7 @@ async function press(page: Page, point: { x: number; y: number }) {
   await page.mouse.click(point.x, point.y);
 }
 
-/** A point in the middle of the viewport the face does not draw on. */
-function besideFace(
-  middle: { x: number; y: number; width: number; height: number },
-  face: { x: number; y: number; width: number; height: number },
-): { x: number; y: number } {
-  const below = face.y + face.height;
-  const bottom = middle.y + middle.height;
-  if (bottom - below > 8) {
-    return { x: face.x + face.width / 2, y: (below + bottom) / 2 };
-  }
-  const right = face.x + face.width;
-  const end = middle.x + middle.width;
-  if (end - right > 8) {
-    return { x: (right + end) / 2, y: face.y + face.height / 2 };
-  }
-  throw new Error("the face fills the middle of the viewport");
-}
-
-test("a press on a face element selects it, and a press beside the face clears the selection @smoke", async ({
+test("a press on a face element selects it, and a press where no element draws clears the selection @smoke", async ({
   page,
 }) => {
   await bootAuthoring(page);
@@ -62,7 +49,7 @@ test("a press on a face element selects it, and a press beside the face clears t
     })
     .toEqual(["InnerFace"]);
 
-  await press(page, besideFace(await viewportMiddle(page), face));
+  await press(page, await emptyPoint(page));
   await expect
     .poll(() => selectedElements(page), {
       message: "a press on no element clears the selection",

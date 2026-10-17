@@ -54,7 +54,7 @@ async function readPlayhead(field: Locator): Promise<number> {
  * once the face's pipelines compile: a window of wall time alone can pass
  * without a frame and read a still playhead.
  */
-const WINDOW_FRAMES = 6;
+const WINDOW_FRAMES = 10;
 /** The longest a window waits for its frames. */
 const FRAMES_TIMEOUT_MS = 60_000;
 
@@ -111,6 +111,16 @@ async function watch(
       timeoutMs: FRAMES_TIMEOUT_MS,
     },
   );
+}
+
+/** Wait until the playhead has left zero: the device plays the clip. */
+async function untilMoving(field: Locator): Promise<void> {
+  await expect
+    .poll(() => readPlayhead(field), {
+      message: "the playhead never left zero",
+      timeout: FRAMES_TIMEOUT_MS,
+    })
+    .toBeGreaterThan(0);
 }
 
 /** Distinct playhead readings over a window, in order of first appearance. */
@@ -293,7 +303,9 @@ test("resuming continues from the paused time instead of starting over @smoke", 
 
   await t.play();
   await expect(t.chip).toContainText("Animation: Playing");
-  await samplePlayhead(t.playhead, 900);
+  // Paused early in the clip: it loops, and a playhead paused near its end
+  // wraps within the first window after resuming, which reads as a restart.
+  await untilMoving(t.playhead);
 
   await t.pause();
   await expect(

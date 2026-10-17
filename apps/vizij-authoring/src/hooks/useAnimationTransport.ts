@@ -27,6 +27,7 @@ import {
   seekTimeline,
   setTimelineLoop,
   setTimelineSpeed,
+  shownTimeline,
   stopTimeline,
   timelinePlayer,
 } from "./timelinePlayer";
@@ -35,6 +36,8 @@ import {
  * instance the module gave it, and whether the instance has a weight. */
 interface LoadedTimeline {
   runtime: Runtime;
+  /** The clip the player holds. */
+  animation: Animation;
   anim: { u32: number };
   player: { u32: number };
   instance: { u32: number };
@@ -73,8 +76,8 @@ function existingTimeline(
 
 /**
  * Put `animation` on the timeline's player, at weight 1: in place when the
- * device already has the player, else on a new animation, player and
- * instance.
+ * device already has the player — the face's own copy of the timeline, or
+ * this bridge's — else on a new animation, player and instance.
  */
 async function showTimeline(
   runtime: Runtime,
@@ -85,20 +88,26 @@ async function showTimeline(
   const moduleAnimation = runtime.moduleAnimation(animation)
     .moduleAnimation as ValueInput;
   const keys = animation.tracks.map((track) => runtime.path(track.channel));
-  const existing =
-    previous?.runtime === runtime ? previous : existingTimeline(runtime);
+  const mine = previous?.runtime === runtime ? previous : null;
+  const existing = mine ?? existingTimeline(runtime);
   if (existing) {
-    await runtime.invoke("reload_animation", {
-      anim: existing.anim,
-      clip: moduleAnimation,
-    });
-    await runtime.invoke("set_weight", {
-      player: existing.player,
-      instance: existing.instance,
-      weight: { f32: 1 },
-    });
+    // Issued together: the device applies them in order.
+    await Promise.all([
+      runtime.invoke("reload_animation", {
+        anim: existing.anim,
+        clip: moduleAnimation,
+      }),
+      mine?.audible
+        ? undefined
+        : runtime.invoke("set_weight", {
+            player: existing.player,
+            instance: existing.instance,
+            weight: { f32: 1 },
+          }),
+    ]);
     return {
       runtime,
+      animation,
       anim: existing.anim,
       player: existing.player,
       instance: existing.instance,
@@ -106,14 +115,12 @@ async function showTimeline(
       audible: true,
     };
   }
-  const anim = asU32(
-    await runtime.invoke("load_animation", { clip: moduleAnimation }),
-    "load_animation",
-  );
-  const player = asU32(
-    await runtime.invoke("create_player", { name: AUTHORED_TIMELINE_CLIP_ID }),
-    "create_player",
-  );
+  const [loadedAnim, createdPlayer] = await Promise.all([
+    runtime.invoke("load_animation", { clip: moduleAnimation }),
+    runtime.invoke("create_player", { name: AUTHORED_TIMELINE_CLIP_ID }),
+  ]);
+  const anim = asU32(loadedAnim, "load_animation");
+  const player = asU32(createdPlayer, "create_player");
   const instance = asU32(
     await runtime.invoke("add_instance_with_weight", {
       player,
@@ -122,7 +129,7 @@ async function showTimeline(
     }),
     "add_instance_with_weight",
   );
-  return { runtime, anim, player, instance, keys, audible: true };
+  return { runtime, animation, anim, player, instance, keys, audible: true };
 }
 
 /** Stop the timeline, take its weight away and return its keys to rest. */
@@ -191,14 +198,86 @@ export function AnimationRuntimeBridge({
   );
 
   const loaded = useRef<LoadedTimeline | null>(null);
-  // One device operation at a time, in the order the clip changed: a reload
-  // must land after the load that made the animation it names.
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const enqueue = useCallback((operation: () => Promise<void>) => {
-    queue.current = queue.current.then(operation).catch((error: unknown) => {
+  /** What the device should hold: the latest clip, device and session. */
+  const wanted = useRef<{
+    runtime: Runtime | null;
+    animation: Animation | null;
+    sessionKey: number | undefined;
+  }>({ runtime: null, animation: null, sessionKey: transportSessionKey });
+  const syncing = useRef(false);
+  /**
+   * Whether the transport follows what the device reports: from when the
+   * device first holds the session's clip. Before that, a report shows the
+   * player as the face loaded it, and would undo a seek made before Play.
+   */
+  const following = useRef(false);
+
+  /**
+   * Bring the device to what `wanted` says, one operation at a time — a
+   * reload lands after the load that made the animation it names — and to
+   * the latest wish only: clips that change while an operation runs are
+   * skipped over, not loaded in turn.
+   */
+  const sync = useCallback(async () => {
+    if (syncing.current) {
+      return;
+    }
+    syncing.current = true;
+    try {
+      for (;;) {
+        const { runtime, animation } = wanted.current;
+        const previous = loaded.current;
+        if (!runtime) {
+          return;
+        }
+        if (animation) {
+          if (
+            previous?.runtime !== runtime ||
+            previous.animation !== animation ||
+            !previous.audible
+          ) {
+            const next = await showTimeline(runtime, previous, animation);
+            loaded.current = next;
+            if (previous?.runtime !== runtime) {
+              // The face's device is new: put the playhead back where the
+              // transport stands, playing if it was.
+              const {
+                currentTime,
+                isPlaying,
+                loop,
+                playSpeed,
+                transportActive,
+              } = useAnimationStore.getState();
+              if (isPlaying) {
+                await playTimeline(runtime, {
+                  time: currentTime,
+                  loop,
+                  speed: playSpeed,
+                });
+              } else if (transportActive) {
+                await seekTimeline(runtime, currentTime);
+              }
+            }
+          }
+        } else if (previous?.runtime === runtime && previous.audible) {
+          loaded.current = { ...previous, audible: false };
+          await silenceTimeline(previous);
+        }
+        const now = wanted.current;
+        if (now.runtime === runtime && now.animation === animation) {
+          if (animation) {
+            following.current = true;
+            setTransportRuntimeReady(true, now.sessionKey);
+          }
+          return;
+        }
+      }
+    } catch (error) {
       console.error("[vizij-authoring] the timeline's clip failed", error);
-    });
-  }, []);
+    } finally {
+      syncing.current = false;
+    }
+  }, [setTransportRuntimeReady]);
 
   useEffect(() => {
     setTransportEnabled(active);
@@ -206,13 +285,19 @@ export function AnimationRuntimeBridge({
   }, [active, setTransportEnabled]);
 
   useEffect(() => {
-    if (!runtime) {
-      setTransportRuntimeReady(false, transportSessionKey);
-      return;
+    if (
+      wanted.current.runtime !== runtime ||
+      wanted.current.sessionKey !== transportSessionKey
+    ) {
+      following.current = false;
     }
-    let current = true;
+    wanted.current = {
+      runtime,
+      animation,
+      sessionKey: transportSessionKey,
+    };
     setTransportRuntimeReady(false, transportSessionKey);
-    if (!animation) {
+    if (runtime && !animation) {
       syncTransportState(
         {
           isPlaying: false,
@@ -221,47 +306,13 @@ export function AnimationRuntimeBridge({
         },
         transportSessionKey,
       );
-      enqueue(async () => {
-        const previous = loaded.current;
-        if (previous?.runtime !== runtime || !previous.audible) {
-          return;
-        }
-        loaded.current = { ...previous, audible: false };
-        await silenceTimeline(previous);
-      });
-    } else {
-      enqueue(async () => {
-        const previous = loaded.current;
-        const next = await showTimeline(runtime, previous, animation);
-        loaded.current = next;
-        if (previous?.runtime !== runtime) {
-          // The face's device is new: put the playhead back where the
-          // transport stands, playing if it was.
-          const { currentTime, isPlaying, loop, playSpeed, transportActive } =
-            useAnimationStore.getState();
-          if (isPlaying) {
-            await playTimeline(runtime, {
-              time: currentTime,
-              loop,
-              speed: playSpeed,
-            });
-          } else if (transportActive) {
-            await seekTimeline(runtime, currentTime);
-          }
-        }
-        if (current) {
-          setTransportRuntimeReady(true, transportSessionKey);
-        }
-      });
     }
-    return () => {
-      current = false;
-    };
+    void sync();
   }, [
     animation,
-    enqueue,
     runtime,
     setTransportRuntimeReady,
+    sync,
     syncTransportState,
     transportSessionKey,
   ]);
@@ -271,7 +322,12 @@ export function AnimationRuntimeBridge({
   const sessionKeyRef = useRef(transportSessionKey);
   sessionKeyRef.current = transportSessionKey;
   useVizijChanges((changes) => {
-    if (!activeRef.current || !(ANIMATION_PLAYERS_PATH in changes)) {
+    if (
+      !runtime ||
+      !activeRef.current ||
+      !following.current ||
+      !(ANIMATION_PLAYERS_PATH in changes)
+    ) {
       return;
     }
     const player = decodePlayerStates(changes[ANIMATION_PLAYERS_PATH]).find(
@@ -292,13 +348,10 @@ export function AnimationRuntimeBridge({
       );
       return;
     }
-    const state =
-      player.state === "playing" || player.state === "paused"
-        ? player.state
-        : "stopped";
+    const { state, time } = shownTimeline(runtime, player);
     syncTransportState(
       {
-        ...(scrubbing ? {} : { currentTime: player.time }),
+        ...(scrubbing ? {} : { currentTime: time }),
         duration: player.duration,
         isPlaying: state === "playing",
         loop: player.loopMode !== "once",

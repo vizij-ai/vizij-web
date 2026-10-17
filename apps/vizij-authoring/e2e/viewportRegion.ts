@@ -1,5 +1,11 @@
 import { expect, type Page } from "@playwright/test";
-import { drawnBox, samplePage, type Pixels, type Rect } from "./viewportPixels";
+import {
+  bareRunAtBottom,
+  drawnBox,
+  samplePage,
+  type Pixels,
+  type Rect,
+} from "./viewportPixels";
 
 /**
  * The middle of the main viewport, in page coordinates: the face's slot
@@ -66,4 +72,31 @@ export async function drawnFace(page: Page): Promise<Rect> {
     )
     .toBe(true);
   return found!;
+}
+
+/** Pixels kept from the slot's edges, where the canvas meets the pane. */
+const EDGE_INSET = 6;
+/** The least height of bare canvas a press is aimed into. */
+const LEAST_BARE_HEIGHT = 16;
+
+/**
+ * A point of the main viewport where no element draws: on the slot's
+ * vertical middle line, in the middle of the bare canvas between what the
+ * face draws and the slot's bottom edge.
+ */
+export async function emptyPoint(
+  page: Page,
+): Promise<{ x: number; y: number }> {
+  const slot = await page.getByTestId("main-runtime-view").boundingBox();
+  if (!slot) {
+    throw new Error("the main viewport is not laid out");
+  }
+  const pixels = await samplePage(page, slot);
+  const scale = pixels.width / slot.width;
+  const x = Math.floor(pixels.width / 2);
+  const run = bareRunAtBottom(pixels, x, Math.round(EDGE_INSET * scale));
+  if (!run || (run.bottom - run.top) / scale < LEAST_BARE_HEIGHT) {
+    throw new Error("the face draws down to the bottom of the viewport");
+  }
+  return pagePoint(slot, pixels, { x, y: (run.top + run.bottom) / 2 });
 }
