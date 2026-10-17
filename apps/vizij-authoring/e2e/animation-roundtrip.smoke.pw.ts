@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   bootAuthoring,
   expectDownload,
+  FACE_IMPORT_TIMEOUT_MS,
   loadMainPreset,
   waitForMainFaceReady,
 } from "./helpers";
@@ -41,7 +42,7 @@ async function readAnimationCount(page: Page): Promise<number> {
  */
 async function saveGlb(page: Page): Promise<string> {
   const save = page.getByTestId("app-save-button");
-  await expect(save).toBeEnabled();
+  await expect(save).toBeEnabled({ timeout: FACE_IMPORT_TIMEOUT_MS });
   const download = await expectDownload(page, async () => {
     await save.click();
   });

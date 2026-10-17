@@ -745,6 +745,19 @@ export function useVizijAssetLoader() {
         stepOrder,
       });
 
+      // Only the bundle-sync step's own completion means the bundle is in the
+      // editor: its substeps complete one by one, the rig graph before the
+      // pose config.
+      if (
+        update.stepId === "bundle-sync" &&
+        update.substepId === undefined &&
+        update.status === "complete"
+      ) {
+        markFaceLoadMilestone("bundle-synced", {
+          sessionToken: update.sessionToken,
+        });
+      }
+
       setFaceLoadSteps((previous) => {
         const hasStep = previous.some((step) => step.id === update.stepId);
         if (hasStep) {
@@ -794,7 +807,12 @@ export function useVizijAssetLoader() {
         });
       });
     },
-    [beginFaceLoadOperation, endFaceLoadOperation, logFaceLoadEvent],
+    [
+      beginFaceLoadOperation,
+      endFaceLoadOperation,
+      logFaceLoadEvent,
+      markFaceLoadMilestone,
+    ],
   );
 
   const loadVizij = useCallback(
@@ -1118,12 +1136,20 @@ export function useVizijAssetLoader() {
     [],
   );
 
+  // The face is in the editor: its import session, which brings the bundle's
+  // graphs and poses into the editor after the asset is parsed, has completed.
+  // `rootId` alone says less: it is set as soon as the asset is parsed, and
+  // from the moment an import begins until its asset starts loading (a file
+  // read, a preset's fetch) it is still the previous face's.
+  const isFaceLoaded = rootId !== null && !isImportFlowActive;
+
   return {
     rootId,
     sourceName,
     assetUrl,
     setAssetUrl,
     isLoading,
+    isFaceLoaded,
     isImportFlowActive,
     faceLoadSourceLabel,
     faceLoadSessionToken,

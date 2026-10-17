@@ -48,6 +48,12 @@ export interface BindingAuthoringState {
   standardInputsByPath: Map<string, StandardRigInput>;
   standardInputIdRemap: ReadonlyMap<string, string> | null;
   standardInputIdRemapRevision: number;
+  /**
+   * How many rig graph imports the editor has applied. It is published with
+   * the standard inputs, so state derived from these inputs can record which
+   * imports it reflects.
+   */
+  rigImportRevision: number;
   rigOutputLookup: Map<string, StandardRigInput>;
   validOutputTargets: Set<string>;
   pipelineMetadataV1: VizijPipelineMetadataV1 | null;
@@ -214,6 +220,7 @@ const defaultBindingAuthoringState: BindingAuthoringState = {
   standardInputsByPath: new Map(),
   standardInputIdRemap: null,
   standardInputIdRemapRevision: 0,
+  rigImportRevision: 0,
   rigOutputLookup: new Map(),
   validOutputTargets: new Set(),
   pipelineMetadataV1: null,

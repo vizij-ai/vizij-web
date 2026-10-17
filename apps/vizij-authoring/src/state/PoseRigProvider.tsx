@@ -390,6 +390,9 @@ export function PoseRigProvider({
   const standardInputIdRemapRevision = useBindingAuthoring(
     (state) => state.standardInputIdRemapRevision,
   );
+  const rigImportRevision = useBindingAuthoring(
+    (state) => state.rigImportRevision,
+  );
   const previousPoseAuthoringInputsRef = useRef<StandardRigInput[] | null>(
     null,
   );
@@ -433,6 +436,7 @@ export function PoseRigProvider({
         currentValues: filteredCurrent,
         hiddenInputIds: Array.from(hiddenSet),
         isReady,
+        syncedRigImportRevision: rigImportRevision,
       };
 
       if (idRemap.size > 0) {
@@ -468,6 +472,7 @@ export function PoseRigProvider({
     hiddenInputIds,
     inputValues,
     poseRigStore,
+    rigImportRevision,
     rootId,
     standardInputIdRemap,
     standardInputIdRemapRevision,
