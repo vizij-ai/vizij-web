@@ -18,7 +18,7 @@ import {
   type VizijRuntimeContextValue,
   type VizijRuntimeStatus,
 } from "./context";
-import { TweenContext, createTweens } from "./tweens";
+import { TweenContext, createTweens, type Tweens } from "./tweens";
 
 /** How often the provider steps the device while the page is hidden, in
  * milliseconds. The browser throttles a hidden page's timers (to about once
@@ -29,8 +29,11 @@ const HIDDEN_STEP_MS = 10;
 export type VizijSource = string | URL | Blob | ArrayBuffer | Uint8Array;
 
 export interface VizijRuntimeProviderProps {
-  /** The face to show. A different source reloads the face in place. */
-  glb: VizijSource;
+  /** The face to show. A different source reloads the face in place;
+   * `null` shows none: the provider takes its face down, and its children,
+   * which stay mounted, see no face (`useOptionalVizijRuntime()` is
+   * `null`). */
+  glb: VizijSource | null;
   /** The id the face is loaded and shown under; one is derived from
    * React's `useId()` when absent. */
   vizijId?: string;
@@ -52,6 +55,31 @@ interface Loaded {
   description: VizijDescription | null;
 }
 
+/** The state before a face has loaded, and once it is taken down. */
+const NO_FACE: Loaded = {
+  status: "loading",
+  error: null,
+  runtime: null,
+  description: null,
+};
+
+/** Take the face shown down: stop its device, unload it, dispose it. */
+function takeDown(
+  current: { current: Runtime | null },
+  vizijId: string,
+  tweens: Tweens,
+  setLoaded: (update: (previous: Loaded) => Loaded) => void,
+): void {
+  const runtime = current.current;
+  if (!runtime) return;
+  current.current = null;
+  tweens.cancelAll();
+  runtime.stop();
+  unloadVizij(vizijId);
+  runtime.dispose();
+  setLoaded((previous) => ({ ...previous, runtime: null }));
+}
+
 /**
  * One face's lifecycle in React, over `@vizij/runtime`.
  *
@@ -60,7 +88,9 @@ interface Loaded {
  * the face's `Runtime` unwrapped (`useVizijRuntime`). A new `glb` reloads
  * the face under the same id: the previous scene draws until the new one is
  * ready, and the previous `Runtime` is stopped and disposed once the new one
- * exists. Unmounting stops the device, unloads the face and disposes it.
+ * exists. Unmounting stops the device, unloads the face and disposes it; a
+ * `null` `glb` does the same and keeps the children mounted, so a page whose
+ * face comes and goes keeps its tree.
  *
  * Unless `run` is `false`, it steps the device: once per animation frame
  * while the page is visible — one step per drawn frame, each by the time
@@ -93,12 +123,7 @@ export function VizijRuntimeProvider({
 }: VizijRuntimeProviderProps): ReactNode {
   const derivedId = useId();
   const vizijId = givenId ?? derivedId;
-  const [loaded, setLoaded] = useState<Loaded>({
-    status: "loading",
-    error: null,
-    runtime: null,
-    description: null,
-  });
+  const [loaded, setLoaded] = useState<Loaded>(NO_FACE);
   const [behaviorError, setBehaviorError] = useState<string | undefined>();
 
   const latest = useRef({ glb, options });
@@ -125,16 +150,7 @@ export function VizijRuntimeProvider({
   useEffect(
     () => () => {
       queue.current = queue.current
-        .then(() => {
-          const runtime = current.current;
-          if (!runtime) return;
-          current.current = null;
-          tweens.cancelAll();
-          runtime.stop();
-          unloadVizij(vizijId);
-          runtime.dispose();
-          setLoaded((previous) => ({ ...previous, runtime: null }));
-        })
+        .then(() => takeDown(current, vizijId, tweens, setLoaded))
         .finally(() => setVizijProgress(vizijId, null));
     },
     [vizijId, tweens],
@@ -145,13 +161,21 @@ export function VizijRuntimeProvider({
     const load = { cancelled: false };
     queue.current = queue.current.then(async () => {
       if (load.cancelled) return;
+      const face = latest.current.glb;
+      if (face === null) {
+        // No face: take down the one shown, if any.
+        takeDown(current, vizijId, tweens, setLoaded);
+        setLoaded(NO_FACE);
+        setVizijProgress(vizijId, null);
+        return;
+      }
       setLoaded((previous) => ({
         ...previous,
         status: "loading",
         error: null,
       }));
       try {
-        const bytes = await bytesOf(latest.current.glb, (loaded, total) => {
+        const bytes = await bytesOf(face, (loaded, total) => {
           if (!load.cancelled) {
             setVizijProgress(vizijId, { stage: "fetch", loaded, total });
           }
@@ -288,9 +312,10 @@ export function VizijRuntimeProvider({
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const value = useMemo<VizijRuntimeContextValue>(
-    () => ({ vizijId, behaviorError, ...loaded }),
-    [vizijId, behaviorError, loaded],
+  const shown = glb !== null;
+  const value = useMemo<VizijRuntimeContextValue | null>(
+    () => (shown ? { vizijId, behaviorError, ...loaded } : null),
+    [shown, vizijId, behaviorError, loaded],
   );
 
   return (
