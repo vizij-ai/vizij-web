@@ -382,6 +382,12 @@ export function useBundleSynchronizer({
           const preparedSpec = prepareSpecForImport(rigEntry.spec, rigEntry.ir);
           const normalisedSpec = await normalizeGraphSpec(preparedSpec);
           await waitForNextFrame();
+          // A run superseded while it normalized (its bundle replaced, or a
+          // new import begun) leaves its rig graph out of the editor, which
+          // may by now be loading another face.
+          if (cancelled) {
+            return;
+          }
           emitPhase({
             stepId: "bundle-sync",
             status: "complete",

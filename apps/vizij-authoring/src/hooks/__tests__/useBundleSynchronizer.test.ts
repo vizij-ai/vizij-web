@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { normalizeGraphSpec } from "@vizij/node-graph";
 import type { VizijBundleExtension } from "@vizij/render";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -158,6 +159,7 @@ describe("useBundleSynchronizer", () => {
   }
 
   beforeEach(() => {
+    vi.mocked(normalizeGraphSpec).mockClear();
     frames = [];
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       frames.push(callback);
@@ -337,5 +339,27 @@ describe("useBundleSynchronizer", () => {
 
     expect(props.importPoseConfigFromData).toHaveBeenCalledTimes(1);
     expect(phases.filter(isBundleSynced)).toHaveLength(1);
+  });
+
+  it("does not import the rig graph of a bundle replaced while it normalized", async () => {
+    const normalized = createDeferred<unknown>();
+    vi.mocked(normalizeGraphSpec).mockImplementationOnce(
+      () => normalized.promise as never,
+    );
+    const { hook, props } = renderSynchronizer({});
+    await runFrames();
+    expect(normalizeGraphSpec).toHaveBeenCalledTimes(1);
+
+    // A new import begins: the loader clears the face before the next one is
+    // registered.
+    hook.rerender({ ...props, rootId: null, loadedBundle: null });
+    await runFrames();
+    await act(async () => {
+      normalized.resolve({ nodes: [], edges: [] });
+    });
+    await runFrames();
+
+    expect(props.importGraphSpec).not.toHaveBeenCalled();
+    expect(props.importPoseConfigFromData).not.toHaveBeenCalled();
   });
 });
