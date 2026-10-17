@@ -5,6 +5,50 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../useAnimationTransport";
 
+/** The face the hook sees: `null` outside a provider. */
+let mockFace: { runtime: unknown } | null = null;
+
+vi.mock("@vizij/runtime-react", () => ({
+  useOptionalVizijRuntime: () => mockFace,
+}));
+
+// The fake device reports its players already decoded.
+vi.mock("@vizij/runtime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@vizij/runtime")>()),
+  decodePlayerStates: (value: unknown) => (Array.isArray(value) ? value : []),
+}));
+
+const PLAYER = 7;
+
+/** A device whose animation module has the timeline's player, stopped at 0
+ * on a 2 s clip, and which records what it is invoked with. */
+function faceWithTimeline() {
+  const invoke = vi.fn().mockResolvedValue({ u32: PLAYER });
+  const runtime = {
+    invoke,
+    readValues: (paths: string[]) =>
+      Object.fromEntries(
+        paths.map((path) => [
+          path,
+          [
+            {
+              player: PLAYER,
+              name: "authoring.timeline.main",
+              state: "stopped",
+              time: 0,
+              duration: 2,
+              speed: 1,
+              loopMode: "loop",
+              instances: [{ instance: 1, anim: 3, weight: 1 }],
+            },
+          ],
+        ]),
+      ),
+  };
+  mockFace = { runtime };
+  return invoke;
+}
+
 function renderTransportHook() {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -41,8 +85,8 @@ function renderTransportHook() {
 
 describe("useAnimationTransport", () => {
   beforeEach(() => {
+    mockFace = null;
     useAnimationStore.getState().reset();
-    useAnimationStore.getState().setRuntimeTransportAdapter(null);
   });
 
   it("remains safe when rendered outside VizijRuntimeProvider", () => {
@@ -70,28 +114,8 @@ describe("useAnimationTransport", () => {
     hook.unmount();
   });
 
-  it("drives playback through runtime adapter when provider context is unavailable", async () => {
-    const playAnimation = vi.fn().mockResolvedValue(undefined);
-    const pauseAnimation = vi.fn();
-    const stopAnimation = vi.fn();
-    const seekAnimation = vi.fn();
-    const setAnimationLoop = vi.fn();
-    const getAnimationState = vi.fn().mockReturnValue({
-      time: 0,
-      duration: 2,
-      playing: false,
-      loop: false,
-      speed: 1,
-    });
-
-    useAnimationStore.getState().setRuntimeTransportAdapter({
-      playAnimation,
-      pauseAnimation,
-      stopAnimation,
-      seekAnimation,
-      setAnimationLoop,
-      getAnimationState,
-    });
+  it("drives the timeline's player on the face's device", () => {
+    const invoke = faceWithTimeline();
     useAnimationStore.getState().addTrack("input_a", "Input A", "controls/a");
     useAnimationStore.getState().setLoop(false);
     useAnimationStore.getState().seek(0.4);
@@ -99,68 +123,41 @@ describe("useAnimationTransport", () => {
     const hook = renderTransportHook();
     expect(hook.result.active).toBe(true);
 
+    const player = { u32: PLAYER };
     hook.result.play();
-    await Promise.resolve();
+    expect(invoke.mock.calls).toEqual([
+      ["set_loop", { player, mode: "once" }],
+      ["set_speed", { player, speed: { f32: 1 } }],
+      ["seek", { player, time_ns: { u64: 400_000_000 } }],
+      ["play", { player }],
+    ]);
 
-    expect(setAnimationLoop).toHaveBeenCalledWith(
-      "authoring.timeline.main",
-      false,
-    );
-    expect(seekAnimation).toHaveBeenCalledWith("authoring.timeline.main", 0.4);
-    expect(playAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
-      reset: false,
-      speed: 1,
-    });
+    invoke.mockClear();
     hook.result.pause();
+    expect(invoke.mock.calls).toEqual([["pause", { player }]]);
     expect(useAnimationStore.getState().transportActive).toBe(true);
     expect(useAnimationStore.getState().transportPlaybackState).toBe("paused");
     expect(useAnimationStore.getState().isPlaying).toBe(false);
+
+    invoke.mockClear();
     hook.result.stop();
-    expect(stopAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
-      clearOutputs: true,
-    });
+    expect(invoke.mock.calls).toEqual([["stop", { player }]]);
     hook.unmount();
   });
 
-  it("bootstraps runtime transport and pauses when seeking from stopped", () => {
-    const playAnimation = vi.fn().mockResolvedValue(undefined);
-    const pauseAnimation = vi.fn();
-    const stopAnimation = vi.fn();
-    const seekAnimation = vi.fn();
-    const setAnimationLoop = vi.fn();
-    const getAnimationState = vi.fn().mockReturnValue({
-      time: 0,
-      duration: 2,
-      playing: false,
-      loop: false,
-      speed: 1,
-    });
-
-    useAnimationStore.getState().setRuntimeTransportAdapter({
-      playAnimation,
-      pauseAnimation,
-      stopAnimation,
-      seekAnimation,
-      setAnimationLoop,
-      getAnimationState,
-    });
+  it("seeks a stopped timeline to a paused playhead", () => {
+    const invoke = faceWithTimeline();
     useAnimationStore.getState().addTrack("input_a", "Input A", "controls/a");
 
     const hook = renderTransportHook();
-
     hook.result.stop();
-    seekAnimation.mockClear();
-    playAnimation.mockClear();
-    pauseAnimation.mockClear();
+    invoke.mockClear();
 
     hook.result.seek(0.75);
 
-    expect(playAnimation).toHaveBeenCalledWith("authoring.timeline.main", {
-      reset: false,
-      speed: 1,
-    });
-    expect(pauseAnimation).toHaveBeenCalledWith("authoring.timeline.main");
-    expect(seekAnimation).toHaveBeenCalledWith("authoring.timeline.main", 0.75);
+    expect(invoke.mock.calls).toEqual([
+      ["seek", { player: { u32: PLAYER }, time_ns: { u64: 750_000_000 } }],
+    ]);
     const state = useAnimationStore.getState();
     expect(state.currentTime).toBe(0.75);
     expect(state.transportActive).toBe(true);

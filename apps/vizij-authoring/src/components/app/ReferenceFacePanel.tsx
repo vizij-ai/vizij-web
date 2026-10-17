@@ -71,7 +71,11 @@ export function ReferenceFacePanel({
   return (
     <div
       data-testid="reference-face-panel"
-      className="h-full w-full relative bg-bg-panel overflow-hidden pointer-events-auto"
+      className={`h-full w-full relative overflow-hidden pointer-events-auto${
+        // The face draws on the page's canvas beneath the panes: no
+        // background over it while it shows.
+        referenceFace.file && runtimeEnabled ? "" : " bg-bg-panel"
+      }`}
     >
       {/* Hidden file input */}
       <input
@@ -88,7 +92,6 @@ export function ReferenceFacePanel({
             file={referenceFace.file}
             active={true}
             visible={true}
-            driveRuntime={true}
             onStandardInputsReady={referenceFace.onStandardInputsReady}
             onLoadingStateChange={referenceFace.onLoadingStateChange}
             onAnimateValueReady={referenceFace.onAnimateValueReady}

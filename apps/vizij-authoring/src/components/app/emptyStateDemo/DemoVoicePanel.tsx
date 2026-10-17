@@ -1,52 +1,83 @@
-import { useCallback, useMemo } from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
+import { useCallback, useEffect, useState } from "react";
+import { runStatus, unlockAudio, type RunHandle } from "@vizij/runtime";
+import { useVizijRuntime, useVizijValues } from "@vizij/runtime-react";
 import { Button, Select, TextArea, type SelectOption } from "../../ui";
-import { useSpeechPlayback } from "../../../hooks/useSpeechPlayback";
 import { POLLY_VOICES, type PollyVoice } from "../../../data/pollyVoices";
-import { cn } from "../../../utils/cn";
 
 const VOICE_OPTIONS: SelectOption[] = POLLY_VOICES.map((voice) => ({
   value: voice,
   label: voice,
 }));
 
+const DEFAULT_SCRIPT =
+  "Vizij is a framework for defining, animating, and deploying expressive rendered robot faces";
+
+/** What the face reports while it speaks: the utterance and its current
+ * viseme, both `str`, relative to the face. */
+const SPEECH = "standard/vizij/speech";
+const VISEME = "standard/vizij/viseme";
+
+const textOf = (value: unknown) =>
+  value && typeof value === "object" && "str" in value
+    ? String((value as { str: unknown }).str)
+    : "";
+
+/**
+ * The demo face says a line through its device's `say` method: the text goes
+ * to the text-to-speech service, the audio plays through the page, and the
+ * face's lips follow. The run's status key says when the line is over;
+ * Stop halts it.
+ */
 export function DemoVoicePanel() {
-  const { ready, setInput, animateValue, faceId, assetBundle } =
-    useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
+  const { status, runtime } = useVizijRuntime();
+  const ready = status === "ready";
+  const [script, setScript] = useState(DEFAULT_SCRIPT);
+  const [voice, setVoice] = useState<PollyVoice>("Ruth");
+  const [preparing, setPreparing] = useState(false);
+  const [run, setRun] = useState<RunHandle | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const stageRuntimeInput = useCallback(
-    (graphPath: string, value: number) => {
-      if (!ready) {
-        return;
-      }
-      setInput(graphPath, { float: value });
-    },
-    [ready, setInput],
+  const speechKey = runtime ? runtime.path(SPEECH) : SPEECH;
+  const visemeKey = runtime ? runtime.path(VISEME) : VISEME;
+  const values = useVizijValues(
+    run ? [run.status, speechKey, visemeKey] : [speechKey, visemeKey],
   );
+  const runState = run ? runStatus(values[run.status]) : undefined;
 
-  const animateRuntimeValue = useCallback(
-    (graphPath: string, value: number, duration: number) => {
-      if (!ready) {
-        return;
-      }
-      void animateValue(graphPath, { float: value }, { duration });
-    },
-    [animateValue, ready],
-  );
+  useEffect(() => {
+    if (run && runState && runState !== "running") {
+      setRun(null);
+    }
+  }, [run, runState]);
 
-  const poses = useMemo(() => poseConfig?.poses ?? [], [poseConfig]);
+  const speak = useCallback(async () => {
+    if (!runtime || !ready) {
+      return;
+    }
+    const text = script.trim();
+    if (!text) {
+      setError("Please enter something to say.");
+      return;
+    }
+    setError(null);
+    setPreparing(true);
+    try {
+      await unlockAudio();
+      setRun((await runtime.invoke("say", { text, voice })) as RunHandle);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPreparing(false);
+    }
+  }, [ready, runtime, script, voice]);
 
-  const speech = useSpeechPlayback({
-    faceId: poseConfig?.faceId ?? faceId ?? "face",
-    poses,
-    poseGroups: poseConfig?.poseGroups,
-    stageRuntimeInput,
-    animateRuntimeValue,
-    runtimeReady: ready,
-  });
+  const stop = useCallback(() => {
+    if (runtime && run) {
+      void runtime.halt(run.run);
+    }
+  }, [run, runtime]);
 
-  const busy = speech.isLoading || speech.status === "preparing";
+  const busy = preparing || run !== null;
 
   return (
     <div
@@ -56,16 +87,16 @@ export function DemoVoicePanel() {
       <TextArea
         data-testid="empty-state-demo-voice-script"
         rows={2}
-        value={speech.script}
-        onChange={(event) => speech.setScript(event.target.value)}
+        value={script}
+        onChange={(event) => setScript(event.target.value)}
         placeholder="Type something for the face to say…"
       />
       <div className="flex items-center gap-2">
         <Select
           className="w-36 shrink-0"
           size="sm"
-          value={speech.selectedVoice}
-          onChange={(voice) => speech.setSelectedVoice(voice as PollyVoice)}
+          value={voice}
+          onChange={(next) => setVoice(next as PollyVoice)}
           options={VOICE_OPTIONS}
         />
         <Button
@@ -73,77 +104,46 @@ export function DemoVoicePanel() {
           variant="primary"
           size="sm"
           disabled={!ready || busy}
-          onClick={() => void speech.handleSpeak()}
+          onClick={() => void speak()}
         >
-          {busy ? "Preparing…" : "Speak"}
+          {preparing ? "Preparing…" : run ? "Speaking…" : "Speak"}
         </Button>
-        {speech.status === "speaking" ? (
+        {run ? (
           <Button
             data-testid="empty-state-demo-voice-stop"
             variant="subtle"
             size="sm"
-            onClick={speech.handleStop}
+            onClick={stop}
           >
             Stop
           </Button>
         ) : null}
-        <audio
-          ref={speech.audioRef}
-          controls
-          className="h-8 min-w-0 flex-1"
-          onPlay={speech.handleAudioPlay}
-          onPause={speech.handleAudioPause}
-          onEnded={speech.handleAudioEnded}
-        />
       </div>
-      {speech.error ? (
+      {error ? (
         <p
           data-testid="empty-state-demo-voice-error"
           className="text-xs text-red-400"
         >
-          {speech.error}
+          {error}
         </p>
       ) : null}
-      {speech.words.length > 0 ? (
+      {run ? (
         <div className="flex flex-col gap-1">
           <p className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
-            Words
+            Saying
           </p>
-          <div className="flex flex-wrap gap-1">
-            {speech.words.map((word, index) => (
-              <span
-                key={`${word.value}-${index}`}
-                className="rounded border border-border-default bg-bg-panel px-1.5 py-0.5 text-[11px] text-text-muted"
-              >
-                {word.value}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {speech.visemeLabels.length > 0 ? (
-        <div className="flex flex-col gap-1">
+          <p className="text-[11px] text-text-muted">
+            {textOf(values[speechKey])}
+          </p>
           <p className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
-            Visemes
+            Viseme
           </p>
-          <div
-            data-testid="empty-state-demo-viseme-chips"
-            className="flex flex-wrap gap-1"
+          <span
+            data-testid="empty-state-demo-viseme"
+            className="self-start rounded border border-accent bg-accent/20 px-1.5 py-0.5 text-[11px] text-text-primary"
           >
-            {speech.visemeLabels.map((label, index) => (
-              <span
-                key={`${label}-${index}`}
-                className={cn(
-                  "rounded border px-1.5 py-0.5 text-[11px] transition-colors",
-                  index === speech.activeVisemeIndex
-                    ? "border-accent bg-accent/20 text-text-primary"
-                    : "border-border-default bg-bg-panel text-text-muted",
-                )}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
+            {textOf(values[visemeKey]) || "sil"}
+          </span>
         </div>
       ) : null}
     </div>

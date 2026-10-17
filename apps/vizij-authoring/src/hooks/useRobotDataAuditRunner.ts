@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { World } from "@vizij/render";
+import { buildSceneGraph, type World } from "@vizij/render";
 import type { AnimatableValue } from "@vizij/utils";
 import {
   createRobotDataAuditTask,
-  type MountedRefs,
+  refsOfScene,
   type RobotDataAuditResult,
 } from "../utils/robotDataAudit";
 
@@ -12,7 +12,9 @@ type RobotDataAuditStatus = "idle" | "running" | "succeeded" | "error";
 interface UseRobotDataAuditRunnerOptions {
   namespace: string;
   world: World;
-  refs: MountedRefs;
+  /** The face's root element: the audit reads the scene the export builds
+   * from it. */
+  rootId: string | null;
   animatables: Record<string, AnimatableValue>;
   enabled: boolean;
 }
@@ -47,7 +49,7 @@ const STEP_BATCH_SIZE = 8;
 export function useRobotDataAuditRunner({
   namespace,
   world,
-  refs,
+  rootId,
   animatables,
   enabled,
 }: UseRobotDataAuditRunnerOptions): RobotDataAuditRunnerControls {
@@ -148,6 +150,10 @@ export function useRobotDataAuditRunner({
       return;
     }
     cancelAudit();
+    const refs =
+      rootId && world[rootId]
+        ? refsOfScene(buildSceneGraph(world, animatables, rootId), namespace)
+        : {};
     const task = createRobotDataAuditTask(world, refs, animatables, {
       namespace,
     });
@@ -214,7 +220,7 @@ export function useRobotDataAuditRunner({
     enabled,
     finishWithResult,
     namespace,
-    refs,
+    rootId,
     scheduleStep,
     world,
   ]);

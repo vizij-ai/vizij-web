@@ -1,4 +1,5 @@
 import type { VizijBundleAnimationEntry } from "@vizij/render";
+import type { Animation } from "@vizij/runtime";
 import type { StandardRigInput } from "@vizij/utils";
 import type {
   AnimationClipIR,
@@ -241,6 +242,39 @@ export function clipIrToBundleAnimationEntry(
       ...AUTHORED_TIMELINE_METADATA_MARKERS,
       clipSchemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
     },
+  };
+}
+
+/**
+ * `clip` as the face's animation module plays it: what `Runtime.moduleAnimation`
+ * takes, each track on its channel (the rig-relative path the compiled clip
+ * resolves it to). Detached and keyframe-less tracks are left out, as from the
+ * bundle entry; keyframe tangents are not carried, so a cubic segment plays
+ * with the engine's ease.
+ */
+export function clipIrToAnimation(
+  clip: AnimationClipIR,
+  options: { standardInputsById?: ReadonlyMap<string, StandardRigInput> } = {},
+): Animation {
+  const compiled = compileAnimationClipIr({
+    clip,
+    standardInputsById: options.standardInputsById,
+  });
+  return {
+    id: compiled.id,
+    name: compiled.name ?? null,
+    duration: compiled.duration,
+    tracks: compiled.tracks
+      .filter((track) => !track.detached && track.keyframes.length > 0)
+      .map((track) => ({
+        channel: track.channel,
+        interpolation: track.interpolation,
+        keyframes: track.keyframes.map((keyframe) => ({
+          time: keyframe.time,
+          value: keyframe.value,
+          interpolation: keyframe.interpolation ?? null,
+        })),
+      })),
   };
 }
 

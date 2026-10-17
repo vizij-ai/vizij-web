@@ -1,6 +1,10 @@
 import { useCallback, useRef } from "react";
 import { Scan } from "lucide-react";
-import type { Group as VizijGroup } from "@vizij/render";
+import {
+  buildSceneGraph,
+  deriveRootBounds,
+  type Group as VizijGroup,
+} from "@vizij/render";
 import type { SceneObjectNode } from "../../scene/sceneGraph";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useWorkspaceStore } from "../../state/workspaceStore";
@@ -83,10 +87,7 @@ interface FaceBoundsSectionProps {
 export function FaceBoundsSection({ node }: FaceBoundsSectionProps) {
   const world = useGraphRuntime((state) => state.world);
   const setStoreState = useGraphRuntime((state) => state.setStoreState);
-  const runtimeViewRootId = useGraphRuntime((state) => state.runtimeViewRootId);
-  const measureFaceGeometryBounds = useGraphRuntime(
-    (state) => state.measureFaceGeometryBounds,
-  );
+  const animatables = useGraphRuntime((state) => state.animatables);
   const overlayVisible = useWorkspaceStore(
     (state) => state.faceBoundsOverlayVisible,
   );
@@ -121,20 +122,29 @@ export function FaceBoundsSection({ node }: FaceBoundsSectionProps) {
     [node.id, setStoreState],
   );
 
+  // The face's geometry as the document builds it: its meshes, and its
+  // ellipses and rectangles as their shapes.
   const handleFitToGeometry = useCallback(() => {
-    const measured = measureFaceGeometryBounds?.();
+    let measured: FaceBounds | null = null;
+    try {
+      measured = deriveRootBounds(buildSceneGraph(world, animatables, node.id));
+    } catch (error) {
+      console.error(
+        "[vizij-authoring] the face's geometry did not build",
+        error,
+      );
+    }
     if (!measured) {
       return;
     }
-    applyBounds(() => measured);
-  }, [applyBounds, measureFaceGeometryBounds]);
+    const fitted = measured;
+    applyBounds(() => fitted);
+  }, [animatables, applyBounds, node.id, world]);
 
   const entry = world[node.id] as VizijGroup | undefined;
   const isFaceRoot =
     entry?.type === "group" &&
-    (Boolean(entry.rootBounds) ||
-      entry.root === true ||
-      node.id === runtimeViewRootId);
+    (Boolean(entry.rootBounds) || entry.root === true);
 
   if (!isFaceRoot) {
     return null;
@@ -238,13 +248,8 @@ export function FaceBoundsSection({ node }: FaceBoundsSectionProps) {
           data-testid="face-bounds-fit-geometry"
           variant="ghost"
           size="sm"
-          disabled={!measureFaceGeometryBounds}
           onClick={handleFitToGeometry}
-          title={
-            measureFaceGeometryBounds
-              ? "Recompute the bounds from the rendered face geometry"
-              : "Available while the runtime preview is mounted"
-          }
+          title="Recompute the bounds from the face's geometry"
         >
           <Scan size={12} className="mr-1 shrink-0" />
           Fit to Geometry

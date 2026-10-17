@@ -5,9 +5,9 @@ import type {
   MachineReport,
 } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph";
-import type { PoseRigConfig } from "@vizij/runtime-react";
 import type { VizijStoreSetter, World } from "@vizij/render";
 import type { AnimatableValue, RawValue } from "@vizij/utils";
+import type { PoseRigConfigFile as PoseRigConfig } from "../poseRig/types";
 import type { PersistedGraphInsight } from "../rig/persistence";
 import type {
   DiscrepancyResolutionResult,
@@ -59,26 +59,6 @@ export interface GraphRuntimeState {
   }>;
   setStoreState: VizijStoreSetter;
   setGraphPlaybackState: (state: GraphPlaybackState) => void;
-  stageRuntimeInput?: (graphPath: string, value: number) => void;
-  animateRuntimeValue?: (
-    graphPath: string,
-    value: number,
-    duration: number,
-  ) => void;
-  runtimeViewReady: boolean;
-  runtimeViewLoading: boolean;
-  runtimeViewRootId: string | null;
-  runtimeViewGraphCount: number;
-  runtimeViewOutputCount: number;
-  /**
-   * Measures the rendered face geometry in the runtime view and returns its
-   * 2D bounding box, or null when nothing is mounted. Registered by the
-   * viewer's runtime bridge while a face is loaded.
-   */
-  measureFaceGeometryBounds?: () => {
-    center: { x: number; y: number };
-    size: { x: number; y: number };
-  } | null;
 }
 
 type GraphRuntimeStoreUpdate =
@@ -128,14 +108,6 @@ const defaultGraphRuntimeState: GraphRuntimeState = {
   }),
   setStoreState: (() => undefined) as unknown as VizijStoreSetter,
   setGraphPlaybackState: noop,
-  stageRuntimeInput: undefined,
-  animateRuntimeValue: undefined,
-  runtimeViewReady: false,
-  runtimeViewLoading: false,
-  runtimeViewRootId: null,
-  runtimeViewGraphCount: 0,
-  runtimeViewOutputCount: 0,
-  measureFaceGeometryBounds: undefined,
 };
 
 export function createGraphRuntimeStore(
