@@ -11,9 +11,13 @@
  * value.
  */
 
+/** Element ids are UUIDs, as the Vizij format requires of RobotData. */
 export const PRIMITIVES = {
-  ellipse: { id: "gate-ellipse", name: "GateEllipse" },
-  rectangle: { id: "gate-rectangle", name: "GateRectangle" },
+  ellipse: { id: "3f6c1b52-8d4e-4a7b-9c21-5e0d7a9b1c01", name: "GateEllipse" },
+  rectangle: {
+    id: "3f6c1b52-8d4e-4a7b-9c21-5e0d7a9b1c02",
+    name: "GateRectangle",
+  },
 } as const;
 
 /**
@@ -32,7 +36,7 @@ function staticFeature(value: unknown) {
 
 export function primitivesGlb(): Buffer {
   const root = {
-    id: "gate-root",
+    id: "3f6c1b52-8d4e-4a7b-9c21-5e0d7a9b1c00",
     name: "GateRoot",
     tags: [],
     type: "group",

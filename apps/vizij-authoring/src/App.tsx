@@ -4887,7 +4887,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const mainViewerPane = (
     <div className="relative w-full h-full">
       {loadingBarVisible && (
-        <div className="absolute top-2 left-2 right-2 z-20 pointer-events-none">
+        <div
+          data-testid="face-load-progress"
+          className="absolute top-2 left-2 right-2 z-20 pointer-events-none"
+        >
           <FaceLoadingProgressBar
             visible={loadingBarVisible}
             progress={loadingBarProgress}

@@ -124,6 +124,30 @@ export function drawnBox(pixels: Pixels): Rect | null {
   return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
+/**
+ * The rows of column `x`, from `inset` rows above the sample's bottom edge
+ * upward, in the colour the sample shows `inset` pixels in from its
+ * bottom-left corner: a run of bare canvas beneath what the rectangle
+ * draws. `null` when column `x` starts in another colour.
+ */
+export function bareRunAtBottom(
+  pixels: Pixels,
+  x: number,
+  inset: number,
+): { top: number; bottom: number } | null {
+  const at = (px: number, py: number) => (py * pixels.width + px) * 4;
+  const bottom = pixels.height - 1 - inset;
+  const bare = at(inset, bottom);
+  if (differs(pixels.data, at(x, bottom), pixels.data, bare)) {
+    return null;
+  }
+  let top = bottom;
+  while (top > 0 && !differs(pixels.data, at(x, top - 1), pixels.data, bare)) {
+    top -= 1;
+  }
+  return { top, bottom };
+}
+
 /** How many pixels of two same-sized samples differ by more than noise. */
 export function changedPixels(a: Pixels, b: Pixels): number {
   if (a.width !== b.width || a.height !== b.height) {

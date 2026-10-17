@@ -263,11 +263,30 @@ describe("Viewer", () => {
 
     expect(device.invoke.mock.calls).toEqual([
       ["reload_animation", { anim: { u32: 3 }, clip: expect.anything() }],
-      [
-        "set_weight",
-        { player: { u32: 7 }, instance: { u32: 1 }, weight: { f32: 1 } },
-      ],
     ]);
+  });
+
+  it("loads only the latest of clips that change while the device is busy", async () => {
+    const { rerender } = renderViewer({
+      animationSourceActive: true,
+      animationRuntimeClip: clip(),
+    });
+    rerender({ animationSourceActive: true, animationRuntimeClip: clip(2) });
+    rerender({ animationSourceActive: true, animationRuntimeClip: clip(3) });
+    await settle();
+
+    expect(methodsInvoked()).toEqual([
+      "load_animation",
+      "create_player",
+      "add_instance_with_weight",
+      "reload_animation",
+    ]);
+    const reloaded = device.invoke.mock.calls.at(-1)?.[1] as {
+      clip: {
+        clipOf: { tracks: Array<{ keyframes: Array<{ value: number }> }> };
+      };
+    };
+    expect(reloaded.clip.clipOf.tracks[0]!.keyframes[1]!.value).toBe(3);
   });
 
   it("silences the timeline and returns its keys to rest when its clip goes", async () => {
