@@ -1,23 +1,16 @@
-import { VizijRuntimeFace, VizijRuntimeProvider } from "@vizij/runtime-react";
-import type {
-  RuntimeOutputWrite,
-  VizijAssetBundle,
+import {
+  VizijRuntimeFace,
+  useOptionalVizijRuntime,
+  useVizijRuntime,
 } from "@vizij/runtime-react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-} from "react";
-import { useVizijRuntime } from "@vizij/runtime-react";
-import {
-  deriveRootBounds,
-  useVizijStore,
-  useVizijStoreGetter,
-  useVizijStoreSetter,
+import { composeVizij, outputKeys, type Pick } from "@vizij/runtime";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type {
+  ToneMappingMode,
+  VizijBundleExtension,
+  VizijBundleGraphEntry,
 } from "@vizij/render";
-import type { ToneMappingMode } from "@vizij/render";
+import type { GraphSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
 import { Button } from "../ui";
 import { MotionGraphDriverBridge } from "../../motiongraph/MotionGraphDriverBridge";
@@ -28,10 +21,10 @@ import {
   type EditorEdge,
   type EditorNode,
 } from "../../motiongraph/store/useEditorStore";
+import { buildGraphSpec } from "../../motiongraph/utils/buildGraphSpec";
 import {
   useBindingAuthoring,
   useGraphRuntime,
-  useGraphRuntimeStoreApi,
 } from "../../state/RigControllerProvider";
 import { useAnimationStore } from "../../state/animationStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
@@ -41,32 +34,16 @@ import {
   isPoseControlInputPath,
   isPoseOutputInputPath,
 } from "../../poseRig/utils";
+import type { PoseRigConfigFile } from "../../poseRig/types";
 import {
   RuntimeFaceControlsOverlay,
   type RuntimeFaceOverlayAction,
 } from "./RuntimeFaceControlsOverlay";
-import { buildRuntimeInputCatalogFromConstraints } from "./runtimeInputsFromConstraints";
+import { buildRuntimeInputCatalogFromDescription } from "./runtimeInputsFromConstraints";
 import { EmptyStateDemo } from "./emptyStateDemo/EmptyStateDemo";
-import {
-  applyLockedRuntimeOutputWrite,
-  buildLockedRuntimeOutputIndex,
-} from "./runtimeOutputLocks";
+import { AUTHORING_FACE_OPTIONS } from "./faceComposition";
+import { heldOutputChanges } from "./runtimeOutputLocks";
 import type { FacePresetAssetOption } from "./facePresetAssets";
-
-type RuntimeRenderableSelectionType =
-  | "group"
-  | "shape"
-  | "ellipse"
-  | "rectangle";
-
-function selectionTypeFromRenderableType(
-  type: string | undefined,
-): RuntimeRenderableSelectionType {
-  if (type === "group" || type === "ellipse" || type === "rectangle") {
-    return type;
-  }
-  return "shape";
-}
 
 function toDeterministicSignature(value: unknown): string {
   const seen = new WeakSet<object>();
@@ -92,300 +69,6 @@ function toDeterministicSignature(value: unknown): string {
   });
 }
 
-interface RuntimeSelectionBridgeProps {
-  selectedSceneId: string | null;
-  onSelectScene: (id: string) => void;
-}
-
-function RuntimeSelectionBridge({
-  selectedSceneId,
-  onSelectScene,
-}: RuntimeSelectionBridgeProps) {
-  const { namespace } = useVizijRuntime();
-  const setRuntimeStoreState = useVizijStoreSetter();
-  const runtimeSelectedId = useVizijStore(
-    (state) => state.elementSelection[0]?.id ?? null,
-  );
-  const pendingRuntimeSelectionRef = useRef<string | "__clear__" | null>(null);
-  const forwardedRuntimeSelectionRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!runtimeSelectedId) {
-      if (pendingRuntimeSelectionRef.current === "__clear__") {
-        pendingRuntimeSelectionRef.current = null;
-      }
-      forwardedRuntimeSelectionRef.current = null;
-      return;
-    }
-    if (runtimeSelectedId === selectedSceneId) {
-      forwardedRuntimeSelectionRef.current = null;
-      return;
-    }
-    if (forwardedRuntimeSelectionRef.current === runtimeSelectedId) {
-      return;
-    }
-    const pendingRuntimeSelection = pendingRuntimeSelectionRef.current;
-    if (pendingRuntimeSelection === "__clear__" && runtimeSelectedId === null) {
-      pendingRuntimeSelectionRef.current = null;
-      return;
-    }
-    if (
-      pendingRuntimeSelection &&
-      pendingRuntimeSelection !== "__clear__" &&
-      pendingRuntimeSelection === runtimeSelectedId
-    ) {
-      pendingRuntimeSelectionRef.current = null;
-      return;
-    }
-    forwardedRuntimeSelectionRef.current = runtimeSelectedId;
-    onSelectScene(runtimeSelectedId);
-  }, [onSelectScene, runtimeSelectedId, selectedSceneId]);
-
-  useEffect(() => {
-    if (selectedSceneId === runtimeSelectedId) {
-      return;
-    }
-    setRuntimeStoreState((state) => {
-      if (!selectedSceneId) {
-        if ((state.elementSelection?.length ?? 0) === 0) {
-          return state;
-        }
-        pendingRuntimeSelectionRef.current = "__clear__";
-        return { ...state, elementSelection: [] };
-      }
-
-      const renderable = state.world[selectedSceneId];
-      if (!renderable) {
-        return state;
-      }
-
-      const nextType = selectionTypeFromRenderableType(renderable.type);
-      const existing = state.elementSelection[0];
-      if (
-        existing &&
-        existing.id === selectedSceneId &&
-        existing.type === nextType &&
-        existing.namespace === namespace
-      ) {
-        return state;
-      }
-
-      pendingRuntimeSelectionRef.current = selectedSceneId;
-      return {
-        ...state,
-        elementSelection: [
-          {
-            id: selectedSceneId,
-            type: nextType,
-            namespace,
-          },
-        ],
-      };
-    });
-  }, [namespace, runtimeSelectedId, selectedSceneId, setRuntimeStoreState]);
-
-  return null;
-}
-
-function RuntimeInputBridge() {
-  const { setInput, animateValue, ready, loading, rootId, outputPaths } =
-    useVizijRuntime();
-  const graphRuntimeStore = useGraphRuntimeStoreApi();
-
-  useEffect(() => {
-    graphRuntimeStore.setState({
-      stageRuntimeInput: ready
-        ? (graphPath: string, value: number) => {
-            setInput(graphPath, { float: value });
-          }
-        : undefined,
-      animateRuntimeValue: ready
-        ? (graphPath: string, value: number, duration: number) => {
-            void animateValue(graphPath, { float: value }, { duration });
-          }
-        : undefined,
-      runtimeViewReady: ready,
-      runtimeViewLoading: loading,
-      runtimeViewRootId: rootId ?? null,
-      runtimeViewOutputCount: outputPaths.length,
-    });
-  }, [
-    animateValue,
-    graphRuntimeStore,
-    loading,
-    outputPaths.length,
-    ready,
-    rootId,
-    setInput,
-  ]);
-
-  useEffect(
-    () => () => {
-      graphRuntimeStore.setState({
-        stageRuntimeInput: undefined,
-        animateRuntimeValue: undefined,
-        runtimeViewReady: false,
-        runtimeViewLoading: false,
-        runtimeViewRootId: null,
-        runtimeViewGraphCount: 0,
-        runtimeViewOutputCount: 0,
-      });
-    },
-    [graphRuntimeStore],
-  );
-
-  return null;
-}
-
-type FaceBounds = {
-  center: { x: number; y: number };
-  size: { x: number; y: number };
-};
-
-function faceBoundsEqual(a: FaceBounds, b: FaceBounds): boolean {
-  return (
-    a.center.x === b.center.x &&
-    a.center.y === b.center.y &&
-    a.size.x === b.size.x &&
-    a.size.y === b.size.y
-  );
-}
-
-function FaceBoundsRuntimeBridge() {
-  const { rootId } = useVizijRuntime();
-  const getVizijState = useVizijStoreGetter();
-  const setRuntimeStoreState = useVizijStoreSetter();
-  const graphRuntimeStore = useGraphRuntimeStoreApi();
-  const authoredBounds = useGraphRuntime((state) => {
-    if (!rootId) {
-      return undefined;
-    }
-    const entry = state.world[rootId] as
-      | { type?: string; rootBounds?: FaceBounds }
-      | undefined;
-    return entry?.type === "group" ? entry.rootBounds : undefined;
-  });
-
-  // Lets the inspector's "Fit to Geometry" measure the rendered face.
-  useEffect(() => {
-    graphRuntimeStore.setState({
-      measureFaceGeometryBounds: rootId
-        ? () => {
-            const state = getVizijState();
-            const refs = Object.values(state.refs[rootId] ?? {});
-            const target = refs.find((ref) => ref?.current)?.current ?? null;
-            return target
-              ? deriveRootBounds(
-                  target as Parameters<typeof deriveRootBounds>[0],
-                )
-              : null;
-          }
-        : undefined,
-    });
-  }, [getVizijState, graphRuntimeStore, rootId]);
-
-  useEffect(
-    () => () => {
-      graphRuntimeStore.setState({ measureFaceGeometryBounds: undefined });
-    },
-    [graphRuntimeStore],
-  );
-
-  // The runtime view renders from its own isolated store, so authored bounds
-  // edits are pushed into it here for the camera and safe-area overlay.
-  useEffect(() => {
-    if (!rootId || !authoredBounds) {
-      return;
-    }
-    setRuntimeStoreState((state) => {
-      const entry = state.world[rootId];
-      if (!entry || entry.type !== "group") {
-        return state;
-      }
-      const current = (entry as { rootBounds?: FaceBounds }).rootBounds;
-      if (current && faceBoundsEqual(current, authoredBounds)) {
-        return state;
-      }
-      return {
-        ...state,
-        world: {
-          ...state.world,
-          [rootId]: { ...entry, root: true, rootBounds: authoredBounds },
-        },
-      };
-    });
-  }, [authoredBounds, rootId, setRuntimeStoreState]);
-
-  return null;
-}
-
-export interface RuntimeExportBodiesSnapshot {
-  rootFilteredBodies: unknown[];
-  anyBodies: unknown[];
-  runtimeRootId: string | null;
-}
-
-interface RuntimeExportBodyBridgeProps {
-  targetRootId: string | null;
-  onRuntimeExportBodiesChange?: (snapshot: RuntimeExportBodiesSnapshot) => void;
-}
-
-function RuntimeExportBodyBridge({
-  targetRootId,
-  onRuntimeExportBodiesChange,
-}: RuntimeExportBodyBridgeProps) {
-  const { rootId: runtimeRootId } = useVizijRuntime();
-  // Bodies resolve from the world's groups and their mounted objects, so they
-  // are recomputed whenever either changes.
-  const world = useVizijStore((state) => state.world);
-  const refs = useVizijStore((state) => state.refs);
-  const getExportableBodies = useVizijStore(
-    (state) => state.getExportableBodies,
-  );
-  const rootFilteredBodies = useMemo(
-    () => getExportableBodies(targetRootId ? [targetRootId] : undefined),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- world and refs are what the getter reads.
-    [getExportableBodies, targetRootId, world, refs],
-  );
-  const anyBodies = useMemo(
-    () => getExportableBodies(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- world and refs are what the getter reads.
-    [getExportableBodies, world, refs],
-  );
-
-  useEffect(() => {
-    if (!onRuntimeExportBodiesChange) {
-      return;
-    }
-    onRuntimeExportBodiesChange({
-      rootFilteredBodies,
-      anyBodies,
-      runtimeRootId: runtimeRootId ?? null,
-    });
-  }, [
-    anyBodies,
-    onRuntimeExportBodiesChange,
-    rootFilteredBodies,
-    runtimeRootId,
-  ]);
-
-  useEffect(
-    () => () => {
-      if (!onRuntimeExportBodiesChange) {
-        return;
-      }
-      onRuntimeExportBodiesChange({
-        rootFilteredBodies: [],
-        anyBodies: [],
-        runtimeRootId: null,
-      });
-    },
-    [onRuntimeExportBodiesChange],
-  );
-
-  return null;
-}
-
 interface RuntimeInputCatalogBridgeProps {
   onRuntimeInputsReady: (
     inputs: StandardRigInput[],
@@ -393,21 +76,20 @@ interface RuntimeInputCatalogBridgeProps {
   ) => void;
 }
 
+/** The face's rig inputs, with their ranges and defaults, as its bundle
+ * declares them (`describe`). */
 function RuntimeInputCatalogBridge({
   onRuntimeInputsReady,
 }: RuntimeInputCatalogBridgeProps) {
-  const { ready, inputConstraints, namespace } = useVizijRuntime();
+  const { description } = useVizijRuntime();
   const { inputs, byId } = useMemo(
-    () =>
-      buildRuntimeInputCatalogFromConstraints(ready ? inputConstraints : null, {
-        namespace,
-      }),
-    [inputConstraints, namespace, ready],
+    () => buildRuntimeInputCatalogFromDescription(description),
+    [description],
   );
   const lastSignatureRef = useRef<string | null>(null);
 
   const signature = useMemo(() => {
-    if (!ready || inputs.length === 0) {
+    if (inputs.length === 0) {
       return "__empty__";
     }
     return inputs
@@ -416,7 +98,7 @@ function RuntimeInputCatalogBridge({
           `${input.id}:${input.path}:${input.defaultValue}:${input.range.min}:${input.range.max}`,
       )
       .join("|");
-  }, [inputs, ready]);
+  }, [inputs]);
 
   useEffect(() => {
     if (lastSignatureRef.current === signature) {
@@ -426,124 +108,233 @@ function RuntimeInputCatalogBridge({
     onRuntimeInputsReady(inputs, byId);
   }, [byId, inputs, onRuntimeInputsReady, signature]);
 
+  useEffect(
+    () => () => {
+      onRuntimeInputsReady([], new Map());
+    },
+    [onRuntimeInputsReady],
+  );
+
   return null;
 }
 
-function RuntimeGraphBridge() {
-  const { setGraphBundle } = useVizijRuntime();
+/**
+ * The bundle `bundle` becomes once the authored rig and pose graphs replace
+ * its own: what the face runs while it is being authored.
+ */
+function bundleWithAuthoredGraphs(
+  bundle: VizijBundleExtension | null,
+  rig: GraphSpec | null | undefined,
+  poseDriver: GraphSpec | null | undefined,
+  poseConfig: PoseRigConfigFile | null | undefined,
+): VizijBundleExtension {
+  const base: VizijBundleExtension = bundle ?? { version: 1 };
+  const graphs: VizijBundleGraphEntry[] = [...(base.graphs ?? [])];
+  const put = (
+    kind: string,
+    id: string,
+    spec: GraphSpec | null | undefined,
+  ) => {
+    if (!spec) {
+      return;
+    }
+    const index = graphs.findIndex((entry) => entry.kind === kind);
+    const entry = {
+      ...(index >= 0 ? graphs[index] : { id, kind }),
+      spec: spec as unknown as Record<string, unknown>,
+    } as VizijBundleGraphEntry;
+    if (index >= 0) {
+      graphs[index] = entry;
+    } else {
+      graphs.push(entry);
+    }
+  };
+  put("rig", "rig", rig);
+  put("pose-driver", "pose", poseDriver);
+  return {
+    ...base,
+    graphs,
+    ...(poseConfig
+      ? {
+          poses: {
+            ...(base.poses ?? {}),
+            config: poseConfig as unknown as NonNullable<
+              VizijBundleExtension["poses"]
+            >["config"],
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * The authored rig and pose graphs, loaded into the face's device as they
+ * change: the bundle's composition with those graphs in place of its own
+ * (`composeVizij`), swapped in whole (`loadGraph`). The device keeps its
+ * runs, its animation players and its store; the scene is not reloaded.
+ */
+function RuntimeGraphBridge({
+  bundle,
+}: {
+  bundle: VizijBundleExtension | null;
+}) {
+  const { runtime } = useVizijRuntime();
   const graphSpec = useGraphRuntime((state) => state.graphSpec);
   const poseGraphSpec = useGraphRuntime((state) => state.poseGraphSpec);
   const poseConfig = useGraphRuntime((state) => state.poseConfig);
-  const payload = useMemo(() => {
-    const shouldIncludePosePayload =
-      Boolean(graphSpec) || Boolean(poseGraphSpec) || Boolean(poseConfig);
-    const posePayload = shouldIncludePosePayload
-      ? {
-          graph: poseGraphSpec
-            ? { id: "pose", spec: poseGraphSpec }
-            : undefined,
-          config: poseConfig ?? undefined,
-        }
-      : undefined;
-    return {
-      rig: graphSpec ? { id: "rig", spec: graphSpec } : undefined,
-      pose: posePayload,
-    };
-  }, [graphSpec, poseConfig, poseGraphSpec]);
-  const payloadSignature = useMemo(
-    () => toDeterministicSignature(payload),
-    [payload],
+  const authored = useMemo(
+    () =>
+      graphSpec || poseGraphSpec || poseConfig
+        ? bundleWithAuthoredGraphs(bundle, graphSpec, poseGraphSpec, poseConfig)
+        : null,
+    [bundle, graphSpec, poseConfig, poseGraphSpec],
   );
-  const lastPayloadSignatureRef = useRef<string | null>(null);
+  const signature = useMemo(
+    () =>
+      authored
+        ? toDeterministicSignature([authored.graphs, authored.poses])
+        : null,
+    [authored],
+  );
+  const loadedRef = useRef<{ runtime: unknown; signature: string } | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (lastPayloadSignatureRef.current === payloadSignature) {
+    if (!runtime || !authored || !signature) {
       return;
     }
-    lastPayloadSignatureRef.current = payloadSignature;
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[vizij-runtime][graph-bridge]", {
-        hasRig: Boolean(payload.rig),
-        hasPoseGraph: Boolean(payload.pose?.graph),
-        hasPoseConfig: Boolean(payload.pose?.config),
-      });
+    if (
+      loadedRef.current?.runtime === runtime &&
+      loadedRef.current.signature === signature
+    ) {
+      return;
     }
-    setGraphBundle(payload, { tier: "graphs" });
-  }, [payload, payloadSignature, setGraphBundle]);
+    loadedRef.current = { runtime, signature };
+    let current = true;
+    void (async () => {
+      try {
+        // The face's own composition, its animation source included: a
+        // graph swapped in whole keeps only what it composes.
+        const spec = await composeVizij(
+          { asset: { version: "2.0" }, extensions: { VIZIJ_bundle: authored } },
+          {
+            graphs: AUTHORING_FACE_OPTIONS.graphs,
+            program: AUTHORING_FACE_OPTIONS.program,
+            animations: true,
+          },
+        );
+        if (current) {
+          await runtime.loadGraph(spec);
+        }
+      } catch (error) {
+        console.error(
+          "[vizij-authoring] the authored graphs did not load",
+          error,
+        );
+      }
+    })();
+    return () => {
+      current = false;
+    };
+  }, [authored, runtime, signature]);
+
+  return null;
+}
+
+/** The inspector's locks as holds: the view declines the device's writes to
+ * a locked animatable or component while it stays locked. */
+function RuntimeHoldBridge() {
+  const { runtime } = useVizijRuntime();
+  const locked = useBindingAuthoring((state) => state.lockedInspectorTargetIds);
+  const heldRef = useRef<ReadonlySet<string>>(new Set());
+
+  useEffect(() => {
+    if (!runtime) {
+      return;
+    }
+    const { hold, release } = heldOutputChanges(heldRef.current, locked);
+    if (release.length > 0) {
+      runtime.release(release);
+    }
+    if (hold.length > 0) {
+      runtime.hold(hold);
+    }
+    heldRef.current = new Set(locked);
+  }, [locked, runtime]);
 
   return null;
 }
 
 function RuntimeStatusDebug() {
-  const { loading, ready, rootId, error, controllers, outputPaths } =
-    useVizijRuntime();
-  const runtimeViewGraphCount = useGraphRuntime(
-    (state) => state.runtimeViewGraphCount,
-  );
-  const runtimeViewOutputCount = useGraphRuntime(
-    (state) => state.runtimeViewOutputCount,
-  );
+  const { status, error, vizijId, description } = useVizijRuntime();
+  const graphCount = description?.graphs.length ?? 0;
+  const outputCount = Object.keys(description?.animatables ?? {}).length;
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
       console.log("[vizij-runtime][viewer]", {
-        loading,
-        ready,
-        rootId,
+        status,
+        vizijId,
         error,
-        controllers,
-        outputPaths: outputPaths.length,
+        graphs: graphCount,
+        outputs: outputCount,
       });
     }
-  }, [loading, ready, rootId, error, controllers, outputPaths.length]);
+  }, [error, graphCount, outputCount, status, vizijId]);
   return (
     <div
       data-testid="main-runtime-status"
       className="absolute bottom-2 right-2 z-10 rounded bg-black/60 px-2 py-1 text-[10px] text-white"
     >
-      {`runtime: ${ready ? "ready" : loading ? "loading" : "idle"} | rootId: ${
-        rootId ?? "null"
-      } | graphs: ${runtimeViewGraphCount} | outputs: ${runtimeViewOutputCount}`}
+      {`runtime: ${status} | vizij: ${vizijId} | graphs: ${graphCount} | outputs: ${outputCount}`}
     </div>
   );
 }
 
-interface MotionGraphRuntimeResetEntry {
-  path: string;
-  value: number;
-}
-
+/**
+ * The motion-graph editor's program on the face, while it plays: the editor
+ * runs it (`MotionGraphDriverBridge`), its input sources write the store, and
+ * the sampler reads its outputs. When it stops, or another program takes its
+ * place, the keys its outputs wrote return to rest (`reset_keys` of
+ * `outputKeys`); a pause leaves them holding.
+ */
 function MotionGraphRuntimeBridge({
   controllerId = null,
   playbackState = "stopped",
   nodes,
   edges,
-  resetValues = [],
   plotActive = false,
 }: {
   controllerId?: string | null;
   playbackState?: "playing" | "paused" | "stopped";
   nodes?: EditorNode[] | null;
   edges?: EditorEdge[] | null;
-  resetValues?: readonly MotionGraphRuntimeResetEntry[];
   plotActive?: boolean;
 }) {
-  const { setInput } = useVizijRuntime();
+  const { runtime } = useVizijRuntime();
   const previousSessionRef = useRef<{
     controllerId: string | null;
     playbackState: "playing" | "paused" | "stopped";
-    resetValues: readonly MotionGraphRuntimeResetEntry[];
+    spec: GraphSpec | null;
   }>({
     controllerId: null,
     playbackState: "stopped",
-    resetValues: [],
+    spec: null,
   });
   const active =
     playbackState === "playing" &&
     Boolean(controllerId) &&
     Array.isArray(nodes) &&
     Array.isArray(edges);
+  const spec = useMemo(
+    () =>
+      Array.isArray(nodes) && Array.isArray(edges)
+        ? (buildGraphSpec(nodes, edges).spec as unknown as GraphSpec)
+        : null,
+    [edges, nodes],
+  );
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const previous = previousSessionRef.current;
     const targetChanged =
       previous.controllerId !== null && previous.controllerId !== controllerId;
@@ -551,22 +342,23 @@ function MotionGraphRuntimeBridge({
       previous.controllerId !== null &&
       previous.playbackState !== "stopped" &&
       playbackState === "stopped";
-    if (targetChanged || transitionedToStopped) {
-      previous.resetValues.forEach(({ path, value }) => {
-        setInput(path, { float: Number.isFinite(value) ? value : 0 });
-      });
+    if ((targetChanged || transitionedToStopped) && previous.spec && runtime) {
+      const stoppedSpec = previous.spec;
+      void (async () => {
+        try {
+          const keys = await outputKeys(stoppedSpec);
+          if (keys.length > 0) {
+            await runtime.invoke("reset_keys", { keys: { strs: keys } });
+          }
+        } catch (error) {
+          console.warn("[motiongraph] resetting the program's outputs", error);
+        }
+      })();
     }
-    previousSessionRef.current = {
-      controllerId,
-      playbackState,
-      resetValues,
-    };
-  }, [controllerId, playbackState, resetValues, setInput]);
+    previousSessionRef.current = { controllerId, playbackState, spec };
+  }, [controllerId, playbackState, runtime, spec]);
 
   return (
-    // The motiongraph tooling runs on the runtime's arora device: the driver
-    // publishes the editor graph as a runtime program, inputs stage through
-    // the runtime, and the sampler reads the device store step-aligned.
     <>
       <InputValueBridge active={active} nodes={nodes ?? undefined} />
       <MotionGraphDriverBridge
@@ -582,8 +374,8 @@ function MotionGraphRuntimeBridge({
 
 export interface ViewerProps {
   rootId: string | null;
-  namespace: string;
-  bundle: VizijAssetBundle | null;
+  /** The loaded face's bundle, into which the authored graphs go. */
+  bundle: VizijBundleExtension | null;
   runtimeEnabled?: boolean;
   animationSourceActive?: boolean;
   animationRuntimeClip?: AnimationClipIR | null;
@@ -592,7 +384,6 @@ export interface ViewerProps {
   motionGraphRuntimeEdges?: EditorEdge[] | null;
   motionGraphPlaybackState?: "playing" | "paused" | "stopped";
   motionGraphRuntimeControllerId?: string | null;
-  motionGraphRuntimeResetValues?: readonly MotionGraphRuntimeResetEntry[];
   runtimeStatusLabel?: string;
   runtimeActions?: RuntimeFaceOverlayAction[];
   runtimePlaybackState?: "playing" | "paused" | "stopped";
@@ -611,12 +402,21 @@ export interface ViewerProps {
   onLoadQuori: () => void;
   presetLoadOptions?: readonly FacePresetAssetOption[];
   onLoadPresetAsset?: (preset: FacePresetAssetOption) => void;
-  onRuntimeExportBodiesChange?: (snapshot: RuntimeExportBodiesSnapshot) => void;
 }
 
+type FaceBounds = {
+  center: { x: number; y: number };
+  size: { x: number; y: number };
+};
+
+/**
+ * The main viewport: where the main face draws on the page's canvas, with
+ * the bridges that drive it from the document and the editors. Presses on
+ * the face pass through to the canvas, which picks; the chips and buttons
+ * over it keep theirs.
+ */
 export function Viewer({
   rootId,
-  namespace: _namespace,
   bundle,
   runtimeEnabled = true,
   animationSourceActive = true,
@@ -626,7 +426,6 @@ export function Viewer({
   motionGraphRuntimeEdges = null,
   motionGraphPlaybackState = "stopped",
   motionGraphRuntimeControllerId = null,
-  motionGraphRuntimeResetValues = [],
   runtimeStatusLabel,
   runtimeActions = [],
   runtimePlaybackState,
@@ -642,9 +441,8 @@ export function Viewer({
   onLoadQuori,
   presetLoadOptions,
   onLoadPresetAsset,
-  onRuntimeExportBodiesChange,
 }: ViewerProps) {
-  const graphRuntimeStore = useGraphRuntimeStoreApi();
+  const face = useOptionalVizijRuntime();
   const faceBoundsOverlayVisible = useWorkspaceStore(
     (state) => state.faceBoundsOverlayVisible,
   );
@@ -654,40 +452,19 @@ export function Viewer({
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
   );
-  const runtimeAnimatables = useVizijStore((state) => state.animatables);
-  const lockedInspectorTargetIds = useBindingAuthoring(
-    (state) => state.lockedInspectorTargetIds,
-  );
   const applyStandardInputBatch = useBindingAuthoring(
     (state) => state.applyStandardInputBatch,
   );
   const stopAnimationTimeline = useAnimationStore((state) => state.stop);
-  const lockedRuntimeOutputIndex = useMemo(
-    () => buildLockedRuntimeOutputIndex(lockedInspectorTargetIds),
-    [lockedInspectorTargetIds],
-  );
-  const lockedRuntimeOutputIndexRef = useRef(lockedRuntimeOutputIndex);
-  const runtimeAnimatablesRef = useRef(runtimeAnimatables);
-
-  useEffect(() => {
-    lockedRuntimeOutputIndexRef.current = lockedRuntimeOutputIndex;
-  }, [lockedRuntimeOutputIndex]);
-  useEffect(() => {
-    runtimeAnimatablesRef.current = runtimeAnimatables;
-  }, [runtimeAnimatables]);
-
-  const transformOutputWrite = useCallback(
-    (write: RuntimeOutputWrite) =>
-      applyLockedRuntimeOutputWrite(
-        write,
-        lockedRuntimeOutputIndexRef.current,
-        {
-          fallbackCurrentValue:
-            runtimeAnimatablesRef.current[write.id]?.default,
-        },
-      ),
-    [],
-  );
+  const authoredBounds = useGraphRuntime((state) => {
+    if (!rootId) {
+      return undefined;
+    }
+    const entry = state.world[rootId] as
+      | { type?: string; rootBounds?: FaceBounds }
+      | undefined;
+    return entry?.type === "group" ? entry.rootBounds : undefined;
+  });
 
   const resetInputEntries = useMemo(() => {
     const updates: Record<string, number> = {};
@@ -717,35 +494,26 @@ export function Viewer({
     stopAnimationTimeline();
   }, [applyStandardInputBatch, resetInputEntries, stopAnimationTimeline]);
 
-  useEffect(() => {
-    if (rootId && bundle && runtimeEnabled) {
-      return;
-    }
-    graphRuntimeStore.setState({
-      stageRuntimeInput: undefined,
-      animateRuntimeValue: undefined,
-      runtimeViewReady: false,
-      runtimeViewLoading: false,
-      runtimeViewRootId: null,
-      runtimeViewGraphCount: 0,
-      runtimeViewOutputCount: 0,
-    });
-    onRuntimeInputsReady?.([], new Map());
-  }, [bundle, graphRuntimeStore, onRuntimeInputsReady, rootId, runtimeEnabled]);
-
-  const handleRuntimeControllersRegistered = useCallback(
-    (ids: { graphs: string[]; anims: string[] }) => {
-      graphRuntimeStore.setState({
-        runtimeViewGraphCount: ids.graphs.length,
-      });
+  const handlePick = useCallback(
+    ({ elementId }: Pick) => {
+      if (elementId) {
+        onSelectScene?.(elementId);
+      } else {
+        onClearSelection();
+      }
     },
-    [graphRuntimeStore],
+    [onClearSelection, onSelectScene],
+  );
+
+  const selection = useMemo(
+    () => (showSelectionGlow && selectedSceneId ? [selectedSceneId] : []),
+    [selectedSceneId, showSelectionGlow],
   );
 
   return (
     <main
       data-testid="main-viewer"
-      className="h-full w-full relative bg-bg-panel overflow-hidden"
+      className="h-full w-full relative overflow-hidden"
     >
       {(runtimeWarning || runtimeError) && (
         <div className="absolute top-0 left-0 right-0 z-10 flex flex-col gap-2 p-3 pointer-events-none">
@@ -762,73 +530,55 @@ export function Viewer({
         </div>
       )}
       <div className="h-full w-full">
-        {rootId && bundle && runtimeEnabled ? (
-          <VizijRuntimeProvider
-            assetBundle={bundle}
-            autostart
-            onRegisterControllers={handleRuntimeControllersRegistered}
-            transformOutputWrite={transformOutputWrite}
-          >
-            {onSelectScene ? (
-              <RuntimeSelectionBridge
-                selectedSceneId={selectedSceneId}
-                onSelectScene={onSelectScene}
+        {rootId && runtimeEnabled ? (
+          face ? (
+            <>
+              {onRuntimeInputsReady ? (
+                <RuntimeInputCatalogBridge
+                  onRuntimeInputsReady={onRuntimeInputsReady}
+                />
+              ) : null}
+              <RuntimeGraphBridge bundle={bundle} />
+              <RuntimeHoldBridge />
+              <AnimationRuntimeBridge
+                active={animationSourceActive}
+                clip={animationRuntimeClip}
+                transportSessionKey={animationTransportSessionKey}
               />
-            ) : null}
-            {onRuntimeInputsReady ? (
-              <RuntimeInputCatalogBridge
-                onRuntimeInputsReady={onRuntimeInputsReady}
+              <MotionGraphRuntimeBridge
+                controllerId={motionGraphRuntimeControllerId}
+                playbackState={motionGraphPlaybackState}
+                nodes={motionGraphRuntimeNodes}
+                edges={motionGraphRuntimeEdges}
+                plotActive={plotActive}
               />
-            ) : null}
-            {onRuntimeExportBodiesChange ? (
-              <RuntimeExportBodyBridge
-                targetRootId={rootId}
-                onRuntimeExportBodiesChange={onRuntimeExportBodiesChange}
+              <RuntimeStatusDebug />
+              <RuntimeFaceControlsOverlay
+                onResetInputs={handleResetInputs}
+                runtimeStatusLabel={runtimeStatusLabel}
+                runtimeStatusTestId="main-runtime-status-chip"
+                runtimePlaybackState={runtimePlaybackState}
+                onPlayRuntime={onPlayRuntime}
+                onPauseRuntime={onPauseRuntime}
+                runtimeActions={runtimeActions}
+                resetButtonLabel="Reset Main Inputs"
+                resetButtonTitle="Reset main-face inputs to their default values"
+                resetButtonTestId="main-runtime-reset-inputs"
+                readyFlagTestId="main-runtime-ready-flag"
               />
-            ) : null}
-            <RuntimeInputBridge />
-            <FaceBoundsRuntimeBridge />
-            <RuntimeGraphBridge />
-            <AnimationRuntimeBridge
-              active={animationSourceActive}
-              clip={animationRuntimeClip}
-              transportSessionKey={animationTransportSessionKey}
-            />
-            <MotionGraphRuntimeBridge
-              controllerId={motionGraphRuntimeControllerId}
-              playbackState={motionGraphPlaybackState}
-              nodes={motionGraphRuntimeNodes}
-              edges={motionGraphRuntimeEdges}
-              resetValues={motionGraphRuntimeResetValues}
-              plotActive={plotActive}
-            />
-            <RuntimeStatusDebug />
-            <RuntimeFaceControlsOverlay
-              onResetInputs={handleResetInputs}
-              runtimeStatusLabel={runtimeStatusLabel}
-              runtimeStatusTestId="main-runtime-status-chip"
-              runtimePlaybackState={runtimePlaybackState}
-              onPlayRuntime={onPlayRuntime}
-              onPauseRuntime={onPauseRuntime}
-              runtimeActions={runtimeActions}
-              resetButtonLabel="Reset Main Inputs"
-              resetButtonTitle="Reset main-face inputs to their default values"
-              resetButtonTestId="main-runtime-reset-inputs"
-              readyFlagTestId="main-runtime-ready-flag"
-            />
-            <div data-testid="main-runtime-view" className="h-full w-full">
-              <VizijRuntimeFace
-                className="h-full w-full"
-                showSafeArea={faceBoundsOverlayVisible}
-                showSelectionGlow={showSelectionGlow}
-                toneMapping={toneMapping}
-                onPointerMissed={() => {
-                  onClearSelection();
-                }}
-              />
-            </div>
-          </VizijRuntimeProvider>
-        ) : rootId && bundle ? (
+              <div data-testid="main-runtime-view" className="h-full w-full">
+                <VizijRuntimeFace
+                  className="h-full w-full"
+                  showSafeArea={faceBoundsOverlayVisible}
+                  selection={selection}
+                  toneMapping={toneMapping}
+                  bounds={authoredBounds}
+                  onPick={handlePick}
+                />
+              </div>
+            </>
+          ) : null
+        ) : rootId ? (
           <div
             data-testid="main-runtime-disabled-state"
             className="flex h-full w-full items-center justify-center p-8 text-center"
@@ -844,7 +594,7 @@ export function Viewer({
         ) : (
           <div
             data-testid="main-viewer-empty-state"
-            className="flex flex-col items-center h-full overflow-y-auto text-text-primary gap-5 p-6 text-center animate-in fade-in duration-700"
+            className="flex flex-col items-center h-full overflow-y-auto text-text-primary gap-5 p-6 text-center animate-in fade-in duration-700 pointer-events-auto"
           >
             <div className="flex flex-col gap-2">
               <p className="text-text-primary font-medium text-lg">

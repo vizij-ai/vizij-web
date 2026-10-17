@@ -17,12 +17,6 @@ interface AppWizardsProps {
   showExportDialog: boolean;
   onCloseExportDialog: () => void;
   rootId: string | null;
-  exportSceneRoot: unknown;
-  runtimeExportBodies?: {
-    rootFilteredBodies: unknown[];
-    anyBodies: unknown[];
-    runtimeRootId: string | null;
-  };
   sourceName: string | null;
   loadedBundle: any;
   toneMapping?: ToneMappingMode;
@@ -42,8 +36,6 @@ export function AppWizards({
   showExportDialog,
   onCloseExportDialog,
   rootId,
-  exportSceneRoot,
-  runtimeExportBodies,
   sourceName,
   loadedBundle,
   toneMapping,
@@ -88,8 +80,6 @@ export function AppWizards({
         open={showExportDialog}
         onClose={onCloseExportDialog}
         rootId={rootId}
-        exportSceneRoot={exportSceneRoot}
-        runtimeExportBodies={runtimeExportBodies}
         sourceName={sourceName}
         loadedBundle={loadedBundle}
         toneMapping={toneMapping}

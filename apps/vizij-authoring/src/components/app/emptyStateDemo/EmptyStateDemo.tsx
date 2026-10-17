@@ -1,36 +1,23 @@
-import {
-  VizijRuntimeProvider,
-  type VizijAssetBundle,
-} from "@vizij/runtime-react";
+import { VizijRuntimeProvider } from "@vizij/runtime-react";
 import { RuntimeFaceFrame } from "../RuntimeFaceFrame";
 import { DemoEmotionRow } from "./DemoEmotionRow";
 import { DemoVoicePanel } from "./DemoVoicePanel";
 import { useDemoMouseGaze } from "./useDemoMouseGaze";
-import { useDemoIdleGaze } from "./useDemoIdleGaze";
 
-const DEMO_BUNDLE: VizijAssetBundle = {
-  namespace: "empty-demo",
-  glb: {
-    kind: "url",
-    src: "/assets/Quori_Current_Extended.glb",
-    aggressiveImport: true,
-  },
-  pose: {
-    stageNeutralFilter: (_id, path) => !path.includes("/color/"),
-  },
-};
+/** Quori as shipped: its default composition, its active program running
+ * from load. */
+const DEMO_FACE = "/assets/Quori_Current_Extended.glb";
 
 export function EmptyStateDemo() {
   return (
-    <VizijRuntimeProvider assetBundle={DEMO_BUNDLE} autostart>
+    <VizijRuntimeProvider glb={DEMO_FACE}>
       <EmptyStateDemoBody />
     </VizijRuntimeProvider>
   );
 }
 
 function EmptyStateDemoBody() {
-  const gaze = useDemoMouseGaze(true);
-  useDemoIdleGaze({ enabled: true, pointerActive: gaze.isPointerActive });
+  const gazeRef = useDemoMouseGaze();
 
   return (
     <div
@@ -38,7 +25,7 @@ function EmptyStateDemoBody() {
       className="flex w-full max-w-xl flex-col items-center gap-3"
     >
       <div className="h-52 w-full sm:h-60">
-        <RuntimeFaceFrame variant="fill" pointerTargetRef={gaze.ref} />
+        <RuntimeFaceFrame variant="fill" pointerTargetRef={gazeRef} />
       </div>
       <DemoEmotionRow />
       <DemoVoicePanel />

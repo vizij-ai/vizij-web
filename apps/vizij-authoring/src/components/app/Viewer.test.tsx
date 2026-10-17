@@ -1,7 +1,7 @@
 import React, { act } from "react";
-import { fireEvent, render } from "@testing-library/react";
-import { createRoot, type Root } from "react-dom/client";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GraphSpec } from "@vizij/node-graph";
 import {
   GraphRuntimeStoreProvider,
   createGraphRuntimeStore,
@@ -12,83 +12,63 @@ import {
 } from "../../state/bindingAuthoringStore";
 import { useAnimationStore } from "../../state/animationStore";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
-import { AUTHORED_TIMELINE_CLIP_ID } from "../../types/animationClipIr";
+import {
+  AUTHORED_TIMELINE_CLIP_ID,
+  type AnimationClipIR,
+} from "../../types/animationClipIr";
 import { Viewer } from "./Viewer";
 
 const motionGraphValueSamplerSpy = vi.hoisted(() => vi.fn());
-const stepSpy = vi.fn();
-const setInputSpy = vi.fn();
-const runtimeAssetBundleState: {
-  animations: Array<{ id: string; clip: { tracks: unknown[] } }>;
-} = {
-  animations: [],
-};
-const setGraphBundleSpy = vi.fn((payload: unknown) => {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    Object.prototype.hasOwnProperty.call(payload, "animations")
-  ) {
-    const animations = (payload as { animations?: unknown }).animations;
-    runtimeAssetBundleState.animations = Array.isArray(animations)
-      ? (animations as Array<{ id: string; clip: { tracks: unknown[] } }>)
-      : [];
-  }
-});
-const setVizijStoreSpy = vi.fn();
-const getVizijStoreStateSpy = vi.fn(() => ({
-  world: {} as Record<string, unknown>,
-}));
-const stopAnimationSpy = vi.fn();
-const setAnimationActiveSpy = vi.fn();
-const pauseAnimationSpy = vi.fn();
-const getAnimationStateSpy = vi.fn().mockReturnValue(null);
 
-vi.mock("@vizij/render", () => ({
-  useVizijStore: <T,>(
-    selector: (state: {
-      animatables: Record<string, { default?: number }>;
-      elementSelection: Array<{
-        id: string;
-        type?: string;
-        namespace?: string;
-      }>;
-      world: Record<string, { type?: string }>;
-    }) => T,
-  ): T =>
-    selector({
-      animatables: {},
-      elementSelection: [],
-      world: {},
-    }),
-  useVizijStoreSetter: () => setVizijStoreSpy,
-  useVizijStoreGetter: () => getVizijStoreStateSpy,
-  deriveRootBounds: () => null,
+/** The main face's device: its keys under `rig/face/`, and what it was
+ * asked. The animation module answers with the ids it hands out. */
+const device = vi.hoisted(() => ({
+  path: (relative: string) => `rig/face/${relative}`,
+  loadGraph: vi.fn(async (_spec: unknown) => undefined),
+  invoke: vi.fn(async (method: string, _args?: unknown) =>
+    method === "load_animation"
+      ? { u32: 3 }
+      : method === "create_player"
+        ? { u32: 7 }
+        : method === "add_instance_with_weight"
+          ? { u32: 1 }
+          : undefined,
+  ),
+  hold: vi.fn(),
+  release: vi.fn(),
+  readValues: vi.fn((paths: string[]) =>
+    Object.fromEntries(paths.map((path) => [path, null])),
+  ),
+  moduleAnimation: vi.fn((animation: { id: string }) => ({
+    moduleAnimation: { clipOf: animation },
+  })),
+}));
+
+const face = vi.hoisted(() => ({
+  vizijId: "authoring-main",
+  status: "ready",
+  error: null,
+  runtime: device,
+  description: { graphs: [], animatables: {}, rigInputs: [] },
 }));
 
 vi.mock("@vizij/runtime-react", () => ({
-  VizijRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="runtime-provider">{children}</div>
-  ),
   VizijRuntimeFace: ({ className }: { className?: string }) => (
     <div data-testid="runtime-face" className={className} />
   ),
-  useVizijRuntime: () => ({
-    setInput: setInputSpy,
-    step: stepSpy,
-    ready: true,
-    loading: false,
-    rootId: "root",
-    error: null,
-    controllers: { graphs: [] },
-    outputPaths: [],
-    assetBundle: runtimeAssetBundleState,
-    setGraphBundle: setGraphBundleSpy,
-    stopAnimation: stopAnimationSpy,
-    setAnimationActive: setAnimationActiveSpy,
-    pauseAnimation: pauseAnimationSpy,
-    getAnimationState: getAnimationStateSpy,
-  }),
+  useOptionalVizijRuntime: () => face,
+  useVizijRuntime: () => face,
+  useVizijChanges: () => {},
+}));
+
+vi.mock("@vizij/runtime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@vizij/runtime")>()),
+  ANIMATION_PLAYERS_PATH: "vizij/animations/players",
+  decodePlayerStates: () => [],
+  composeVizij: vi.fn(async (gltf: unknown, options: unknown) => ({
+    composed: { gltf, options },
+  })),
+  outputKeys: vi.fn(async () => ["rig/face/standard/brow/inner_up"]),
 }));
 
 // The real demo mounts its own runtime provider and fetches a GLB, neither of
@@ -121,65 +101,80 @@ vi.mock("../../motiongraph/MotionGraphDriverBridge", () => ({
 
 type ViewerProps = React.ComponentProps<typeof Viewer>;
 
-function renderViewer(props: ViewerProps) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  let root: Root;
-  const store = createGraphRuntimeStore();
-  const bindingStore = createBindingAuthoringStore();
+const BASE_PROPS: ViewerProps = {
+  rootId: "root",
+  bundle: null,
+  onClearSelection: () => {},
+  showSelectionGlow: false,
+  onImportClick: () => {},
+  onLoadQuori: () => {},
+};
 
-  act(() => {
-    root = createRoot(container);
-    root.render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer {...props} />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-  });
-
+function renderViewer(
+  props: Partial<ViewerProps> = {},
+  stores: {
+    graph?: ReturnType<typeof createGraphRuntimeStore>;
+    binding?: ReturnType<typeof createBindingAuthoringStore>;
+  } = {},
+) {
+  const graphStore = stores.graph ?? createGraphRuntimeStore();
+  const bindingStore = stores.binding ?? createBindingAuthoringStore();
+  const tree = (next: Partial<ViewerProps>) => (
+    <GraphRuntimeStoreProvider store={graphStore}>
+      <BindingAuthoringStoreProvider store={bindingStore}>
+        <Viewer {...BASE_PROPS} {...next} />
+      </BindingAuthoringStoreProvider>
+    </GraphRuntimeStoreProvider>
+  );
+  const view = render(tree(props));
   return {
-    container,
-    unmount: () => {
-      act(() => {
-        root.unmount();
-      });
-      container.remove();
-    },
+    container: view.container,
+    rerender: (next: Partial<ViewerProps>) => view.rerender(tree(next)),
   };
 }
 
-describe("Viewer", () => {
-  beforeAll(() => {
-    (
-      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
-    ).IS_REACT_ACT_ENVIRONMENT = true;
+/** Let the device operations the bridges queued run. */
+async function settle() {
+  await act(async () => {
+    for (let i = 0; i < 20; i += 1) {
+      await Promise.resolve();
+    }
   });
+}
 
+function clip(value = 1): AnimationClipIR {
+  return {
+    schemaVersion: 1,
+    id: AUTHORED_TIMELINE_CLIP_ID,
+    duration: 1,
+    tracks: [
+      {
+        id: "t0",
+        variableId: "a",
+        channel: "controls/a",
+        interpolation: "linear",
+        keyframes: [
+          { id: "k0", time: 0, value: 0 },
+          { id: "k1", time: 1, value },
+        ],
+      },
+    ],
+  };
+}
+
+const methodsInvoked = () => device.invoke.mock.calls.map(([method]) => method);
+
+describe("Viewer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    motionGraphValueSamplerSpy.mockReset();
-    runtimeAssetBundleState.animations = [];
-    setVizijStoreSpy.mockReset();
-    stopAnimationSpy.mockReset();
-    setAnimationActiveSpy.mockReset();
-    pauseAnimationSpy.mockReset();
-    getAnimationStateSpy.mockClear();
     useAnimationStore.getState().reset();
     useEditorStore.getState().clear();
   });
 
-  it("shows empty scene state when no rootId", () => {
-    const { container, unmount } = renderViewer({
-      rootId: null,
-      namespace: "vizij",
-      bundle: null,
-      onClearSelection: () => {},
-      showSelectionGlow: false,
-      onImportClick: () => {},
-      onLoadQuori: () => {},
-    });
+  afterEach(cleanup);
+
+  it("shows the empty scene with its demo when no face is loaded", () => {
+    const { container } = renderViewer({ rootId: null });
 
     expect(
       container.querySelector('[data-testid="empty-state-demo"]'),
@@ -188,439 +183,135 @@ describe("Viewer", () => {
       container.querySelector('[data-testid="main-import-file-button"]'),
     ).toBeTruthy();
     expect(container.querySelector('[data-testid="runtime-face"]')).toBeNull();
-    unmount();
   });
 
-  it("renders runtime face when rootId is present", () => {
-    const { container, unmount } = renderViewer({
-      rootId: "root-1",
-      namespace: "vizij",
-      bundle: {
-        namespace: "vizij",
-        glb: {
-          kind: "world",
-          world: {} as any,
-          animatables: {} as any,
-          bundle: null,
-        },
-      },
-      onClearSelection: () => {},
-      showSelectionGlow: true,
-      onImportClick: () => {},
-      onLoadQuori: () => {},
-    });
+  it("shows the main face's slot when a face is loaded", () => {
+    const { container } = renderViewer();
 
     expect(
-      container.querySelector('[data-testid="runtime-provider"]'),
+      container.querySelector(
+        '[data-testid="main-runtime-view"] [data-testid="runtime-face"]',
+      ),
     ).toBeTruthy();
-    expect(
-      container.querySelector('[data-testid="runtime-face"]'),
-    ).toBeTruthy();
-    unmount();
   });
 
-  it("stages input without forcing step", () => {
-    const store = createGraphRuntimeStore();
-    const bindingStore = createBindingAuthoringStore();
-    render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              rig: { id: "rig", spec: { nodes: [] } },
-              bundle: null,
-            }}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    store.getState().stageRuntimeInput?.("rig/face/standard/mouth/x", 0.5);
-
-    expect(setInputSpy).toHaveBeenCalled();
-    expect(stepSpy).not.toHaveBeenCalled();
-  });
-
-  it("registers rig and pose graph payloads concurrently", () => {
-    const store = createGraphRuntimeStore({
-      graphSpec: { nodes: [] } as any,
-      poseGraphSpec: { nodes: [] } as any,
-      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+  it("loads the authored rig and pose graphs into the face's device, in place of the bundle's", async () => {
+    const rig = { nodes: [{ id: "authored-rig" }] } as unknown as GraphSpec;
+    const pose = { nodes: [{ id: "authored-pose" }] } as unknown as GraphSpec;
+    const poseConfig = { version: 1, neutralInputs: {}, poses: [] };
+    const graph = createGraphRuntimeStore({
+      graphSpec: rig,
+      poseGraphSpec: pose,
+      poseConfig: poseConfig as never,
     });
-    const bindingStore = createBindingAuthoringStore();
-
-    render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: {
-                kind: "world",
-                world: {},
-                animatables: {},
-                bundle: null,
-              },
-              bundle: null,
-            }}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
+    renderViewer(
       {
-        rig: { id: "rig", spec: { nodes: [] } },
-        pose: {
-          graph: { id: "pose", spec: { nodes: [] } },
-          config: { version: 1, neutralInputs: {}, poses: [] },
+        bundle: {
+          version: 1,
+          graphs: [{ id: "shipped-rig", kind: "rig", spec: { nodes: [] } }],
         },
       },
-      { tier: "graphs" },
+      { graph },
     );
-  });
+    await settle();
 
-  it("does not inject authored timeline animations when animation source is inactive", () => {
-    useAnimationStore
-      .getState()
-      .addTrack("input_a", "Input A", "controls/input_a");
-
-    const store = createGraphRuntimeStore();
-    const bindingStore = createBindingAuthoringStore();
-    const { rerender } = render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            animationSourceActive
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    rerender(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            animationSourceActive={false}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    expect(stopAnimationSpy).toHaveBeenCalledWith(AUTHORED_TIMELINE_CLIP_ID, {
-      clearOutputs: true,
-    });
-    expect(setAnimationActiveSpy).toHaveBeenCalledWith(false);
-  });
-
-  it("removes inherited runtime animations while inactive and restores them when re-enabled", () => {
-    runtimeAssetBundleState.animations = [
-      {
-        id: "bundle.imported.blink",
-        clip: {
-          tracks: [
-            {
-              channel: "rig/face/standard/blink",
-              keyframes: [{ time: 0, value: 1 }],
+    expect(device.loadGraph).toHaveBeenCalledTimes(1);
+    expect(device.loadGraph).toHaveBeenCalledWith({
+      composed: {
+        gltf: {
+          asset: { version: "2.0" },
+          extensions: {
+            VIZIJ_bundle: {
+              version: 1,
+              graphs: [
+                { id: "shipped-rig", kind: "rig", spec: rig },
+                { id: "pose", kind: "pose-driver", spec: pose },
+              ],
+              poses: { config: poseConfig },
             },
-          ],
+          },
+        },
+        options: {
+          graphs: ["rig", "pose-driver", "pose"],
+          program: "none",
+          animations: true,
         },
       },
-    ];
-
-    const store = createGraphRuntimeStore();
-    const bindingStore = createBindingAuthoringStore();
-    const { rerender } = render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            animationSourceActive={false}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    const inactiveAnimationCalls = setGraphBundleSpy.mock.calls.filter(
-      ([payload]) =>
-        payload &&
-        typeof payload === "object" &&
-        Array.isArray((payload as { animations?: unknown }).animations),
-    );
-    expect(inactiveAnimationCalls.length).toBeGreaterThan(0);
-    expect(
-      inactiveAnimationCalls.some(([payload]) =>
-        (
-          payload as {
-            animations: Array<{ id: string; clip: { tracks: unknown[] } }>;
-          }
-        ).animations.some(
-          (animation) =>
-            animation.id === "bundle.imported.blink" &&
-            Array.isArray(animation.clip?.tracks) &&
-            animation.clip.tracks.length === 0,
-        ),
-      ),
-    ).toBe(true);
-
-    rerender(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            animationSourceActive
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    const animationCalls = setGraphBundleSpy.mock.calls.filter(
-      ([payload]) =>
-        payload &&
-        typeof payload === "object" &&
-        Array.isArray((payload as { animations?: unknown }).animations),
-    );
-    expect(animationCalls.length).toBeGreaterThan(0);
-    expect(
-      animationCalls.some(([payload]) =>
-        (payload as { animations: Array<{ id: string }> }).animations.some(
-          (animation) => animation.id === "bundle.imported.blink",
-        ),
-      ),
-    ).toBe(true);
+    });
   });
 
-  it("injects authored timeline animation bundle when animation source is active", () => {
-    useAnimationStore
-      .getState()
-      .addTrack("input_a", "Input A", "controls/input_a");
+  it("plays the active clip on the timeline's own player, reloading it in place on edits", async () => {
+    const { rerender } = renderViewer({
+      animationSourceActive: true,
+      animationRuntimeClip: clip(),
+    });
+    await settle();
 
-    const store = createGraphRuntimeStore();
-    const bindingStore = createBindingAuthoringStore();
-    render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            animationSourceActive
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
+    expect(device.invoke.mock.calls).toEqual([
+      ["load_animation", { clip: expect.anything() }],
+      ["create_player", { name: AUTHORED_TIMELINE_CLIP_ID }],
+      [
+        "add_instance_with_weight",
+        { player: { u32: 7 }, anim: { u32: 3 }, weight: { f32: 1 } },
+      ],
+    ]);
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(true);
 
-    const animationBundleCalls = setGraphBundleSpy.mock.calls.filter(
-      ([payload]) =>
-        payload &&
-        typeof payload === "object" &&
-        Array.isArray((payload as { animations?: unknown }).animations),
-    );
-    expect(animationBundleCalls.length).toBeGreaterThan(0);
-    expect(
-      animationBundleCalls.some(([payload]) =>
-        (payload as { animations: Array<{ id: string }> }).animations.some(
-          (animation) => animation.id === AUTHORED_TIMELINE_CLIP_ID,
-        ),
-      ),
-    ).toBe(true);
+    device.invoke.mockClear();
+    rerender({ animationSourceActive: true, animationRuntimeClip: clip(2) });
+    await settle();
+
+    expect(device.invoke.mock.calls).toEqual([
+      ["reload_animation", { anim: { u32: 3 }, clip: expect.anything() }],
+      [
+        "set_weight",
+        { player: { u32: 7 }, instance: { u32: 1 }, weight: { f32: 1 } },
+      ],
+    ]);
   });
 
-  it("emits add/update/remove graph bundle transitions", () => {
-    const store = createGraphRuntimeStore({
-      graphSpec: { nodes: [{ id: "rig-1" }] } as any,
-      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
-      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+  it("silences the timeline and returns its keys to rest when its clip goes", async () => {
+    const { rerender } = renderViewer({
+      animationSourceActive: true,
+      animationRuntimeClip: clip(),
     });
-    const bindingStore = createBindingAuthoringStore();
+    await settle();
+    device.invoke.mockClear();
 
-    render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
+    rerender({ animationSourceActive: false, animationRuntimeClip: null });
+    await settle();
 
-    const graphBundleCalls = () =>
-      setGraphBundleSpy.mock.calls.filter(
-        ([payload]) =>
-          payload &&
-          typeof payload === "object" &&
-          !Object.prototype.hasOwnProperty.call(payload, "animations"),
-      );
-
-    const initialGraphCall =
-      graphBundleCalls()[graphBundleCalls().length - 1] ?? null;
-    expect(initialGraphCall).toEqual([
-      {
-        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
-        pose: {
-          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
-          config: { version: 1, neutralInputs: {}, poses: [] },
-        },
-      },
-      { tier: "graphs" },
+    expect(device.invoke.mock.calls).toEqual([
+      ["stop", { player: { u32: 7 } }],
+      [
+        "set_weight",
+        { player: { u32: 7 }, instance: { u32: 1 }, weight: { f32: 0 } },
+      ],
+      ["reset_keys", { keys: { strs: ["rig/face/controls/a"] } }],
     ]);
-    expect(graphBundleCalls().length).toBe(1);
-
-    act(() => {
-      store.setState({
-        poseGraphSpec: undefined,
-        poseConfig: undefined,
-      });
-    });
-
-    const secondGraphCall = graphBundleCalls()[graphBundleCalls().length - 1];
-    expect(secondGraphCall).toEqual([
-      {
-        rig: { id: "rig", spec: { nodes: [{ id: "rig-1" }] } },
-        pose: {
-          graph: undefined,
-          config: undefined,
-        },
-      },
-      { tier: "graphs" },
-    ]);
-    expect(graphBundleCalls().length).toBe(2);
-
-    act(() => {
-      store.setState({
-        graphSpec: undefined,
-      });
-    });
-
-    const finalGraphCall = graphBundleCalls()[graphBundleCalls().length - 1];
-    expect(finalGraphCall).toEqual([
-      {
-        rig: undefined,
-        pose: undefined,
-      },
-      { tier: "graphs" },
-    ]);
-    expect(graphBundleCalls().length).toBe(3);
+    expect(useAnimationStore.getState().transportRuntimeReady).toBe(false);
   });
 
-  it("registers pose graph only when rig graph is absent", () => {
-    const store = createGraphRuntimeStore({
-      graphSpec: undefined,
-      poseGraphSpec: { nodes: [{ id: "pose-1" }] } as any,
-      poseConfig: { version: 1, neutralInputs: {}, poses: [] } as any,
+  it("loads nothing on the timeline while no clip is active", async () => {
+    renderViewer({ animationSourceActive: false });
+    await settle();
+
+    expect(methodsInvoked()).toEqual([]);
+  });
+
+  it("holds the inspector's locked targets on the face", async () => {
+    const binding = createBindingAuthoringStore({
+      lockedInspectorTargetIds: new Set(["jaw:x"]),
     });
-    const bindingStore = createBindingAuthoringStore();
+    renderViewer({}, { binding });
+    await settle();
 
-    render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
-
-    expect(setGraphBundleSpy).toHaveBeenLastCalledWith(
-      {
-        rig: undefined,
-        pose: {
-          graph: { id: "pose", spec: { nodes: [{ id: "pose-1" }] } },
-          config: { version: 1, neutralInputs: {}, poses: [] },
-        },
-      },
-      { tier: "graphs" },
-    );
+    expect(device.hold).toHaveBeenCalledWith(["jaw:x"]);
   });
 
   it("resets managed input IDs to their defaults", () => {
-    const store = createGraphRuntimeStore();
-    const applyStandardInputBatchSpy = vi.fn();
-    const bindingStore = createBindingAuthoringStore({
+    const applyStandardInputBatch = vi.fn();
+    const binding = createBindingAuthoringStore({
       managedStandardInputs: [
         {
           input: {
@@ -629,7 +320,7 @@ describe("Viewer", () => {
             path: "/standard/jaw/open",
             range: { min: -1, max: 1 },
             defaultValue: 0.5,
-          } as any,
+          } as never,
           source: "custom",
           disabled: false,
         },
@@ -640,7 +331,7 @@ describe("Viewer", () => {
             path: "/pose/control/jaw_open",
             range: { min: 0, max: 1 },
             defaultValue: 0.9,
-          } as any,
+          } as never,
           source: "auto",
           disabled: false,
         },
@@ -650,66 +341,30 @@ describe("Viewer", () => {
             label: "Smile Weight",
             path: "/poses/pose_smile.weight",
             range: { min: 0, max: 1 },
-          } as any,
+          } as never,
           source: "auto",
           disabled: false,
         },
       ],
-      applyStandardInputBatch: applyStandardInputBatchSpy,
+      applyStandardInputBatch,
     });
+    const { container } = renderViewer({}, { binding });
 
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    act(() => {
-      root.render(
-        <GraphRuntimeStoreProvider store={store}>
-          <BindingAuthoringStoreProvider store={bindingStore}>
-            <Viewer
-              rootId="root"
-              namespace="default"
-              bundle={{
-                namespace: "default",
-                glb: {
-                  kind: "world",
-                  world: {},
-                  animatables: {},
-                  bundle: null,
-                },
-                bundle: null,
-              }}
-              onClearSelection={() => {}}
-              showSelectionGlow={false}
-              onImportClick={() => {}}
-              onLoadQuori={() => {}}
-            />
-          </BindingAuthoringStoreProvider>
-        </GraphRuntimeStoreProvider>,
-      );
-    });
-
-    const resetButton = container.querySelector(
-      'button[title="Reset main-face inputs to their default values"]',
+    fireEvent.click(
+      container.querySelector(
+        'button[title="Reset main-face inputs to their default values"]',
+      ) as HTMLButtonElement,
     );
-    expect(resetButton).toBeTruthy();
-    fireEvent.click(resetButton as HTMLButtonElement);
 
-    expect(applyStandardInputBatchSpy).toHaveBeenCalledWith({
+    expect(applyStandardInputBatch).toHaveBeenCalledWith({
       jaw_open: 0.5,
       pose_smile_weight: 0,
     });
-
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
   });
 
-  it("skips runtime reset when only pose-control inputs exist", () => {
-    const store = createGraphRuntimeStore();
-    const applyStandardInputBatchSpy = vi.fn();
-    const bindingStore = createBindingAuthoringStore({
+  it("skips the reset when only pose-control inputs exist", () => {
+    const applyStandardInputBatch = vi.fn();
+    const binding = createBindingAuthoringStore({
       managedStandardInputs: [
         {
           input: {
@@ -718,86 +373,31 @@ describe("Viewer", () => {
             path: "/pose/control/jaw_open",
             range: { min: 0, max: 1 },
             defaultValue: 0.5,
-          } as any,
+          } as never,
           source: "auto",
           disabled: false,
         },
       ],
-      applyStandardInputBatch: applyStandardInputBatchSpy,
+      applyStandardInputBatch,
     });
+    const { container } = renderViewer({}, { binding });
 
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    act(() => {
-      root.render(
-        <GraphRuntimeStoreProvider store={store}>
-          <BindingAuthoringStoreProvider store={bindingStore}>
-            <Viewer
-              rootId="root"
-              namespace="default"
-              bundle={{
-                namespace: "default",
-                glb: {
-                  kind: "world",
-                  world: {},
-                  animatables: {},
-                  bundle: null,
-                },
-                bundle: null,
-              }}
-              onClearSelection={() => {}}
-              showSelectionGlow={false}
-              onImportClick={() => {}}
-              onLoadQuori={() => {}}
-            />
-          </BindingAuthoringStoreProvider>
-        </GraphRuntimeStoreProvider>,
-      );
-    });
-
-    const resetButton = container.querySelector(
-      'button[title="Reset main-face inputs to their default values"]',
+    fireEvent.click(
+      container.querySelector(
+        'button[title="Reset main-face inputs to their default values"]',
+      ) as HTMLButtonElement,
     );
-    expect(resetButton).toBeTruthy();
-    fireEvent.click(resetButton as HTMLButtonElement);
 
-    expect(applyStandardInputBatchSpy).not.toHaveBeenCalled();
-
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
+    expect(applyStandardInputBatch).not.toHaveBeenCalled();
   });
 
-  it("keeps motion-graph sampling active while plotting a runtime snapshot", () => {
-    const store = createGraphRuntimeStore();
-    const bindingStore = createBindingAuthoringStore();
-
-    render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            motionGraphPlaybackState="playing"
-            motionGraphRuntimeControllerId="graph:test"
-            motionGraphRuntimeNodes={[]}
-            motionGraphRuntimeEdges={[]}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
+  it("keeps motion-graph sampling active while plotting a program that plays", () => {
+    renderViewer({
+      motionGraphPlaybackState: "playing",
+      motionGraphRuntimeControllerId: "graph:test",
+      motionGraphRuntimeNodes: [],
+      motionGraphRuntimeEdges: [],
+    });
 
     act(() => {
       useEditorStore.getState().togglePlot();
@@ -808,67 +408,27 @@ describe("Viewer", () => {
     });
   });
 
-  it("resets program-owned outputs when the runtime session stops", () => {
-    const store = createGraphRuntimeStore();
-    const bindingStore = createBindingAuthoringStore();
-    const view = render(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            motionGraphPlaybackState="playing"
-            motionGraphRuntimeControllerId="graph:test"
-            motionGraphRuntimeNodes={[]}
-            motionGraphRuntimeEdges={[]}
-            motionGraphRuntimeResetValues={[
-              {
-                path: "rig/face/standard/brow/inner_up",
-                value: 0.35,
-              },
-            ]}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
+  it("returns a stopped program's outputs to rest", async () => {
+    const playing: Partial<ViewerProps> = {
+      motionGraphPlaybackState: "playing",
+      motionGraphRuntimeControllerId: "graph:test",
+      motionGraphRuntimeNodes: [],
+      motionGraphRuntimeEdges: [],
+    };
+    const { rerender } = renderViewer(playing);
+    await settle();
+    device.invoke.mockClear();
 
-    view.rerender(
-      <GraphRuntimeStoreProvider store={store}>
-        <BindingAuthoringStoreProvider store={bindingStore}>
-          <Viewer
-            rootId="root"
-            namespace="default"
-            bundle={{
-              namespace: "default",
-              glb: { kind: "world", world: {}, animatables: {}, bundle: null },
-              bundle: null,
-            }}
-            motionGraphPlaybackState="stopped"
-            motionGraphRuntimeControllerId={null}
-            motionGraphRuntimeNodes={null}
-            motionGraphRuntimeEdges={null}
-            motionGraphRuntimeResetValues={[]}
-            onClearSelection={() => {}}
-            showSelectionGlow={false}
-            onImportClick={() => {}}
-            onLoadQuori={() => {}}
-          />
-        </BindingAuthoringStoreProvider>
-      </GraphRuntimeStoreProvider>,
-    );
+    rerender({
+      motionGraphPlaybackState: "stopped",
+      motionGraphRuntimeControllerId: null,
+      motionGraphRuntimeNodes: null,
+      motionGraphRuntimeEdges: null,
+    });
+    await settle();
 
-    expect(setInputSpy).toHaveBeenCalledWith(
-      "rig/face/standard/brow/inner_up",
-      { float: 0.35 },
-    );
+    expect(device.invoke).toHaveBeenCalledWith("reset_keys", {
+      keys: { strs: ["rig/face/standard/brow/inner_up"] },
+    });
   });
 });

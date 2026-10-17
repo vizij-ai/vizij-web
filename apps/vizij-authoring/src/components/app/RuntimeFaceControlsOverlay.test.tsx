@@ -3,10 +3,8 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 
-const mockRuntimeState = {
-  ready: true,
-  loading: false,
-  stepHz: 60,
+const mockRuntimeState: { status: "loading" | "ready" | "error" } = {
+  status: "ready",
 };
 
 vi.mock("@vizij/runtime-react", () => ({
@@ -16,24 +14,22 @@ vi.mock("@vizij/runtime-react", () => ({
 describe("RuntimeFaceControlsOverlay", () => {
   beforeEach(() => {
     cleanup();
-    mockRuntimeState.ready = true;
-    mockRuntimeState.loading = false;
-    mockRuntimeState.stepHz = 60;
+    mockRuntimeState.status = "ready";
   });
 
-  it("hides controls while runtime is not ready", () => {
-    mockRuntimeState.ready = false;
-    const view = render(<RuntimeFaceControlsOverlay />);
-    expect(view.queryByText(/FPS:/i)).toBeNull();
+  it("hides controls while the face is not ready", () => {
+    mockRuntimeState.status = "loading";
+    const view = render(<RuntimeFaceControlsOverlay onResetInputs={vi.fn()} />);
+    expect(view.queryByRole("button", { name: "Reset Inputs" })).toBeNull();
   });
 
-  it("renders reset action and fps readout while ready", () => {
+  it("renders the reset action and the ready flag while ready", () => {
     const onResetInputs = vi.fn();
     const view = render(
       <RuntimeFaceControlsOverlay onResetInputs={onResetInputs} />,
     );
 
-    expect(view.getByText(/FPS: 60 fps/i)).toBeTruthy();
+    expect(view.getByText("Ready")).toBeTruthy();
 
     fireEvent.click(view.getByRole("button", { name: "Reset Inputs" }));
     expect(onResetInputs).toHaveBeenCalledTimes(1);

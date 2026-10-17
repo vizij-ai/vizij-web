@@ -23,24 +23,10 @@ import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
 import type { VizijBundleSummary } from "./VizijBundleSummaryPanel";
 
-interface RuntimeExportBodies {
-  rootFilteredBodies: unknown[];
-  anyBodies: unknown[];
-  runtimeRootId: string | null;
-}
-
 interface AuthoredMotionGraphExportEntry {
   id: string;
   label: string;
   spec: { nodes: unknown[]; edges: unknown[] };
-}
-
-function normalizeRootId(value: string | null | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
 }
 
 interface PoseRigIrCapabilities {
@@ -55,7 +41,6 @@ interface ExportDialogProps {
   open: boolean;
   onClose: () => void;
   rootId: string | null;
-  exportSceneRoot: unknown;
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
   toneMapping?: ToneMappingMode;
@@ -64,7 +49,6 @@ interface ExportDialogProps {
   activeMotionGraphId?: string | null;
   canExport: boolean;
   onImportPoseGraph: (file: File) => Promise<void>;
-  runtimeExportBodies?: RuntimeExportBodies;
   onExportGlbComplete?: () => void;
   registerGlbExportHandler?: (handler: (() => Promise<void>) | null) => void;
 }
@@ -73,7 +57,6 @@ export function ExportDialog({
   open,
   onClose,
   rootId,
-  exportSceneRoot,
   sourceName,
   loadedBundle,
   toneMapping,
@@ -82,7 +65,6 @@ export function ExportDialog({
   activeMotionGraphId,
   canExport,
   onImportPoseGraph,
-  runtimeExportBodies,
   onExportGlbComplete,
   registerGlbExportHandler,
 }: ExportDialogProps) {
@@ -124,39 +106,6 @@ export function ExportDialog({
     handleExportFileNameChange,
   } = useAuthoringFileNames({ faceId });
   const runtimeWorld = useVizijStore((state) => state.world);
-  const getExportableBodies = useVizijStore(
-    (state) => state.getExportableBodies,
-  );
-  const normalizedRootId = useMemo(() => normalizeRootId(rootId), [rootId]);
-  const runtimeSnapshotRootId = useMemo(
-    () => normalizeRootId(runtimeExportBodies?.runtimeRootId ?? null),
-    [runtimeExportBodies?.runtimeRootId],
-  );
-  const canUseRuntimeSnapshot =
-    Boolean(normalizedRootId) &&
-    runtimeSnapshotRootId === normalizedRootId &&
-    Boolean(runtimeExportBodies);
-  const getExportableBodiesForExport = useCallback(
-    (filterIds?: string[]) => {
-      if (canUseRuntimeSnapshot && filterIds && filterIds.length > 0) {
-        if (
-          runtimeExportBodies &&
-          runtimeExportBodies.rootFilteredBodies.length
-        ) {
-          return runtimeExportBodies.rootFilteredBodies;
-        }
-      } else if (
-        canUseRuntimeSnapshot &&
-        runtimeExportBodies &&
-        runtimeExportBodies.anyBodies.length > 0
-      ) {
-        return runtimeExportBodies.anyBodies;
-      }
-      return getExportableBodies(filterIds);
-    },
-    [canUseRuntimeSnapshot, getExportableBodies, runtimeExportBodies],
-  );
-
   const uiState = useAuthoringUiState();
   const uiActions = useAuthoringUiActions();
   const { includeVizijBundle, includeImportedAnimations } = uiState;
@@ -213,8 +162,6 @@ export function ExportDialog({
     featureLabelOverrides,
     collectAnimatableExportState,
     setStoreState,
-    getExportableBodies: getExportableBodiesForExport,
-    fallbackExportBody: exportSceneRoot,
     alertDialog: showAlert,
     poseRig: {
       poseGraphSpec: poseRig.poseGraphSpec,

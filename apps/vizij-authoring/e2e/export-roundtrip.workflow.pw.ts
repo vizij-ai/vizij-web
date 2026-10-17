@@ -12,17 +12,16 @@ import {
  * An exported face, imported and exported again, is the same face. A face is
  * what its GLB's RobotData declares: each element, keyed by its RobotData id,
  * with its RobotData, its Vizij bundle (which carries its clips, programs and
- * graphs), its mesh — materials, and the bytes of every accessor its
- * primitives read — and the elements under it.
+ * graphs), its node's translation, rotation and scale, its mesh — materials,
+ * morph weights, and the bytes of every accessor its primitives read — and
+ * the elements under it. The export writes each element as the document
+ * authors it, so its transforms and weights are its authored values.
  *
  * Left out of the comparison, each for its reason:
  * - glTF nodes without RobotData, and where they sit: the scene wrappers the
  *   exporter writes around the face are not part of it;
  * - `extras`: three.js `userData` the exporter writes through, to which the
  *   importer adds its own (node names, morph target names);
- * - the glTF nodes' translation, rotation and scale and the meshes' morph
- *   weights: they carry the pose the exporter samples, while each element's
- *   authored values travel in its RobotData;
  * - the glTF animations: the export bakes them from the bundle's clips for
  *   other tools to play, and the clips themselves travel in the bundle;
  * - the bundle's timestamps (`exportedAt`, `previousExportedAt`,
@@ -135,7 +134,7 @@ function face({ json: gltf, bin }: { json: Gltf; bin: Buffer }): Json {
     );
   const meshOf = (index: Json): Json => {
     if (typeof index !== "number") return null;
-    const { weights: _weights, ...mesh } = gltf.meshes![index]!;
+    const mesh = gltf.meshes![index]!;
     const primitives = (mesh.primitives as Array<{ [key: string]: Json }>).map(
       (primitive) => ({
         ...primitive,
@@ -157,6 +156,9 @@ function face({ json: gltf, bin }: { json: Gltf; bin: Buffer }): Json {
     const extensions = node.extensions as { [key: string]: Json } | undefined;
     if (!extensions?.RobotData) return;
     elements[idOf(index)] = {
+      translation: node.translation ?? null,
+      rotation: node.rotation ?? null,
+      scale: node.scale ?? null,
       extensions: strip(extensions, ["extensions"]),
       mesh: meshOf(node.mesh ?? null),
       children: ((node.children as number[] | undefined) ?? []).map(idOf),

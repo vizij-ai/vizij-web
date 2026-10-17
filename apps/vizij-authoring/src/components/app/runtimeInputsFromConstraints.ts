@@ -1,3 +1,4 @@
+import type { VizijDescription } from "@vizij/runtime";
 import {
   createStandardRigInputFromPath,
   normalizeStandardRigInputPath,
@@ -96,4 +97,26 @@ export function buildRuntimeInputCatalogFromConstraints(
     byId,
     byPath,
   };
+}
+
+/** The inputs `description`'s rig declares, as a catalogue: empty while
+ * there is no description. */
+export function buildRuntimeInputCatalogFromDescription(
+  description: VizijDescription | null,
+): RuntimeInputCatalog {
+  if (!description) {
+    return buildRuntimeInputCatalogFromConstraints(null);
+  }
+  return buildRuntimeInputCatalogFromConstraints(
+    Object.fromEntries(
+      description.rigInputs.map((input) => [
+        input.path,
+        {
+          min: input.min ?? undefined,
+          max: input.max ?? undefined,
+          defaultValue: input.defaultValue ?? undefined,
+        },
+      ]),
+    ),
+  );
 }

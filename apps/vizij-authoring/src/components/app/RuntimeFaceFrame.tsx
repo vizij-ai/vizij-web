@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { VizijRuntimeFace, useVizijRuntime } from "@vizij/runtime-react";
 import { cn } from "../../utils/cn";
 
@@ -11,9 +11,13 @@ export type RuntimeFaceFrameProps = {
   overlay?: ReactNode;
   pointerTargetRef?: React.RefObject<HTMLDivElement | null>;
   onCanvasClick?: () => void;
-  skipBounds?: boolean;
 };
 
+/**
+ * A face of the nearest provider, framed: its slot on the page's canvas, an
+ * error over it if its load failed, and the caller's overlay. The frame has
+ * no background of its own, so the canvas beneath shows the face.
+ */
 export function RuntimeFaceFrame({
   className,
   variant = "fill",
@@ -23,15 +27,8 @@ export function RuntimeFaceFrame({
   overlay,
   pointerTargetRef,
   onCanvasClick,
-  skipBounds: _skipBounds = false,
 }: RuntimeFaceFrameProps) {
-  const { ready, loading, error, stagePoseNeutral } = useVizijRuntime();
-
-  useEffect(() => {
-    if (ready) {
-      stagePoseNeutral();
-    }
-  }, [ready, stagePoseNeutral]);
+  const { error } = useVizijRuntime();
 
   return (
     <div
@@ -61,13 +58,17 @@ export function RuntimeFaceFrame({
       <div
         ref={pointerTargetRef ?? undefined}
         className={cn(
-          "relative flex-1 w-full min-h-0 overflow-hidden rounded-xl border border-slate-800/60 bg-[radial-gradient(circle_at_50%_30%,theme(colors.slate.800)_0%,theme(colors.slate.950)_100%)]",
+          "relative flex-1 w-full min-h-0 overflow-hidden rounded-xl border border-slate-800/60",
           onCanvasClick && "cursor-pointer",
         )}
         onClick={onCanvasClick}
       >
-        <VizijRuntimeFace className="face-canvas" showSafeArea={false} />
-        <RuntimeStatusBadge ready={ready} loading={loading} error={error} />
+        <VizijRuntimeFace className="face-canvas h-full w-full" />
+        {error ? (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm font-medium text-red-400 bg-slate-950/85 backdrop-blur-sm">
+            {error.message}
+          </div>
+        ) : null}
         {overlay}
       </div>
       {footer && (
@@ -75,47 +76,4 @@ export function RuntimeFaceFrame({
       )}
     </div>
   );
-}
-
-type RuntimeErrorLike = ReturnType<typeof useVizijRuntime>["error"];
-
-type RuntimeStatusBadgeProps = {
-  ready: boolean;
-  loading: boolean;
-  error: RuntimeErrorLike | Error | null | undefined;
-};
-
-function RuntimeStatusBadge({
-  ready,
-  loading,
-  error,
-}: RuntimeStatusBadgeProps) {
-  if (error) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm font-medium text-red-400 bg-slate-950/85 backdrop-blur-sm">
-        {error.message}
-      </div>
-    );
-  }
-  if (!ready) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-300 bg-slate-950/85 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span>Initialising Vizij…</span>
-        </div>
-      </div>
-    );
-  }
-  if (loading) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-400 bg-slate-950/85 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
-          <span>Loading face…</span>
-        </div>
-      </div>
-    );
-  }
-  return null;
 }
