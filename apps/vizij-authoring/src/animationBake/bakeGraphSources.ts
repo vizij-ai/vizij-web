@@ -1,67 +1,78 @@
-import type { GraphSource } from "@vizij/runtime-react";
+import type { GraphSpec } from "@vizij/node-graph";
+import { channelKeys, composeVizij } from "@vizij/runtime";
 
 /**
- * Which graphs to bake through, and what they write.
+ * The graph the bake steps, and the keys it stages.
  *
- * Both are read out of the bundle being exported rather than rebuilt, so the
- * baked motion is produced by exactly the graph the bundle ships. Building a
- * second copy here would let the GLB and the bundle disagree about what the
- * face does, with nothing to catch it.
+ * Both come from the bundle being exported, read by the runtime as the
+ * exported face's device reads it, so the baked motion is produced by the
+ * graph the face runs and each track drives the key the face plays it on.
+ * Building either a second way would let the GLB and the face disagree about
+ * what the face does, with nothing to catch it.
  */
 
-/** Bundle graph kinds that participate in producing node motion. */
-const BAKEABLE_KINDS = new Set(["rig", "pose-driver"]);
+/** Bundle graph kinds that produce node motion: what the bake steps. */
+export const BAKE_GRAPH_KINDS = ["rig", "pose-driver"] as const;
 
-interface BundleGraphLike {
-  id?: unknown;
-  kind?: unknown;
-  spec?: unknown;
+interface BundleLike {
+  graphs?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Graph sources for the bake device, in bundle order. */
-export function collectBakeGraphSources(
-  bundle: { graphs?: unknown } | null | undefined,
-): GraphSource[] {
+/** Whether `bundle` carries a graph the bake steps. */
+export function hasBakeGraph(bundle: BundleLike | null | undefined): boolean {
   const graphs = bundle?.graphs;
-  if (!Array.isArray(graphs)) {
-    return [];
-  }
-  const sources: GraphSource[] = [];
-  graphs.forEach((entry: BundleGraphLike, index) => {
-    if (typeof entry?.kind !== "string" || !BAKEABLE_KINDS.has(entry.kind)) {
-      return;
-    }
-    if (!isRecord(entry.spec) || !Array.isArray(entry.spec.nodes)) {
-      return;
-    }
-    const sourceId =
-      typeof entry.id === "string" && entry.id.trim().length > 0
-        ? `${entry.kind}:${entry.id.trim()}`
-        : `${entry.kind}:${index}`;
-    sources.push({ sourceId, spec: entry.spec as GraphSource["spec"] });
-  });
-  return sources;
+  return (
+    Array.isArray(graphs) &&
+    graphs.some(
+      (entry) =>
+        isRecord(entry) &&
+        (BAKE_GRAPH_KINDS as readonly unknown[]).includes(entry.kind),
+    )
+  );
+}
+
+/** `bundle` as the glTF document the runtime reads a face's bundle from. */
+function documentOf(bundle: BundleLike): object {
+  return { asset: { version: "2.0" }, extensions: { VIZIJ_bundle: bundle } };
 }
 
 /**
- * Every path the composed spec declares it writes.
- *
- * Taken from the spec's own output nodes rather than from a separately
- * maintained list of animatables: the recorded set is then, by construction,
- * what the graph actually writes. A path list assembled elsewhere can drift
- * from the graph and silently bake nothing.
+ * The bundle's rig and pose driver, composed as the exported face's device
+ * composes them (`composeVizij`), with no program.
  */
-export function outputPathsOfSpec(spec: unknown): string[] {
+export async function composeBakeGraph(bundle: BundleLike): Promise<GraphSpec> {
+  return (await composeVizij(documentOf(bundle), {
+    graphs: [...BAKE_GRAPH_KINDS],
+    program: "none",
+  })) as GraphSpec;
+}
+
+/**
+ * The store key each of `channels` — animation track channels — drives on
+ * the face `bundle` describes: the key the face plays a track on
+ * (`channelKeys`, the resolution `Runtime.moduleAnimation` applies).
+ */
+export async function bakeChannelKeys(
+  bundle: BundleLike,
+  channels: ReadonlyArray<string>,
+): Promise<Map<string, string>> {
+  const unique = [...new Set(channels)];
+  const keys = await channelKeys(documentOf(bundle), unique);
+  return new Map(unique.map((channel, index) => [channel, keys[index]!]));
+}
+
+/** The trimmed `params.path` of every node of `spec` of type `type`. */
+function pathsOfNodes(spec: unknown, type: string): string[] {
   if (!isRecord(spec) || !Array.isArray(spec.nodes)) {
     return [];
   }
   const paths = new Set<string>();
   for (const node of spec.nodes) {
-    if (!isRecord(node) || node.type !== "output") {
+    if (!isRecord(node) || node.type !== type) {
       continue;
     }
     const params = node.params;
@@ -74,4 +85,22 @@ export function outputPathsOfSpec(spec: unknown): string[] {
     }
   }
   return [...paths];
+}
+
+/**
+ * Every path the spec declares it writes.
+ *
+ * Taken from the spec's own output nodes rather than from a separately
+ * maintained list of animatables: the recorded set is then, by construction,
+ * what the graph actually writes. A path list assembled elsewhere can drift
+ * from the graph and silently bake nothing.
+ */
+export function outputPathsOfSpec(spec: unknown): string[] {
+  return pathsOfNodes(spec, "output");
+}
+
+/** Every path the spec declares it reads: the keys a staged track can
+ * drive. */
+export function inputPathsOfSpec(spec: unknown): string[] {
+  return pathsOfNodes(spec, "input");
 }
