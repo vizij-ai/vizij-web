@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ValueJSON } from "@vizij/runtime";
@@ -8,6 +8,7 @@ import {
   VizijRuntimeFace,
   VizijRuntimeProvider,
   useAnimateValue,
+  useOptionalVizijRuntime,
   useVizijChanges,
   useVizijRuntime,
   useVizijValues,
@@ -227,6 +228,53 @@ describe("VizijRuntimeProvider", () => {
     expect(loaded[0].stop).toHaveBeenCalled();
     expect(loaded[0].dispose).toHaveBeenCalled();
     expect(runtime.unloadVizij).not.toHaveBeenCalled();
+  });
+
+  it("shows no face for a null glb, its children mounted and seeing none", async () => {
+    let mounts = 0;
+    function Child() {
+      const face = useOptionalVizijRuntime();
+      useEffect(() => {
+        mounts += 1;
+      }, []);
+      return (
+        <span data-testid="face">
+          {face
+            ? `${face.status}|${loaded.indexOf(face.runtime as never)}`
+            : "none"}
+        </span>
+      );
+    }
+    const page = (glb: Uint8Array | null) => (
+      <VizijRuntimeProvider glb={glb} vizijId="main">
+        <Child />
+      </VizijRuntimeProvider>
+    );
+    const { rerender } = render(page(null));
+    await act(async () => undefined);
+    expect(screen.getByTestId("face").textContent).toBe("none");
+    expect(runtime.loadVizij).not.toHaveBeenCalled();
+
+    rerender(page(bytes(1)));
+    await waitFor(() =>
+      expect(screen.getByTestId("face").textContent).toBe("ready|0"),
+    );
+
+    rerender(page(null));
+    await waitFor(() =>
+      expect(screen.getByTestId("face").textContent).toBe("none"),
+    );
+    await waitFor(() =>
+      expect(runtime.unloadVizij).toHaveBeenCalledWith("main"),
+    );
+    expect(loaded[0].stop).toHaveBeenCalled();
+    expect(loaded[0].dispose).toHaveBeenCalled();
+
+    rerender(page(bytes(2)));
+    await waitFor(() =>
+      expect(screen.getByTestId("face").textContent).toBe("ready|1"),
+    );
+    expect(mounts).toBe(1);
   });
 
   it("takes the face down on unmount", async () => {
