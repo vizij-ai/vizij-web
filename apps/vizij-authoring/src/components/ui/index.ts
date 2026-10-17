@@ -5,6 +5,7 @@ export * from "./Chip";
 export * from "./CollapsibleGroup";
 export * from "./CollapsibleRow";
 export * from "./Combobox";
+export * from "./DisabledReason";
 export * from "./FieldRow";
 export * from "./Input";
 export * from "./ListRow";

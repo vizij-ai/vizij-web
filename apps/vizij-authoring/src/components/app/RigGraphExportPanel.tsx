@@ -1,9 +1,11 @@
-import { Button, Input, Panel } from "../ui";
+import { Button, Input, Panel, useDisabledReason } from "../ui";
 
 interface RigGraphExportPanelProps {
   graphFileName: string;
   onGraphFileNameChange: (value: string) => void;
   canExport: boolean;
+  /** Why exporting is unavailable while `canExport` is false, when known. */
+  exportDisabledReason?: string | null;
   onExportGraph: () => void;
 }
 
@@ -11,8 +13,12 @@ export function RigGraphExportPanel({
   graphFileName,
   onGraphFileNameChange,
   canExport,
+  exportDisabledReason,
   onExportGraph,
 }: RigGraphExportPanelProps) {
+  const exportReason = useDisabledReason(
+    canExport ? null : exportDisabledReason,
+  );
   return (
     <Panel
       title="Rig Graph Export"
@@ -38,13 +44,17 @@ export function RigGraphExportPanel({
             disabled={!canExport}
             spellCheck={false}
           />
-          <Button
-            data-testid="export-rig-graph-button"
-            onClick={onExportGraph}
-            disabled={!canExport}
-          >
-            Export
-          </Button>
+          <span className="inline-flex" title={exportReason.title}>
+            <Button
+              data-testid="export-rig-graph-button"
+              onClick={onExportGraph}
+              disabled={!canExport}
+              {...exportReason.describedBy}
+            >
+              Export
+            </Button>
+            {exportReason.description}
+          </span>
         </div>
         <p className="text-[10px] text-slate-500 italic">
           Include when downstream tools rely on external rig graph files.

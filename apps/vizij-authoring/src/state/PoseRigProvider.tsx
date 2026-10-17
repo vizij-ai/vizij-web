@@ -24,6 +24,7 @@ import {
 } from "../poseRig/utils";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import type { FaceLoadPhaseUpdate } from "../hooks/useVizijAssetLoader";
+import { poseGraphFailure } from "../utils/faceLoadFailures";
 import {
   buildStandardInputIdRemap,
   remapPoseConfigInputIds,
@@ -338,6 +339,7 @@ function PoseRigController({
           stepId: "pose-graph-bootstrap",
           substepId: "normalize-pose-graph",
           status: "error",
+          message: poseGraphFailure(error),
         });
       }
     };

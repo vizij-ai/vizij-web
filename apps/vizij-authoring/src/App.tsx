@@ -955,8 +955,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [rootId]);
 
   // An export is built from the editor's state, so it waits until the whole
-  // face is in the editor.
+  // face is in the editor, and says why while it is not.
   const canExport = loader.isFaceLoaded;
+  const exportDisabledReason = loader.faceNotLoadedReason;
 
   const managedStandardInputs = useBindingAuthoring(
     (state) => state.managedStandardInputs,
@@ -4691,6 +4692,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onSave={handleSaveExport}
       onExport={() => setShowExportDialog(true)}
       canSave={canExport}
+      saveDisabledReason={exportDisabledReason}
       saveDirty={hasUnsavedGlbChanges}
       showSelectionGlow={showSelectionGlow}
       onToggleSelectionGlow={setShowSelectionGlow}
@@ -5454,6 +5456,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           authoredProceduralPrograms={authoredProceduralProgramsForExport}
           activeMotionGraphId={activeMotionGraphIdForExport}
           canExport={canExport}
+          exportDisabledReason={exportDisabledReason}
           handleImportPoseGraphFile={handleImportPoseGraphFile}
           poseGraphRemap={poseGraphRemap}
           handlePoseGraphRemapApply={handlePoseGraphRemapApply}

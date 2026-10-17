@@ -32,6 +32,46 @@ export interface FaceLoadPhaseUpdate {
   sequence?: number;
   operationId?: string;
   operationLabel?: string;
+  /**
+   * Why the step failed, with an `error` status. Until the step or substep
+   * reports again, it is the reason the face is not loaded.
+   */
+  message?: string;
+}
+
+/** Why Save and Export are unavailable while a face's import is in progress. */
+export const FACE_LOADING_REASON = "Loading the face…";
+
+/**
+ * Whether the face is in the editor, and if not, why.
+ *
+ * The face is loaded once it has a root and its import session, which brings
+ * the bundle's graphs and poses into the editor after the asset is parsed, has
+ * completed. `rootId` alone says less: it is set as soon as the asset is
+ * parsed, and from the moment an import begins until its asset starts loading
+ * (a file read, a preset's fetch) it is still the previous face's.
+ *
+ * While the import is in progress, the reason is the most recent failure that
+ * has not been followed by its step reporting again, or else that the face is
+ * loading. With no face and no import, there is nothing to give a reason for.
+ */
+export function resolveFaceLoad(state: {
+  rootId: string | null;
+  isImportFlowActive: boolean;
+  failures: ReadonlyMap<string, string>;
+}): { loaded: boolean; notLoadedReason: string | null } {
+  if (!state.isImportFlowActive) {
+    return { loaded: state.rootId !== null, notLoadedReason: null };
+  }
+  const failures = Array.from(state.failures.values());
+  return {
+    loaded: false,
+    notLoadedReason: failures.at(-1) ?? FACE_LOADING_REASON,
+  };
+}
+
+function faceLoadFailureKey(update: FaceLoadPhaseUpdate): string {
+  return `${update.stepId}:${update.substepId ?? ""}`;
 }
 
 export interface FaceLoadSubstep {
@@ -334,6 +374,9 @@ export function useVizijAssetLoader() {
     createDefaultFaceLoadSteps,
   );
   const [isImportFlowActive, setIsImportFlowActive] = useState(false);
+  const [faceLoadFailures, setFaceLoadFailures] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
   const [faceLoadSourceLabel, setFaceLoadSourceLabel] = useState<string | null>(
     null,
   );
@@ -562,6 +605,7 @@ export function useVizijAssetLoader() {
       resetExternalPhaseTrackers();
       clearFaceLoadOperations("begin-import-flow");
       setIsImportFlowActive(true);
+      setFaceLoadFailures(new Map());
       setFaceLoadSourceLabel(sourceLabel);
       setFaceLoadSessionStartedAtMs(startedAtMs);
       setFaceLoadSessionCompletedAtMs(null);
@@ -646,6 +690,7 @@ export function useVizijAssetLoader() {
     setIsLoading(false);
     resetExternalPhaseTrackers();
     clearFaceLoadOperations("session-cancel");
+    setFaceLoadFailures(new Map());
     resetFaceLoadMilestones();
     setIsImportFlowActive(false);
     setFaceLoadProgress(0);
@@ -743,6 +788,28 @@ export function useVizijAssetLoader() {
         status: update.status,
         sequence: nextSequence,
         stepOrder,
+      });
+
+      const failureKey = faceLoadFailureKey(update);
+      setFaceLoadFailures((previous) => {
+        if (update.status === "error") {
+          const message =
+            update.message?.trim() ||
+            `${update.substepLabel ?? update.label ?? update.substepId ?? update.stepId} failed.`;
+          if (previous.get(failureKey) === message) {
+            return previous;
+          }
+          const next = new Map(previous);
+          next.delete(failureKey);
+          next.set(failureKey, message);
+          return next;
+        }
+        if (!previous.has(failureKey)) {
+          return previous;
+        }
+        const next = new Map(previous);
+        next.delete(failureKey);
+        return next;
       });
 
       // Only the bundle-sync step's own completion means the bundle is in the
@@ -1095,6 +1162,7 @@ export function useVizijAssetLoader() {
     setFaceLoadProgress(0);
     setFaceLoadSteps(createDefaultFaceLoadSteps());
     setIsImportFlowActive(false);
+    setFaceLoadFailures(new Map());
     setFaceLoadSourceLabel(null);
     setFaceLoadSessionStartedAtMs(null);
     setFaceLoadSessionCompletedAtMs(null);
@@ -1136,12 +1204,12 @@ export function useVizijAssetLoader() {
     [],
   );
 
-  // The face is in the editor: its import session, which brings the bundle's
-  // graphs and poses into the editor after the asset is parsed, has completed.
-  // `rootId` alone says less: it is set as soon as the asset is parsed, and
-  // from the moment an import begins until its asset starts loading (a file
-  // read, a preset's fetch) it is still the previous face's.
-  const isFaceLoaded = rootId !== null && !isImportFlowActive;
+  const { loaded: isFaceLoaded, notLoadedReason: faceNotLoadedReason } =
+    resolveFaceLoad({
+      rootId,
+      isImportFlowActive,
+      failures: faceLoadFailures,
+    });
 
   return {
     rootId,
@@ -1150,6 +1218,7 @@ export function useVizijAssetLoader() {
     setAssetUrl,
     isLoading,
     isFaceLoaded,
+    faceNotLoadedReason,
     isImportFlowActive,
     faceLoadSourceLabel,
     faceLoadSessionToken,

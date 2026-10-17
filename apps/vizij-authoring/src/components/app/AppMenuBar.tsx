@@ -11,6 +11,7 @@ import {
   MenuSubmenu,
 } from "../ui/MenuBar";
 import { Button } from "../ui/Button";
+import { useDisabledReason } from "../ui/DisabledReason";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
@@ -79,6 +80,8 @@ interface AppMenuBarProps {
   /** Open an embedded skill's fragment in the editor (apply-back session). */
   onEditSkillGraph: (skillId: string) => void;
   canSave: boolean;
+  /** Why saving is unavailable while `canSave` is false, when there is one. */
+  saveDisabledReason?: string | null;
   saveDirty: boolean;
   showSelectionGlow: boolean;
   onToggleSelectionGlow: (enabled: boolean) => void;
@@ -122,6 +125,7 @@ export function AppMenuBar({
   onReplaceSkillJson,
   onEditSkillGraph,
   canSave,
+  saveDisabledReason,
   saveDirty,
   showSelectionGlow,
   onToggleSelectionGlow,
@@ -134,6 +138,7 @@ export function AppMenuBar({
   activeAuthoringSurface,
   onSelectAuthoringSurface,
 }: AppMenuBarProps) {
+  const saveReason = useDisabledReason(canSave ? null : saveDisabledReason);
   const hierarchyPanelVisible = useWorkspaceStore(
     (state) => state.panels.hierarchy.isVisible,
   );
@@ -226,7 +231,10 @@ export function AppMenuBar({
         <MenuItem onSelect={onImport} testId="app-menu-file-import">
           Import...
         </MenuItem>
-        <MenuItem onSelect={onImportSkipChecks}>
+        <MenuItem
+          onSelect={onImportSkipChecks}
+          testId="app-menu-file-import-skip-checks"
+        >
           Import (Skip Checks)...
         </MenuItem>
         <MenuItem
@@ -399,11 +407,16 @@ export function AppMenuBar({
         <MenuItem
           onSelect={onSave}
           disabled={!canSave}
+          disabledReason={saveDisabledReason}
           testId="app-menu-file-save"
         >
           Save
         </MenuItem>
-        <MenuItem onSelect={onExport} disabled={!canSave}>
+        <MenuItem
+          onSelect={onExport}
+          disabled={!canSave}
+          disabledReason={saveDisabledReason}
+        >
           Save As...
         </MenuItem>
         <MenuSeparator />
@@ -673,28 +686,36 @@ export function AppMenuBar({
         </MenuSubmenu>
       </Menu>
 
-      <Button
-        data-testid="app-save-button"
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!canSave}
-        onClick={onSave}
-        className={cn(
-          "ml-2 h-8 rounded-lg px-3 text-sm font-semibold",
-          saveDirty
-            ? "bg-accent/10 text-accent ring-1 ring-accent/35 hover:bg-accent/15 hover:text-accent"
-            : "text-text-secondary",
-        )}
+      <span
+        data-testid="app-save"
+        className="ml-2 inline-flex"
+        title={saveReason.title}
       >
-        {saveDirty ? (
-          <span
-            aria-hidden="true"
-            className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-current"
-          />
-        ) : null}
-        Save
-      </Button>
+        <Button
+          data-testid="app-save-button"
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!canSave}
+          onClick={onSave}
+          {...saveReason.describedBy}
+          className={cn(
+            "h-8 rounded-lg px-3 text-sm font-semibold",
+            saveDirty
+              ? "bg-accent/10 text-accent ring-1 ring-accent/35 hover:bg-accent/15 hover:text-accent"
+              : "text-text-secondary",
+          )}
+        >
+          {saveDirty ? (
+            <span
+              aria-hidden="true"
+              className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-current"
+            />
+          ) : null}
+          Save
+        </Button>
+        {saveReason.description}
+      </span>
 
       <div className="flex-1" />
       <ThemeToggle theme={theme} onToggle={toggleTheme} className="mr-2" />

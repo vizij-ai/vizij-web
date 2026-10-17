@@ -1,7 +1,17 @@
 import { act, renderHook } from "@testing-library/react";
 import type { LoadedVizijAsset } from "@vizij/render";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useVizijAssetLoader } from "../useVizijAssetLoader";
+import {
+  FACE_LOADING_REASON,
+  useVizijAssetLoader,
+  type FaceLoadPhaseUpdate,
+} from "../useVizijAssetLoader";
+import {
+  importFailure,
+  poseGraphFailure,
+  rigGraphCompileFailure,
+  rigGraphFatalIssuesFailure,
+} from "../../utils/faceLoadFailures";
 
 const addWorldElementsMock = vi.fn();
 const setStoreStateMock = vi.fn();
@@ -267,5 +277,114 @@ describe("useVizijAssetLoader", () => {
       });
     });
     expect(result.current.faceLoadMilestones["bundle-synced"]).not.toBeNull();
+  });
+});
+
+describe("useVizijAssetLoader: why the face is not loaded", () => {
+  beforeEach(() => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
+  });
+
+  async function renderLoadingFace() {
+    const hook = renderHook(() => useVizijAssetLoader());
+    let sessionToken!: string;
+    act(() => {
+      sessionToken = hook.result.current.beginImportFlow("face.glb");
+    });
+    await act(async () => {
+      await hook.result.current.loadVizij(
+        () => Promise.resolve(createLoadedAsset("root-face")),
+        "face.glb",
+        { sessionToken },
+      );
+    });
+    const report = (update: Omit<FaceLoadPhaseUpdate, "sessionToken">) =>
+      act(() => {
+        hook.result.current.updateExternalPhase({ ...update, sessionToken });
+      });
+    return { ...hook, sessionToken, report };
+  }
+
+  it("gives no reason without a face or an import", () => {
+    const { result } = renderHook(() => useVizijAssetLoader());
+    expect(result.current.faceNotLoadedReason).toBeNull();
+  });
+
+  it("says the face is loading while its import is in progress", async () => {
+    const { result, sessionToken } = await renderLoadingFace();
+    expect(result.current.isFaceLoaded).toBe(false);
+    expect(result.current.faceNotLoadedReason).toBe(FACE_LOADING_REASON);
+
+    act(() => {
+      result.current.completeImportFlow({ sessionToken });
+    });
+    expect(result.current.isFaceLoaded).toBe(true);
+    expect(result.current.faceNotLoadedReason).toBeNull();
+  });
+
+  it.each([
+    [
+      "a fatal rig issue",
+      {
+        stepId: "runtime-stabilization",
+        substepId: "settle-recompiles",
+      },
+      rigGraphFatalIssuesFailure(["mouth_open: unknown slot 'nope'"]),
+    ],
+    [
+      "a rig graph that does not compile",
+      {
+        stepId: "runtime-stabilization",
+        substepId: "settle-recompiles",
+      },
+      rigGraphCompileFailure("IR compile failed. Runtime apply blocked."),
+    ],
+    [
+      "a rig graph whose import failed",
+      { stepId: "bundle-sync", substepId: "import-rig-graph" },
+      importFailure("rig graph", new Error("Graph spec is missing metadata.")),
+    ],
+    [
+      "a pose config whose import failed",
+      { stepId: "bundle-sync", substepId: "import-pose-config" },
+      importFailure("pose config", new Error("Unsupported version: 7.")),
+    ],
+    [
+      "a pose graph that failed to build",
+      { stepId: "pose-graph-bootstrap", substepId: "normalize-pose-graph" },
+      poseGraphFailure(new Error("bad pose node")),
+    ],
+  ])(
+    "gives the cause when the load stops on %s",
+    async (_name, step, message) => {
+      const { result, report } = await renderLoadingFace();
+
+      await report({ ...step, status: "error", message });
+      expect(result.current.isFaceLoaded).toBe(false);
+      expect(result.current.faceNotLoadedReason).toBe(message);
+
+      // The step reporting again (the graph compiles, the import is retried)
+      // withdraws the cause.
+      await report({ ...step, status: "complete" });
+      expect(result.current.faceNotLoadedReason).toBe(FACE_LOADING_REASON);
+    },
+  );
+
+  it("forgets the previous load's failure when a new import begins", async () => {
+    const { result, report } = await renderLoadingFace();
+    await report({
+      stepId: "bundle-sync",
+      substepId: "import-rig-graph",
+      status: "error",
+      message: "The face's rig graph failed to import: boom",
+    });
+
+    act(() => {
+      result.current.beginImportFlow("next.glb");
+    });
+    expect(result.current.faceNotLoadedReason).toBe(FACE_LOADING_REASON);
   });
 });

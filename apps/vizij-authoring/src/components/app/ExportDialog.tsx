@@ -63,6 +63,8 @@ interface ExportDialogProps {
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   activeMotionGraphId?: string | null;
   canExport: boolean;
+  /** Why exporting is unavailable while `canExport` is false, when known. */
+  exportDisabledReason?: string | null;
   onImportPoseGraph: (file: File) => Promise<void>;
   runtimeExportBodies?: RuntimeExportBodies;
   onExportGlbComplete?: () => void;
@@ -81,6 +83,7 @@ export function ExportDialog({
   authoredProceduralPrograms,
   activeMotionGraphId,
   canExport,
+  exportDisabledReason,
   onImportPoseGraph,
   runtimeExportBodies,
   onExportGlbComplete,
@@ -308,6 +311,7 @@ export function ExportDialog({
             exportFileName={exportFileName}
             onExportFileNameChange={handleExportFileNameChange}
             canExport={canExport}
+            exportDisabledReason={exportDisabledReason}
             onExportGlb={() => {
               // eslint-disable-next-line no-console -- export smoke-test diagnostics
               console.log("[vizij-export-ui]", { event: "export-click" });
@@ -370,6 +374,7 @@ export function ExportDialog({
                 graphFileName={graphFileName}
                 onGraphFileNameChange={handleGraphFileNameChange}
                 canExport={canExport}
+                exportDisabledReason={exportDisabledReason}
                 onExportGraph={exportGraph}
               />
 

@@ -9,6 +9,7 @@ import {
 } from "../utils/animationClipCompiler";
 import { waitForNextFrame } from "../utils/frame";
 import { sanitizeFaceId } from "../utils/faceId";
+import { importFailure } from "../utils/faceLoadFailures";
 import { extractGraphFaceId, prepareSpecForImport } from "../utils/graphImport";
 import type { BundleGraphWithIr } from "../types/bundle";
 import { useLatestRef } from "./useLatestRef";
@@ -423,6 +424,7 @@ export function useBundleSynchronizer({
             stepId: "bundle-sync",
             status: "error",
             substepId: "import-rig-graph",
+            message: importFailure("rig graph", error),
           });
           console.warn(
             "[vizij-authoring] Failed to import rig graph from bundle.",
@@ -521,6 +523,7 @@ export function useBundleSynchronizer({
             stepId: "bundle-sync",
             status: "error",
             substepId: "import-pose-config",
+            message: importFailure("pose config", error),
           });
           console.warn(
             "[vizij-authoring] Failed to import pose rig config from bundle.",
