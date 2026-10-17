@@ -3,8 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph";
 import { startRuntime } from "@vizij/runtime";
-import { composeGraphSpecs } from "@vizij/runtime-react";
-import { collectBakeGraphSources } from "../bakeGraphSources";
+import { BAKE_GRAPH_KINDS, composeBakeGraph } from "../bakeGraphSources";
 
 /**
  * What a bake step actually costs, on the real rig graph.
@@ -115,14 +114,13 @@ describe("the cost of one bake step on the real rig graph", () => {
   });
 
   it("reports the cost of the spec the bake actually composes", async () => {
-    // The bake composes only `rig` and `pose-driver` sources — programs are
-    // excluded — so this is the graph it really steps, not the rig alone.
-    const sources = collectBakeGraphSources({ graphs: bundleGraphs() });
-    const spec = composeGraphSpecs(sources) as GraphSpec & {
+    // The bake composes only the `rig` and `pose-driver` graphs — programs
+    // are excluded — so this is the graph it really steps, not the rig alone.
+    const graphs = bundleGraphs();
+    const spec = (await composeBakeGraph({ graphs })) as GraphSpec & {
       nodes?: unknown[];
     };
     const nodeCount = spec.nodes?.length ?? 0;
-    expect(sources.length).toBeGreaterThan(0);
 
     const runtime = await startRuntime(spec);
     let perStep = 0;
@@ -141,8 +139,12 @@ describe("the cost of one bake step on the real rig graph", () => {
     }
 
     console.log(
-      `[bake-cost] composed=${sources.map((source) => source.sourceId).join(",")} ` +
-        `nodes=${nodeCount} perStep=${perStep.toFixed(2)}ms`,
+      `[bake-cost] composed=${graphs
+        .filter((graph) =>
+          (BAKE_GRAPH_KINDS as readonly unknown[]).includes(graph.kind),
+        )
+        .map((graph) => `${graph.kind}:${graph.id}`)
+        .join(",")} ` + `nodes=${nodeCount} perStep=${perStep.toFixed(2)}ms`,
     );
     expect(perStep).toBeGreaterThan(0);
   });
@@ -151,7 +153,9 @@ describe("the cost of one bake step on the real rig graph", () => {
     // Composing 15% more nodes costs 9x. Either the pose graph is simply
     // expensive on its own, or composition is superlinear — and the fix is
     // different in each case.
-    const sources = collectBakeGraphSources({ graphs: bundleGraphs() });
+    const sources = bundleGraphs().filter((graph) =>
+      (BAKE_GRAPH_KINDS as readonly unknown[]).includes(graph.kind),
+    );
     for (const source of sources) {
       const spec = source.spec as GraphSpec & { nodes?: unknown[] };
       const runtime = await startRuntime(spec);
@@ -170,7 +174,7 @@ describe("the cost of one bake step on the real rig graph", () => {
         runtime.dispose();
       }
       console.log(
-        `[bake-cost] alone=${source.sourceId} ` +
+        `[bake-cost] alone=${source.kind}:${source.id} ` +
           `nodes=${spec.nodes?.length ?? 0} perStep=${perStep.toFixed(2)}ms`,
       );
     }
