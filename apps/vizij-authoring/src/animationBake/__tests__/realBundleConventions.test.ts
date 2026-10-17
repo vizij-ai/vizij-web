@@ -3,12 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  collectInputPathMap,
-  composeGraphSpecs,
-  resolveAnimationBridgeOutputPaths,
-} from "@vizij/runtime-react";
-import {
-  collectBakeGraphSources,
+  bakeChannelKeys,
+  composeBakeGraph,
+  hasBakeGraph,
+  inputPathsOfSpec,
   outputPathsOfSpec,
 } from "../bakeGraphSources";
 
@@ -21,8 +19,8 @@ import {
  *
  * 1. that the rig graph writes `propsrig/...` paths (it writes animatable
  *    uuids),
- * 2. that a clip's channel is a graph input path (the graph declares its own,
- *    in an underscored form),
+ * 2. that a clip's channel is a graph input path (the face resolves it
+ *    through its rig, to an input path or by an input's id),
  * 3. that outputs are scalar per component (vector features are joined).
  *
  * A synthetic fixture cannot catch that class of error. This reads the shipped
@@ -40,7 +38,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** The bundle rides on a node's extensions, not the document root. */
 function readBundle(): {
   graphs?: Array<{ kind?: string; spec?: unknown; id?: string }>;
-  animations?: Array<{ id?: string; clip?: unknown }>;
+  animations?: Array<{
+    id?: string;
+    clip?: { tracks?: Array<{ channel?: string }> };
+  }>;
 } {
   const buffer = readFileSync(ASSET);
   let offset = 12;
@@ -81,10 +82,10 @@ describe("real bundle path conventions", () => {
   const bundle = readBundle();
 
   it("has the rig and pose graphs baking needs", () => {
-    const sources = collectBakeGraphSources(bundle);
-    const kinds = sources.map((source) => source.sourceId.split(":")[0]);
+    const kinds = (bundle.graphs ?? []).map((graph) => graph.kind);
     expect(kinds).toContain("rig");
     expect(kinds).toContain("pose-driver");
+    expect(hasBakeGraph(bundle)).toBe(true);
   });
 
   it("rig outputs are animatable uuids, NOT propsrig channel paths", () => {
@@ -98,97 +99,75 @@ describe("real bundle path conventions", () => {
     expect(paths.some((path) => path.includes("propsrig"))).toBe(false);
   });
 
-  it("resolves clip channels through the same bridge playback uses", () => {
-    // This is defect 2. Staging a clip's channel raw writes to a path nothing
-    // reads — the same failure that stopped playback.
-    const sources = collectBakeGraphSources(bundle);
-    const inputMap: Record<string, string> = Object.assign(
-      {},
-      ...sources.map((source) => collectInputPathMap(source.spec as never)),
+  it("drives a key the composed graph reads for every channel of the shipped clips", async () => {
+    // This is defect 2. Staging a clip's channel raw writes to a key nothing
+    // reads — the same failure that stops playback.
+    const declared = new Set(inputPathsOfSpec(await composeBakeGraph(bundle)));
+    const channels = (bundle.animations ?? []).flatMap((animation) =>
+      (animation.clip?.tracks ?? []).flatMap((track) =>
+        track.channel ? [track.channel] : [],
+      ),
     );
-    const declaredInputPaths = new Set(Object.values(inputMap));
-
-    // A propsrig channel must resolve: this is the path family the bake
-    // depends on, and the one the graph declares in underscored form.
-    const propsRigKey = Object.keys(inputMap).find(
-      (key) =>
-        key.startsWith("propsrig_") && inputMap[key]?.includes("/propsrig/"),
-    )!;
-    const resolved = resolveAnimationBridgeOutputPaths(
-      propsRigKey,
-      undefined,
-      inputMap,
+    expect(channels.length, "the asset ships no clip channels").toBeGreaterThan(
+      0,
     );
-    expect(
-      resolved.some((path) => declaredInputPaths.has(path)),
-      `"${propsRigKey}" did not resolve to any declared graph input`,
-    ).toBe(true);
 
-    // Pose weights resolve only when the pose exists in this graph. This
-    // asset's clip references a different pose set than its pose-driver
-    // declares, which is a genuine content mismatch — the point is that it is
-    // *detectable*, not that it resolves.
-    const poseInputs = Object.values(inputMap).filter((path) =>
-      /\/poses\/.+\.weight$/.test(path),
-    );
-    expect(
-      poseInputs.length,
-      "asset has no pose weight inputs",
-    ).toBeGreaterThan(0);
-    const existingPoseChannel = poseInputs[0]!.replace(/^rig\/[^/]+\//, "");
-    expect(
-      resolveAnimationBridgeOutputPaths(
-        existingPoseChannel,
-        undefined,
-        inputMap,
-      ).some((path) => declaredInputPaths.has(path)),
-      `an existing pose channel "${existingPoseChannel}" must resolve`,
-    ).toBe(true);
+    const keys = await bakeChannelKeys(bundle, channels);
+    for (const channel of channels) {
+      expect(
+        declared.has(keys.get(channel) ?? ""),
+        `"${channel}" drives ${keys.get(channel)}, which the graph does not read`,
+      ).toBe(true);
+    }
 
+    const missing = await bakeChannelKeys(bundle, [
+      "poses/pose_that_does_not_exist.weight",
+    ]);
     expect(
-      resolveAnimationBridgeOutputPaths(
-        "poses/pose_that_does_not_exist.weight",
-        undefined,
-        inputMap,
-      ).some((path) => declaredInputPaths.has(path)),
-      "a nonexistent pose must NOT resolve to a declared input",
+      declared.has(missing.get("poses/pose_that_does_not_exist.weight")!),
+      "a nonexistent pose must NOT drive a key the graph reads",
     ).toBe(false);
   });
 
-  it("keys the input map by the underscored id a clip track carries", () => {
-    // The bridge between the two naming worlds: a clip says
-    // `poses/pose_x.weight` with targetInputId `poses_pose_x.weight`, and the
-    // graph's input node is `input_poses_pose_x.weight` at a face-prefixed
-    // slash path.
+  it("drives an input named by its id at the input's path", async () => {
+    // A track may name its input by the id the rig gives the input node,
+    // without `input_` and its `direct_` alias.
     const rig = (bundle.graphs ?? []).find((graph) => graph.kind === "rig");
-    const inputMap = collectInputPathMap(rig?.spec as never);
-
-    const propsRigKey = Object.keys(inputMap).find(
-      (key) =>
-        key.startsWith("propsrig_") && inputMap[key]?.includes("/propsrig/"),
+    const direct = (
+      (
+        rig?.spec as {
+          nodes?: Array<{
+            id?: string;
+            type?: string;
+            params?: { path?: string };
+          }>;
+        }
+      )?.nodes ?? []
+    ).find(
+      (node) =>
+        node.type === "input" &&
+        node.id?.startsWith("input_direct_") &&
+        node.params?.path?.includes("/gaze/"),
     );
-    expect(propsRigKey, "no underscored propsrig input key").toBeDefined();
-    expect(inputMap[propsRigKey!]).toMatch(/^rig\/[^/]+\/propsrig\//);
+    expect(direct, "the rig has no direct gaze input").toBeDefined();
+    const id = direct!.id!.slice("input_direct_".length);
+
+    const keys = await bakeChannelKeys(bundle, [id]);
+    expect(keys.get(id)).toBe(direct!.params!.path);
   });
 
-  it("composition leaves store paths alone but renames nodes", () => {
-    // Why the input map must be built per source: composition prefixes node
-    // ids, which defeats collectInputPathMap's `input_` strip.
-    const sources = collectBakeGraphSources(bundle);
-    const composed = composeGraphSpecs(sources as never);
-    const composedNodes = (composed as { nodes: Array<{ id: string }> }).nodes;
+  it("composition leaves store paths alone but renames nodes", async () => {
+    const composed = await composeBakeGraph(bundle);
+    const composedNodes = (
+      composed as unknown as { nodes: Array<{ id: string }> }
+    ).nodes;
 
     expect(composedNodes.some((node) => node.id.includes("::"))).toBe(true);
-    const composedMap = collectInputPathMap(composed as never);
-    expect(
-      Object.keys(composedMap).some((key) => key.startsWith("propsrig_")),
-      "composed spec unexpectedly yields bare input keys",
-    ).toBe(false);
-
     // Store paths themselves survive composition unchanged.
-    const rig = sources.find((source) => source.sourceId.startsWith("rig:"));
+    const rig = (bundle.graphs ?? []).find((graph) => graph.kind === "rig");
+    const composedOutputs = new Set(outputPathsOfSpec(composed));
     for (const path of outputPathsOfSpec(rig?.spec)) {
-      expect(outputPathsOfSpec(composed)).toContain(path);
+      expect(composedOutputs.has(path), path).toBe(true);
     }
   });
 });

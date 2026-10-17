@@ -17,7 +17,6 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
-import { collectInputPathMap, composeGraphSpecs } from "@vizij/runtime-react";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -36,9 +35,11 @@ import { readGltfAnimationDocument } from "../animationImport/gltfAnimationDocum
 import { gltfAnimationFingerprint } from "../animationImport/bakedAnimationProvenance";
 import {
   bakeAuthoredClips,
+  bakeChannelKeys,
   buildBakeChannelIndex,
   buildBakeTargetIndexFromWorld,
-  collectBakeGraphSources,
+  composeBakeGraph,
+  hasBakeGraph,
   outputPathsOfSpec,
   summarizeBakeReport,
 } from "../animationBake";
@@ -980,7 +981,6 @@ export function useVizijExport(
       // written now and amended in the finished file rather than exporting
       // twice to learn them.
       let bakedClipOrder: Array<{ clipId: string; clipName: string }> = [];
-      const bakeSources = collectBakeGraphSources(bundle);
       // Every animation the user can see, not just the authored ones.
       //
       // `authoredAnimationClips` carries authored clips plus imported clips
@@ -1001,29 +1001,25 @@ export function useVizijExport(
         importedForBake.push(clip);
       }
       const clipsToBake = [...authoredForBake, ...importedForBake];
-      if (bakeSources.length > 0 && clipsToBake.length > 0) {
+      if (bundle && hasBakeGraph(bundle) && clipsToBake.length > 0) {
         try {
-          const composed = composeGraphSpecs(bakeSources);
+          const composed = await composeBakeGraph(bundle);
           // The rig graph writes animatable ids, not propsrig paths, so the
           // recorded set is the world's animated features restricted to what
           // the exported graph actually declares as an output.
           const declaredOutputs = new Set(outputPathsOfSpec(composed));
           const bakeResult = await bakeAuthoredClips({
             clips: clipsToBake,
-            spec: composed as unknown as GraphSpec,
+            spec: composed,
             outputs: buildBakeChannelIndex({
               world: (world ?? {}) as never,
               animatables: animatables as never,
               restrictToPaths: declaredOutputs,
             }),
-            // Built per source, NOT from the composed spec: composition
-            // prefixes node ids ("rig::input_foo"), which defeats the
-            // `input_` strip that produces the lookup key a clip's
-            // variableId matches.
-            inputPathMap: Object.assign(
-              {},
-              ...bakeSources.map((source) =>
-                collectInputPathMap(source.spec as never),
+            channelKeys: await bakeChannelKeys(
+              bundle,
+              clipsToBake.flatMap((clip) =>
+                clip.tracks.map((track) => track.channel),
               ),
             ),
             targets: buildBakeTargetIndexFromWorld(world ?? {}, animatables),
@@ -1092,7 +1088,7 @@ export function useVizijExport(
           );
           bakedAnimations = [];
         }
-      } else if (clipsToBake.length > 0 && bakeSources.length === 0) {
+      } else if (clipsToBake.length > 0) {
         // Baking needs the rig graph, which travels in the bundle. Without it
         // there is nothing to evaluate the clips through.
         logVizijExportDebug("export-glb:bake-skipped", {

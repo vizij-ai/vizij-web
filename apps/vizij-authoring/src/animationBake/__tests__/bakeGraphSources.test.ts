@@ -1,54 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
-  collectBakeGraphSources,
+  hasBakeGraph,
+  inputPathsOfSpec,
   outputPathsOfSpec,
 } from "../bakeGraphSources";
 
-describe("collectBakeGraphSources", () => {
-  const rig = {
-    id: "face",
-    kind: "rig",
-    spec: { nodes: [{ id: "n", type: "output", params: { path: "a" } }] },
-  };
-  const pose = {
-    id: "pose",
-    kind: "pose-driver",
-    spec: { nodes: [{ id: "p", type: "output", params: { path: "b" } }] },
-  };
-
-  it("takes the rig and pose graphs, in bundle order", () => {
-    const sources = collectBakeGraphSources({ graphs: [rig, pose] });
-    expect(sources.map((source) => source.sourceId)).toEqual([
-      "rig:face",
-      "pose-driver:pose",
-    ]);
+describe("hasBakeGraph", () => {
+  it("finds a rig or a pose driver among the bundle's graphs", () => {
+    expect(hasBakeGraph({ graphs: [{ id: "face", kind: "rig" }] })).toBe(true);
+    expect(
+      hasBakeGraph({ graphs: [{ id: "pose", kind: "pose-driver" }] }),
+    ).toBe(true);
   });
 
-  it("skips kinds that do not produce node motion", () => {
+  it("finds none in kinds that do not produce node motion", () => {
     // A motion/procedural graph is authored output, not part of the rig's
     // input-to-transform path, so baking through it would double-apply.
-    const sources = collectBakeGraphSources({
-      graphs: [rig, { id: "m", kind: "motion", spec: { nodes: [] } }],
-    });
-    expect(sources.map((source) => source.sourceId)).toEqual(["rig:face"]);
+    expect(hasBakeGraph({ graphs: [{ id: "m", kind: "motiongraph" }] })).toBe(
+      false,
+    );
   });
 
-  it("skips entries with no usable spec instead of composing junk", () => {
+  it("finds none in a missing or bundle-less export", () => {
+    expect(hasBakeGraph(null)).toBe(false);
+    expect(hasBakeGraph(undefined)).toBe(false);
+    expect(hasBakeGraph({})).toBe(false);
+  });
+});
+
+describe("inputPathsOfSpec", () => {
+  it("reads the paths the spec's own input nodes declare", () => {
     expect(
-      collectBakeGraphSources({
-        graphs: [
-          { id: "a", kind: "rig", spec: null },
-          { id: "b", kind: "rig", spec: {} },
-          { id: "c", kind: "rig" },
+      inputPathsOfSpec({
+        nodes: [
+          { id: "a", type: "input", params: { path: "rig/face/gaze/x" } },
+          { id: "b", type: "output", params: { path: "not/an/input" } },
+          { id: "c", type: "input", params: {} },
         ],
       }),
-    ).toEqual([]);
-  });
-
-  it("returns nothing for a missing or bundle-less export", () => {
-    expect(collectBakeGraphSources(null)).toEqual([]);
-    expect(collectBakeGraphSources(undefined)).toEqual([]);
-    expect(collectBakeGraphSources({})).toEqual([]);
+    ).toEqual(["rig/face/gaze/x"]);
   });
 });
 

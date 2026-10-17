@@ -112,6 +112,22 @@ const BAKE_ANIMATABLE_ID = "anim-l-lid-translation";
 /** The graph input path the clip's channel resolves to. */
 const BAKE_INPUT_PATH = "rig/face/propsrig/l_lid/translation/y";
 vi.mock("@vizij/runtime", () => ({
+  // The face's composition, reduced to its rig graph.
+  composeVizij: vi.fn(
+    async (document: {
+      extensions: {
+        VIZIJ_bundle: { graphs?: Array<{ kind: string; spec: unknown }> };
+      };
+    }) =>
+      document.extensions.VIZIJ_bundle.graphs?.find(
+        (graph) => graph.kind === "rig",
+      )?.spec,
+  ),
+  // A channel's key under the face's rig prefix, as `ChannelKeys` keys a
+  // rig-relative path.
+  channelKeys: vi.fn(async (_document: unknown, channels: string[]) =>
+    channels.map((channel) => `rig/face/${channel}`),
+  ),
   startRuntime: vi.fn(async () => {
     let staged = 0;
     let output = 0;
@@ -2078,8 +2094,7 @@ describe("useVizijExport GLB animation baking", () => {
     return {
       nodes: [
         {
-          // The `input_` prefix is what collectInputPathMap strips to make the
-          // lookup key a clip's variableId matches.
+          // Reads the key the face plays the clip's channel on.
           id: "input_propsrig_l_lid_translation_y",
           type: "input",
           params: { path: BAKE_INPUT_PATH, value: { float: 0 } },
