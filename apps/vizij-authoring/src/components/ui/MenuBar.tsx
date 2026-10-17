@@ -2,6 +2,7 @@ import * as React from "react";
 import { Menubar as RadixMenubar } from "radix-ui";
 import { IconCheck, IconChevronRight } from "@tabler/icons-react";
 import { cn } from "../../utils/cn";
+import { useDisabledReason } from "./DisabledReason";
 import { Logo } from "./Logo";
 
 /**
@@ -104,17 +105,23 @@ export function MenuItem({
   children,
   onSelect,
   disabled,
+  disabledReason,
   testId,
 }: {
   children: React.ReactNode;
   onSelect?: () => void;
   disabled?: boolean;
+  /** Why the item is disabled; shown as its tooltip and description. */
+  disabledReason?: string | null;
   testId?: string;
 }) {
+  const reason = useDisabledReason(disabled ? disabledReason : null);
   return (
     <RadixMenubar.Item
       data-testid={testId}
       disabled={disabled}
+      title={reason.title}
+      {...reason.describedBy}
       onSelect={() => onSelect?.()}
       className={cn(
         "group flex w-full items-center rounded-lg px-3 py-2 text-sm transition-all outline-none select-none",
@@ -126,6 +133,7 @@ export function MenuItem({
       )}
     >
       {children}
+      {reason.description}
     </RadixMenubar.Item>
   );
 }

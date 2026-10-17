@@ -30,6 +30,7 @@ interface AppWizardsProps {
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   activeMotionGraphId?: string | null;
   canExport: boolean;
+  exportDisabledReason?: string | null;
   handleImportPoseGraphFile: (file: File) => Promise<void>;
   poseGraphRemap: any;
   handlePoseGraphRemapApply: (remappedGraph: any) => void;
@@ -51,6 +52,7 @@ export function AppWizards({
   authoredProceduralPrograms,
   activeMotionGraphId,
   canExport,
+  exportDisabledReason,
   handleImportPoseGraphFile,
   poseGraphRemap,
   handlePoseGraphRemapApply,
@@ -97,6 +99,7 @@ export function AppWizards({
         authoredProceduralPrograms={authoredProceduralPrograms}
         activeMotionGraphId={activeMotionGraphId}
         canExport={canExport}
+        exportDisabledReason={exportDisabledReason}
         onImportPoseGraph={handleImportPoseGraphFile}
         onExportGlbComplete={onExportGlbComplete}
         registerGlbExportHandler={registerGlbExportHandler}

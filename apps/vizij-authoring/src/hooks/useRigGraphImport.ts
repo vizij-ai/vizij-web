@@ -39,6 +39,10 @@ import {
   type VizijPipelineMetadataV1,
 } from "../utils/graphImport";
 import { sanitizeFaceId } from "../utils/faceId";
+import {
+  importFailure,
+  RIG_GRAPH_REVIEW_DECLINED_FAILURE,
+} from "../utils/faceLoadFailures";
 import { waitForNextFrame } from "../utils/frame";
 import {
   buildPoseComposeModeByInputId,
@@ -854,6 +858,7 @@ export function useRigGraphImport({
             onImportPhaseChange?.({
               stepId: "rig-import-normalization",
               status: "error",
+              message: RIG_GRAPH_REVIEW_DECLINED_FAILURE,
             });
             return {
               faceChanged: false,
@@ -949,6 +954,7 @@ export function useRigGraphImport({
         onImportPhaseChange?.({
           stepId: "rig-import-normalization",
           status: "error",
+          message: importFailure("rig graph", error),
         });
         alertDialog(
           `Failed to import graph: ${

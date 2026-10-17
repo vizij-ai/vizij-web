@@ -31,7 +31,11 @@ function openMenu(testId: string) {
   });
 }
 
-function renderMenuBar() {
+function renderMenuBar(
+  save: { canSave: boolean; saveDisabledReason?: string | null } = {
+    canSave: true,
+  },
+) {
   return render(
     <AppMenuBar
       onNew={vi.fn()}
@@ -62,7 +66,8 @@ function renderMenuBar() {
       onExportSkillJson={vi.fn()}
       onReplaceSkillJson={vi.fn()}
       onEditSkillGraph={vi.fn()}
-      canSave
+      canSave={save.canSave}
+      saveDisabledReason={save.saveDisabledReason}
       saveDirty={false}
       showSelectionGlow={false}
       onToggleSelectionGlow={vi.fn()}
@@ -158,5 +163,47 @@ describe("AppMenuBar", () => {
     expect(panels.motiongraphPalette.isVisible).toBe(true);
     expect(panels.animation.isVisible).toBe(false);
     expect(panels.referenceFace.isVisible).toBe(false);
+  });
+
+  it("says why Save is disabled, on the toolbar and in the File menu", async () => {
+    renderMenuBar({
+      canSave: false,
+      saveDisabledReason: "The face's rig graph does not compile: bad slot",
+    });
+
+    const save = screen.getByTestId("app-save-button");
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+    // A disabled button takes no pointer events, so the tooltip sits on the
+    // element around it; the button itself is described by the reason.
+    expect(screen.getByTestId("app-save").getAttribute("title")).toBe(
+      "The face's rig graph does not compile: bad slot",
+    );
+    const descriptionId = save.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId!)?.textContent).toBe(
+      "The face's rig graph does not compile: bad slot",
+    );
+
+    openMenu("app-menu-file");
+    const saveItem = await screen.findByTestId("app-menu-file-save");
+    expect(saveItem.getAttribute("title")).toBe(
+      "The face's rig graph does not compile: bad slot",
+    );
+    expect(
+      document.getElementById(saveItem.getAttribute("aria-describedby")!)
+        ?.textContent,
+    ).toBe("The face's rig graph does not compile: bad slot");
+  });
+
+  it("gives no reason while Save is available", () => {
+    renderMenuBar({ canSave: true, saveDisabledReason: "Loading the face…" });
+
+    expect(
+      (screen.getByTestId("app-save-button") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(screen.getByTestId("app-save").getAttribute("title")).toBeNull();
+    expect(
+      screen.getByTestId("app-save-button").getAttribute("aria-describedby"),
+    ).toBeNull();
   });
 });

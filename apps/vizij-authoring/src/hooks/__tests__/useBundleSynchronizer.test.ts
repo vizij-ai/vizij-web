@@ -362,4 +362,43 @@ describe("useBundleSynchronizer", () => {
     expect(props.importGraphSpec).not.toHaveBeenCalled();
     expect(props.importPoseConfigFromData).not.toHaveBeenCalled();
   });
+
+  it("reports why the rig graph failed to import", async () => {
+    const { phases } = renderSynchronizer({
+      importGraphSpec: vi.fn(async () => {
+        throw new Error("Graph spec is missing Vizij metadata.");
+      }),
+    });
+    await runFrames();
+
+    expect(
+      phases.find(
+        (update) =>
+          update.substepId === "import-rig-graph" && update.status === "error",
+      )?.message,
+    ).toBe(
+      "The face's rig graph failed to import: Graph spec is missing Vizij metadata.",
+    );
+    expect(phases.some(isBundleSynced)).toBe(false);
+  });
+
+  it("reports why the pose config failed to import", async () => {
+    const { phases } = renderSynchronizer({
+      importPoseConfigFromData: vi.fn(() => {
+        throw new Error("Unsupported pose rig config version: 7.");
+      }),
+    });
+    await runFrames();
+
+    expect(
+      phases.find(
+        (update) =>
+          update.substepId === "import-pose-config" &&
+          update.status === "error",
+      )?.message,
+    ).toBe(
+      "The face's pose config failed to import: Unsupported pose rig config version: 7.",
+    );
+    expect(phases.some(isBundleSynced)).toBe(false);
+  });
 });

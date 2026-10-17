@@ -67,6 +67,10 @@ import type {
 } from "../rig/persistence";
 import { alertDialog } from "../utils/dialogs";
 import { deriveAutoFaceId, sanitizeFaceId } from "../utils/faceId";
+import {
+  rigGraphCompileFailure,
+  rigGraphFatalIssuesFailure,
+} from "../utils/faceLoadFailures";
 import { normalizeGraphPath } from "../utils/graphPaths";
 import { resolveRigMetadataInputId } from "../utils/rigElementInputs";
 import {
@@ -4299,6 +4303,7 @@ export function useRigController(
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
         status: "error",
+        message: rigGraphFatalIssuesFailure(fatalIssues),
       });
       return;
     }
@@ -4312,14 +4317,15 @@ export function useRigController(
       } else {
         setGraphStatus("ready");
       }
-      setGraphError(
-        runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.",
-      );
+      const compileError =
+        runtimeGraphSpec.warning ?? "IR compile failed. Runtime apply blocked.";
+      setGraphError(compileError);
       setGraphWarning(null);
       emitLoadPhase({
         stepId: "runtime-stabilization",
         substepId: "settle-recompiles",
         status: "error",
+        message: rigGraphCompileFailure(compileError),
       });
       return;
     }

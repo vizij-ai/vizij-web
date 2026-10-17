@@ -6,12 +6,15 @@ import {
   Input,
   Switch,
   FieldRow,
+  useDisabledReason,
 } from "../ui";
 
 interface ExportPanelProps {
   exportFileName: string;
   onExportFileNameChange: (value: string) => void;
   canExport: boolean;
+  /** Why exporting is unavailable while `canExport` is false, when known. */
+  exportDisabledReason?: string | null;
   onExportGlb: () => void;
   animationCount: number;
   includeBundle: boolean;
@@ -28,6 +31,7 @@ export function ExportPanel({
   exportFileName,
   onExportFileNameChange,
   canExport,
+  exportDisabledReason,
   onExportGlb,
   animationCount,
   includeBundle,
@@ -40,6 +44,9 @@ export function ExportPanel({
   onCrossGroupBlendModeChange,
 }: ExportPanelProps) {
   const animationsAvailable = animationCount > 0;
+  const exportReason = useDisabledReason(
+    canExport ? null : exportDisabledReason,
+  );
 
   return (
     <Card>
@@ -62,14 +69,18 @@ export function ExportPanel({
             disabled={!canExport}
             spellCheck={false}
           />
-          <Button
-            data-testid="export-glb-button"
-            variant="primary"
-            onClick={onExportGlb}
-            disabled={!canExport}
-          >
-            Export
-          </Button>
+          <span className="inline-flex" title={exportReason.title}>
+            <Button
+              data-testid="export-glb-button"
+              variant="primary"
+              onClick={onExportGlb}
+              disabled={!canExport}
+              {...exportReason.describedBy}
+            >
+              Export
+            </Button>
+            {exportReason.description}
+          </span>
         </div>
       </CardBody>
 
