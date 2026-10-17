@@ -7,11 +7,13 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useAnimateValue, useOptionalVizijRuntime } from "@vizij/runtime-react";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { useGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { buildRigInputPath } from "../../poseRig/utils";
+import type { PoseDefinition, PoseGroupDefinition } from "../../poseRig/types";
 import { resolvePoseMembership } from "../../poseRig/groupMembership";
 import { useSpeechPlayback } from "../../hooks/useSpeechPlayback";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
@@ -113,8 +115,8 @@ function parseEmotionResponse(
   return null;
 }
 
-const EMPTY_POSES: import("@vizij/runtime-react").PoseDefinition[] = [];
-const EMPTY_GROUPS: import("@vizij/runtime-react").PoseGroupDefinition[] = [];
+const EMPTY_POSES: PoseDefinition[] = [];
+const EMPTY_GROUPS: PoseGroupDefinition[] = [];
 
 interface SpeechPanelProps {
   onClosePanel?: () => void;
@@ -127,11 +129,34 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
     (s) => s.poseConfig?.poseGroups ?? EMPTY_GROUPS,
   );
   const faceSegment = useGraphRuntimeStore((s) => s.faceSegment);
-  const stageRuntimeInput = useGraphRuntimeStore((s) => s.stageRuntimeInput);
-  const animateRuntimeValue = useGraphRuntimeStore(
-    (s) => s.animateRuntimeValue,
+  const mainFace = useOptionalVizijRuntime();
+  const mainFaceRuntime = mainFace?.runtime ?? null;
+  const runtimeReady = mainFace?.status === "ready";
+  const { animateValue } = useAnimateValue();
+  const stageRuntimeInput = useMemo(
+    () =>
+      mainFaceRuntime
+        ? (graphPath: string, value: number) =>
+            mainFaceRuntime.setValue(graphPath, value)
+        : undefined,
+    [mainFaceRuntime],
   );
-  const runtimeReady = useGraphRuntimeStore((s) => s.runtimeViewReady);
+  const animateRuntimeValue = useMemo(
+    () =>
+      mainFaceRuntime
+        ? (graphPath: string, value: number, duration: number) => {
+            void animateValue(graphPath, value, { duration }).catch(
+              (error: unknown) => {
+                console.error(
+                  `[vizij-authoring] ${graphPath} did not animate`,
+                  error,
+                );
+              },
+            );
+          }
+        : undefined,
+    [animateValue, mainFaceRuntime],
+  );
 
   const standardInputsByPath = useBindingAuthoring(
     (s) => s.standardInputsByPath,
@@ -224,13 +249,7 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   const emotionPoses = useMemo(() => {
     if (!effectiveEmotionGroupId || poseGroups.length === 0) return [];
     return poses.filter((pose) => {
-      const membership = resolvePoseMembership(
-        pose as Pick<
-          import("../../poseRig/types").PoseDefinition,
-          "group" | "groupId" | "groupIds"
-        >,
-        poseGroups as import("../../poseRig/types").PoseGroupDefinition[],
-      );
+      const membership = resolvePoseMembership(pose, poseGroups);
       return membership.groupIds.includes(effectiveEmotionGroupId);
     });
   }, [poses, poseGroups, effectiveEmotionGroupId]);

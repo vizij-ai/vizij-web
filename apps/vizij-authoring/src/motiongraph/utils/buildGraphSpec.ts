@@ -110,7 +110,6 @@ function resolveNodeType(node: EditorNode): string | null {
 function buildGraphSpecInternal(
   nodes: EditorNode[],
   edges: EditorEdge[],
-  namespace: string | null,
 ): BuiltGraphSpec {
   // 1. Find output targets that have at least one incoming edge.
   const connectedTargetIds = new Set<string>();
@@ -162,10 +161,9 @@ function buildGraphSpecInternal(
       const outputPath = node.data?.outputPath as string | undefined;
       if (!outputPath) continue;
 
-      // outputPath is the full rig spec Input node path
+      // outputPath is the face's own key, the rig input it writes
       // (e.g. "rig/quori_latest/standard/vizij/mouth/morph/jaw_open").
-      // Prepending the namespace makes it match the namespaced WASM path.
-      const path = namespace ? `${namespace}/${outputPath}` : outputPath;
+      const path = outputPath;
       specNodes.push({
         id: node.id,
         type: "output",
@@ -176,7 +174,7 @@ function buildGraphSpecInternal(
       const inputPath = node.data?.inputPath as string | undefined;
       if (!inputPath) continue;
 
-      const path = namespace ? `${namespace}/${inputPath}` : inputPath;
+      const path = inputPath;
       specNodes.push({
         id: node.id,
         type: "input",
@@ -314,25 +312,20 @@ function buildGraphSpecInternal(
 /* ── Public API ──────────────────────────────────────────────────── */
 
 /**
- * Convert editor state to a GraphSpec with namespaced
- * output paths (for live registration with the runtime).
+ * The editor's graph as a GraphSpec, with what it writes: the program the
+ * face runs while the editor plays it. Its paths are the face's own keys.
  */
 export function buildGraphSpec(
   nodes: EditorNode[],
   edges: EditorEdge[],
-  namespace: string,
 ): BuiltGraphSpec {
-  return buildGraphSpecInternal(nodes, edges, namespace);
+  return buildGraphSpecInternal(nodes, edges);
 }
 
-/**
- * Convert editor state to a GraphSpec WITHOUT namespace
- * (for embedding in a portable GLB bundle — namespace is applied at
- * load time by VizijRuntimeProvider.namespaceGraphSpec()).
- */
+/** The editor's graph as a GraphSpec, for embedding in a GLB's bundle. */
 export function buildGraphSpecForExport(
   nodes: EditorNode[],
   edges: EditorEdge[],
 ): { nodes: SpecNode[]; edges: SpecEdge[] } {
-  return buildGraphSpecInternal(nodes, edges, null).spec;
+  return buildGraphSpecInternal(nodes, edges).spec;
 }

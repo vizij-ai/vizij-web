@@ -31,25 +31,6 @@ export type AnimationKeyframe = AnimationKeyframeIR;
 export type AnimationTrack = AnimationTrackIR;
 export type AnimationTransportPlaybackState = "playing" | "paused" | "stopped";
 export type AnimationTimeDisplayMode = "seconds" | "frames";
-export type AnimationRuntimePlaybackState = {
-  time: number;
-  duration: number;
-  playing: boolean;
-  loop: boolean;
-  speed: number;
-};
-export type AnimationRuntimeTransportAdapter = {
-  playAnimation: (
-    id: string,
-    options?: { weight?: number; speed?: number; reset?: boolean },
-  ) => Promise<void>;
-  pauseAnimation: (id: string) => void;
-  stopAnimation: (id: string, options?: { clearOutputs?: boolean }) => void;
-  seekAnimation: (id: string, timeSeconds: number) => void;
-  setAnimationLoop: (id: string, enabled: boolean) => void;
-  getAnimationState: (id: string) => AnimationRuntimePlaybackState | null;
-};
-
 export interface AnimationInputKeyframeEntry {
   inputId: string;
   value: number;
@@ -90,37 +71,6 @@ function materialiseBuffer(
       tracks: state.tracks,
     },
   });
-}
-
-/**
- * Compares transport adapters by their methods rather than by object identity.
- *
- * The adapter is assembled from the runtime provider's context, so a caller
- * that rebuilds it each render hands over a new object with the same six
- * functions. An identity check treats that as a change, writes new state, and
- * causes the render that rebuilds it again: while a program was playing — when
- * the provider re-renders every frame — that loop hit React's update limit,
- * unmounted the tree, and blanked the app. Guarding structurally makes a
- * no-op write a no-op whatever the caller does.
- */
-function sameTransportAdapter(
-  left: AnimationRuntimeTransportAdapter | null,
-  right: AnimationRuntimeTransportAdapter | null,
-): boolean {
-  if (left === right) {
-    return true;
-  }
-  if (!left || !right) {
-    return false;
-  }
-  return (
-    left.playAnimation === right.playAnimation &&
-    left.pauseAnimation === right.pauseAnimation &&
-    left.stopAnimation === right.stopAnimation &&
-    left.seekAnimation === right.seekAnimation &&
-    left.setAnimationLoop === right.setAnimationLoop &&
-    left.getAnimationState === right.getAnimationState
-  );
 }
 
 function clampTime(value: number, duration: number): number {
@@ -328,7 +278,6 @@ interface AnimationState {
   transportActive: boolean;
   transportEnabled: boolean;
   transportPlaybackState: AnimationTransportPlaybackState;
-  runtimeTransportAdapter: AnimationRuntimeTransportAdapter | null;
   transportSessionKey: number;
   transportRuntimeReady: boolean;
   timeDisplayMode: AnimationTimeDisplayMode;
@@ -416,9 +365,6 @@ interface AnimationState {
   ) => void;
   advanceTransportSessionKey: () => void;
   setTransportRuntimeReady: (ready: boolean, sessionKey?: number) => void;
-  setRuntimeTransportAdapter: (
-    adapter: AnimationRuntimeTransportAdapter | null,
-  ) => void;
   setTransportEnabled: (enabled: boolean) => void;
   setTimeDisplayMode: (mode: AnimationTimeDisplayMode) => void;
 
@@ -500,7 +446,6 @@ const INITIAL_STATE: Pick<
   | "transportActive"
   | "transportEnabled"
   | "transportPlaybackState"
-  | "runtimeTransportAdapter"
   | "transportSessionKey"
   | "transportRuntimeReady"
   | "timeDisplayMode"
@@ -527,7 +472,6 @@ const INITIAL_STATE: Pick<
   transportActive: false,
   transportEnabled: true,
   transportPlaybackState: "stopped",
-  runtimeTransportAdapter: null,
   transportSessionKey: 0,
   transportRuntimeReady: false,
   timeDisplayMode: "seconds",
@@ -680,15 +624,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         ? state
         : { transportRuntimeReady };
     }),
-  setRuntimeTransportAdapter: (runtimeTransportAdapter) =>
-    set((state) =>
-      sameTransportAdapter(
-        state.runtimeTransportAdapter,
-        runtimeTransportAdapter,
-      )
-        ? state
-        : { runtimeTransportAdapter },
-    ),
   setTransportEnabled: (transportEnabled) =>
     set((state) =>
       state.transportEnabled === transportEnabled
@@ -1252,7 +1187,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
         // The selection is kept but its data is gone, so nothing may write
         // this buffer back into that clip or export it as that clip.
         bufferMatchesSelection: false,
-        runtimeTransportAdapter: state.runtimeTransportAdapter,
         transportSessionKey: state.transportSessionKey,
       };
     }),
@@ -1262,7 +1196,6 @@ export const useAnimationStore = create<AnimationState>((set, get) => ({
     set((state) => {
       return {
         ...INITIAL_STATE,
-        runtimeTransportAdapter: state.runtimeTransportAdapter,
         transportSessionKey: state.transportSessionKey,
       };
     }),

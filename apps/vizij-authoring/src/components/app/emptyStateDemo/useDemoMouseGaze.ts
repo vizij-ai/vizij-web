@@ -1,134 +1,84 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
-import {
-  mapNormalizedControlValue,
-  resolveFaceControls,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { useEffect, useRef, type RefObject } from "react";
+import { useAnimateValue, useVizijRuntime } from "@vizij/runtime-react";
+
+/** The face standard's gaze target: where the eyes look, in `[0, 1]` across
+ * the face (origin top-left, y down), and how firmly they hold it — at
+ * weight 0 the face's program looks where it likes. */
+const TARGET_X = "standard/vizij/gaze/target/x";
+const TARGET_Y = "standard/vizij/gaze/target/y";
+const WEIGHT = "standard/vizij/gaze/target/weight";
 
 const POINTER_IDLE_TIMEOUT_MS = 1400;
+const RELEASE_SECONDS = 0.4;
 // The demo face area is short and wide, so vertical pointer travel is
 // amplified to keep the eyes expressive across the full frame height.
 const POINTER_Y_SCALE = 3;
 
-function clamp(value: number, min = -1, max = 1) {
-  return Math.min(Math.max(value, min), max);
-}
+const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
-export type DemoMouseGazeHandle = {
-  ref: RefObject<HTMLDivElement | null>;
-  isPointerActive: boolean;
-};
-
-export function useDemoMouseGaze(enabled: boolean): DemoMouseGazeHandle {
-  const {
-    setInput,
-    faceId: runtimeFaceId,
-    assetBundle,
-    inputConstraints,
-  } = useVizijRuntime();
+/**
+ * The eyes follow the pointer over the element the returned ref is put on,
+ * through the gaze target; when the pointer leaves, lifts, or rests, the
+ * target's weight eases back to 0 and the face's program has the eyes again.
+ */
+export function useDemoMouseGaze(): RefObject<HTMLDivElement | null> {
+  const { runtime } = useVizijRuntime();
+  const { animateValue } = useAnimateValue();
   const ref = useRef<HTMLDivElement>(null);
-  const [isPointerActive, setPointerActive] = useState(false);
-  const pointerActiveRef = useRef(false);
-  const idleTimeoutRef = useRef<number | null>(null);
-  const controls = useMemo(
-    () => resolveFaceControls(assetBundle, runtimeFaceId, inputConstraints),
-    [assetBundle, inputConstraints, runtimeFaceId],
-  );
-
-  const updatePointerActive = (next: boolean) => {
-    if (pointerActiveRef.current === next) {
-      return;
-    }
-    pointerActiveRef.current = next;
-    setPointerActive(next);
-  };
-
-  const setEye = useCallback(
-    (path: keyof typeof controls.eyes, value: number) => {
-      const control = controls.eyes[path];
-      if (!control) {
-        return;
-      }
-      setInput(control.path, {
-        float: mapNormalizedControlValue(control, clamp(value)),
-      });
-    },
-    [controls, setInput],
-  );
-
-  const resetEyes = useCallback(() => {
-    setEye("leftX", 0);
-    setEye("leftY", 0);
-    setEye("rightX", 0);
-    setEye("rightY", 0);
-  }, [setEye]);
 
   useEffect(() => {
-    if (!enabled) {
-      resetEyes();
-      updatePointerActive(false);
-      return;
-    }
     const target = ref.current;
-    if (!target) {
+    if (!runtime || !target) {
       return;
     }
-
+    let idleTimeout: number | null = null;
     const clearIdleTimeout = () => {
-      if (idleTimeoutRef.current) {
-        window.clearTimeout(idleTimeoutRef.current);
-        idleTimeoutRef.current = null;
+      if (idleTimeout !== null) {
+        window.clearTimeout(idleTimeout);
+        idleTimeout = null;
       }
     };
-
-    const scheduleIdleTimeout = () => {
-      clearIdleTimeout();
-      idleTimeoutRef.current = window.setTimeout(() => {
-        updatePointerActive(false);
-        idleTimeoutRef.current = null;
-      }, POINTER_IDLE_TIMEOUT_MS);
+    const write = (path: string, value: number, seconds: number) => {
+      void animateValue(runtime.path(path), value, {
+        duration: seconds,
+        easing: "easeInOut",
+      }).catch((error: unknown) => {
+        console.error("[vizij-authoring] the demo's gaze did not move", error);
+      });
     };
-
-    const handlePointer = (event: PointerEvent) => {
+    const release = () => {
+      clearIdleTimeout();
+      write(WEIGHT, 0, RELEASE_SECONDS);
+    };
+    const follow = (event: PointerEvent) => {
       const rect = target.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
         return;
       }
-      const xRatio = (event.clientX - rect.left) / rect.width;
-      const yRatio = (event.clientY - rect.top) / rect.height;
-      const normalizedX = clamp(xRatio * 2 - 1);
-      const normalizedY = clamp(((1 - yRatio) * 2 - 1) * POINTER_Y_SCALE);
-
-      setEye("leftX", normalizedX);
-      setEye("rightX", normalizedX);
-      setEye("leftY", normalizedY);
-      setEye("rightY", normalizedY);
-      updatePointerActive(true);
-      scheduleIdleTimeout();
-    };
-
-    const reset = () => {
-      resetEyes();
-      updatePointerActive(false);
+      const x = clamp01((event.clientX - rect.left) / rect.width);
+      const y = clamp01(
+        0.5 +
+          ((event.clientY - rect.top) / rect.height - 0.5) * POINTER_Y_SCALE,
+      );
+      write(TARGET_X, x, 0);
+      write(TARGET_Y, y, 0);
+      write(WEIGHT, 1, 0);
       clearIdleTimeout();
+      idleTimeout = window.setTimeout(release, POINTER_IDLE_TIMEOUT_MS);
     };
 
-    target.addEventListener("pointermove", handlePointer);
-    target.addEventListener("pointerdown", handlePointer);
-    target.addEventListener("pointerleave", reset);
-    target.addEventListener("pointerup", reset);
-
+    target.addEventListener("pointermove", follow);
+    target.addEventListener("pointerdown", follow);
+    target.addEventListener("pointerleave", release);
+    target.addEventListener("pointerup", release);
     return () => {
-      target.removeEventListener("pointermove", handlePointer);
-      target.removeEventListener("pointerdown", handlePointer);
-      target.removeEventListener("pointerleave", reset);
-      target.removeEventListener("pointerup", reset);
+      target.removeEventListener("pointermove", follow);
+      target.removeEventListener("pointerdown", follow);
+      target.removeEventListener("pointerleave", release);
+      target.removeEventListener("pointerup", release);
       clearIdleTimeout();
-      resetEyes();
-      updatePointerActive(false);
     };
-  }, [enabled, resetEyes, setEye]);
+  }, [animateValue, runtime]);
 
-  return { ref, isPointerActive };
+  return ref;
 }

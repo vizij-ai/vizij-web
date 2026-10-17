@@ -25,6 +25,7 @@ import {
   type PoseConfigSnapshot,
   withPipelineConfigBuildOptions,
 } from "../hooks/rigController/rigGraphCompiler";
+import { DEFAULT_NAMESPACE } from "./constants";
 import type {
   VizijPipelineConfigMap,
   VizijPipelineMetadataV1,
@@ -108,14 +109,14 @@ function buildInputMetadataMap(
 }
 
 function applyRuntimeOverridesToAnimatables(options: {
-  faceId: string;
   animatables: Record<string, AnimatableValue>;
   values: Map<string, RawValue | undefined>;
 }): Record<string, AnimatableValue> {
-  const { faceId, animatables, values } = options;
+  const { animatables, values } = options;
   return Object.fromEntries(
     Object.entries(animatables).map(([id, animatable]) => {
-      const override = values.get(getLookup(faceId, id));
+      // Under the key scene editing writes the document's values.
+      const override = values.get(getLookup(DEFAULT_NAMESPACE, id));
       if (override === undefined) {
         return [id, animatable];
       }
@@ -253,7 +254,6 @@ export async function runRigRoundtripAudit(
 
   try {
     const animatablesForExport = applyRuntimeOverridesToAnimatables({
-      faceId,
       animatables,
       values,
     });

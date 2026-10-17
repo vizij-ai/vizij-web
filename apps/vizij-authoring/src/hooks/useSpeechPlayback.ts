@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PoseDefinition, PoseGroupDefinition } from "@vizij/runtime-react";
+import type { PoseDefinition, PoseGroupDefinition } from "../poseRig/types";
 import type { PollyVoice } from "../data/pollyVoices";
 import type { VisemeData } from "../types/polly";
 import type { SelectOption } from "../components/ui/Select";
@@ -149,13 +149,7 @@ export function useSpeechPlayback({
       return poses;
     }
     return poses.filter((pose) => {
-      const membership = resolvePoseMembership(
-        pose as Pick<
-          import("../poseRig/types").PoseDefinition,
-          "group" | "groupId" | "groupIds"
-        >,
-        poseGroups as import("../poseRig/types").PoseGroupDefinition[],
-      );
+      const membership = resolvePoseMembership(pose, poseGroups);
       return membership.groupIds.includes(effectiveGroupId);
     });
   }, [poses, poseGroups, effectiveGroupId]);
