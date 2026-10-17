@@ -43,6 +43,12 @@ export async function waitForMainFaceReady(page: Page): Promise<void> {
     { timeout: MAIN_RUNTIME_READY_TIMEOUT_MS },
   );
   await expect(page.getByTestId("main-viewer-empty-state")).toBeHidden();
+  // The device can show the face before the workspace has finished loading
+  // it — its rig import, pose rig and inputs — and an export or an edit made
+  // in between misses what is still to come.
+  await expect(page.getByTestId("face-load-progress")).toBeHidden({
+    timeout: MAIN_RUNTIME_READY_TIMEOUT_MS,
+  });
 }
 
 export async function selectEditMode(
