@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  standardProfile,
-  standardProfiles,
-  type StandardProfile,
-} from "@vizij/runtime";
+import { mapping, mappings, type Mapping } from "@vizij/runtime";
 import type {
   VizijBundleExtension,
   VizijBundleGraphEntry,
@@ -106,11 +102,11 @@ export function useStandardProfiles({
   bundle,
   updateBundle,
 }: UseStandardProfilesOptions) {
-  const [profiles, setProfiles] = useState<StandardProfile[]>([]);
+  const [profiles, setProfiles] = useState<Mapping[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    standardProfiles()
+    mappings()
       .then((list) => {
         if (!cancelled) {
           setProfiles(list);
@@ -182,7 +178,7 @@ export function useStandardProfiles({
         });
         return;
       }
-      const spec = await standardProfile(profileId, rigPrefix);
+      const spec = await mapping(profileId, rigPrefix);
       if (!spec) {
         console.error(`standard profile ${profileId} unavailable`);
         return;
