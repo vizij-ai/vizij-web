@@ -56,3 +56,11 @@ export function changedPixels(a: Buffer, b: Buffer): number {
   }
   return changed;
 }
+
+/** The pixels `frame` changed from the nearest of `frames`: how far it lies
+ * from all of them. Against a set of idle frames, a face's own motion (a
+ * blink, a glance) caught in one sample matches some other idle frame, while
+ * a change idling never makes matches none. */
+export function changedFromNearest(frames: Buffer[], frame: Buffer): number {
+  return Math.min(...frames.map((other) => changedPixels(other, frame)));
+}

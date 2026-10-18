@@ -1,28 +1,34 @@
 import { test, expect } from "@playwright/test";
 import { STANDALONE_DEMOS, demoUrl } from "../standalone-demos";
+import { countFrames, drawWindow } from "../frames";
 import {
-  changedPixels,
+  changedFromNearest,
   distinctColours,
-  sampleElement,
   sampleElementRegion,
 } from "../pixels";
 
 // The agent face without an agent (no Gemini key in CI): its slot reports the
 // face ready, the canvas shows it — a non-uniform pixel sample — and holding
-// an expression's hotkey in the debug controls changes what it shows. The face's
-// program moves the face all along, so the check is against that motion:
-// around the mouth, which the expression reshapes, a frame with the
+// an expression's hotkey in the debug controls changes what it shows. The
+// face's program moves the face all along, so the check is against that
+// motion: around the mouth, which the expression reshapes, a frame with the
 // expression must lie farther from every one of a set of idle frames than a
 // fresh idle frame does.
+//
+// Under SwiftShader a screenshot costs the page about seven drawn frames, and
+// a slow runner draws one every two to five seconds: a sample can take forty
+// seconds. The spec takes no more samples than the check needs.
 const agentFace = STANDALONE_DEMOS.find(
   (demo) => demo.filter === "tutorial-agent-face",
 )!;
 
 const EXPRESSION_OVER_IDLE = 2.5;
-const IDLE_FRAMES = 5;
+const IDLE_FRAMES = 3;
 const FRAME_MS = 400;
-const PEAK_FRAMES = 2;
-const HOLD_MS = 3_000;
+/** How long the key is held before the expression is sampled, in time and
+ * in drawn frames: its weight fades up over two seconds, and a held key
+ * reaches the screen a few frames after it goes down. */
+const HOLD = { ms: 3_000, frames: 8, timeout: 90_000 };
 /** The mouth's part of the slot. */
 const MOUTH = { x: 0.3, y: 0.55, width: 0.4, height: 0.25 };
 
@@ -30,10 +36,11 @@ test("the agent face shows its face and an expression hotkey changes it", async 
   page,
 }) => {
   // Compiling the Bevy shaders on SwiftShader takes a while the first time,
-  // and each screenshot is slow beside the other demos' pages.
+  // then each of the five samples can take forty seconds on a slow runner.
   test.setTimeout(420_000);
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
+  await countFrames(page);
   await page.goto(demoUrl(agentFace));
 
   const slot = page.locator("[data-vizij-id]");
@@ -46,32 +53,27 @@ test("the agent face shows its face and an expression hotkey changes it", async 
   ).toBeVisible();
   await page.waitForTimeout(1_000);
 
-  const first = await sampleElement(slot);
-  expect(
-    distinctColours(first),
-    "the canvas shows more than one colour",
-  ).toBeGreaterThan(8);
-
   const idleFrames: Buffer[] = [];
   for (let i = 0; i < IDLE_FRAMES; i += 1) {
     idleFrames.push(await sampleElementRegion(page, slot, MOUTH));
     await page.waitForTimeout(FRAME_MS);
   }
-  const distance = (frame: Buffer) =>
-    Math.min(...idleFrames.map((idleFrame) => changedPixels(idleFrame, frame)));
-  const idle = distance(await sampleElementRegion(page, slot, MOUTH));
+  expect(
+    distinctColours(idleFrames[0]),
+    "the canvas shows more than one colour",
+  ).toBeGreaterThan(8);
+  const idle = changedFromNearest(
+    idleFrames,
+    await sampleElementRegion(page, slot, MOUTH),
+  );
 
-  // `5` holds the face standard's fifth expression, `surprised`: its weight
-  // fades up over two seconds and stays while the key is down.
+  // `5` holds the face standard's fifth expression, `surprised`.
   await page.keyboard.down("5");
-  await page.waitForTimeout(HOLD_MS);
-  let expressed = 0;
-  for (let i = 0; i < PEAK_FRAMES; i += 1) {
-    expressed = Math.max(
-      expressed,
-      distance(await sampleElementRegion(page, slot, MOUTH)),
-    );
-  }
+  await drawWindow(page, HOLD);
+  const expressed = changedFromNearest(
+    idleFrames,
+    await sampleElementRegion(page, slot, MOUTH),
+  );
   await page.keyboard.up("5");
 
   expect(
