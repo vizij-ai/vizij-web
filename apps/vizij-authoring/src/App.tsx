@@ -46,7 +46,11 @@ import { nextClipOrdinal } from "./utils/animationClipIds";
 import type { AnimationClipEntry } from "./state/animationClipsStore";
 import { buildImportedClipEntries } from "./state/importedClipEntries";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
-import { useMainFaceBytes } from "./hooks/useMainFaceBytes";
+import {
+  useMainFaceBytes,
+  useMainFaceValues,
+  type MainFace,
+} from "./hooks/useMainFaceBytes";
 import {
   pauseTimeline,
   playTimeline,
@@ -580,7 +584,7 @@ export default function App() {
     ],
   );
 
-  const mainFaceBytes = useMainFaceBytes(
+  const mainFace = useMainFaceBytes(
     assetLoader.rootId,
     assetLoader.bundle,
     getMemoryInvestigationFlags().mainRuntimeEnabled,
@@ -590,9 +594,15 @@ export default function App() {
   // inspector, the panels, the rig controller, the motion-graph editor and the
   // timeline all reach the same `Runtime`. With no face its `glb` is null and
   // the workspace stays mounted. The face loads as any app loads it: its
-  // graphs and standard adaptation, with its active program running.
+  // graphs and standard adaptation, with its active program running. A
+  // structural edit gives new bytes, which reload it; a value edit shows in
+  // place.
   return (
-    <VizijRuntimeProvider glb={mainFaceBytes} vizijId={MAIN_FACE_VIZIJ_ID}>
+    <VizijRuntimeProvider
+      glb={mainFace?.bytes ?? null}
+      vizijId={MAIN_FACE_VIZIJ_ID}
+    >
+      <MainFaceValues face={mainFace} />
       <RigControllerProvider
         namespace={DEFAULT_NAMESPACE}
         rootId={assetLoader.rootId}
@@ -615,6 +625,13 @@ export default function App() {
       </RigControllerProvider>
     </VizijRuntimeProvider>
   );
+}
+
+/** Shows the main face's in-place values on the face the provider runs. */
+function MainFaceValues({ face }: { face: MainFace | null }) {
+  const runtime = useOptionalVizijRuntime()?.runtime ?? null;
+  useMainFaceValues(MAIN_FACE_VIZIJ_ID, runtime, face);
+  return null;
 }
 
 interface AppContentProps {
