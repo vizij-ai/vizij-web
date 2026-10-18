@@ -20,6 +20,10 @@ import {
  * the world built and exported as a GLB. */
 export const MAIN_FACE_EXPORT_MEASURE = "vizij-authoring:main-face-export";
 
+/** The performance mark each newly loaded main face records: its
+ * `Runtime` handed to the page, before its scene is drawn. */
+export const MAIN_FACE_LOADED_MARK = "vizij-authoring:main-face-loaded";
+
 /** The main face as the view loads it, and the values it shows in place. */
 export interface MainFace {
   /** The GLB the view loads: the world under the root, with the bundle. */
@@ -121,8 +125,10 @@ export function useMainFaceValues(
   );
   useEffect(() => {
     if (!runtime || !face) return;
-    const from =
-      shown.current?.runtime === runtime ? shown.current.values : face.carried;
+    const previous =
+      shown.current?.runtime === runtime ? shown.current.values : null;
+    if (previous === null) performance.mark(MAIN_FACE_LOADED_MARK);
+    const from = previous ?? face.carried;
     for (const edit of changedValues(from, face.values)) {
       try {
         setStaticFeature(
