@@ -3,7 +3,12 @@ import {
   useOptionalVizijRuntime,
   useVizijRuntime,
 } from "@vizij/runtime-react";
-import { composeVizij, outputKeys, type Pick } from "@vizij/runtime";
+import {
+  composeVizij,
+  outputKeys,
+  type Pick,
+  type Runtime,
+} from "@vizij/runtime";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ToneMappingMode,
@@ -41,7 +46,7 @@ import {
 } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromDescription } from "./runtimeInputsFromConstraints";
 import { EmptyStateDemo } from "./emptyStateDemo/EmptyStateDemo";
-import { AUTHORING_FACE_OPTIONS } from "./faceComposition";
+import { haltProgramRuns, runProgram } from "./activeProgram";
 import { heldOutputChanges } from "./runtimeOutputLocks";
 import type { FacePresetAssetOption } from "./facePresetAssets";
 
@@ -215,14 +220,11 @@ function RuntimeGraphBridge({
     void (async () => {
       try {
         // The face's own composition, its animation source included: a
-        // graph swapped in whole keeps only what it composes.
+        // graph swapped in whole keeps only what it composes. Its active
+        // program runs beside the graph as a run, which the swap keeps.
         const spec = await composeVizij(
           { asset: { version: "2.0" }, extensions: { VIZIJ_bundle: authored } },
-          {
-            graphs: AUTHORING_FACE_OPTIONS.graphs,
-            program: AUTHORING_FACE_OPTIONS.program,
-            animations: true,
-          },
+          { program: "none", animations: true },
         );
         if (current) {
           await runtime.loadGraph(spec);
@@ -294,9 +296,11 @@ function RuntimeStatusDebug() {
 /**
  * The motion-graph editor's program on the face, while it plays: the editor
  * runs it (`MotionGraphDriverBridge`), its input sources write the store, and
- * the sampler reads its outputs. When it stops, or another program takes its
- * place, the keys its outputs wrote return to rest (`reset_keys` of
- * `outputKeys`); a pause leaves them holding.
+ * the sampler reads its outputs. While it plays it takes the place of the
+ * face's active program, whose runs halt. When it stops, or another program
+ * takes its place, the keys its outputs wrote return to rest (`reset_keys` of
+ * `outputKeys`), and once stopped the active program runs again; a pause
+ * leaves the outputs holding and the active program halted.
  */
 function MotionGraphRuntimeBridge({
   controllerId = null,
@@ -311,7 +315,16 @@ function MotionGraphRuntimeBridge({
   edges?: EditorEdge[] | null;
   plotActive?: boolean;
 }) {
-  const { runtime } = useVizijRuntime();
+  const { runtime, description } = useVizijRuntime();
+  const activeProgram = useMemo(
+    () =>
+      description?.programs.find(
+        (program) => program.id === description.activeProgramId,
+      ) ?? null,
+    [description],
+  );
+  /** The device whose active program yielded to the program under edit. */
+  const yieldedRef = useRef<Runtime | null>(null);
   const previousSessionRef = useRef<{
     controllerId: string | null;
     playbackState: "playing" | "paused" | "stopped";
@@ -334,6 +347,24 @@ function MotionGraphRuntimeBridge({
     [edges, nodes],
   );
 
+  // While a program under edit plays, it takes the active program's place:
+  // the active program's runs halt.
+  useEffect(() => {
+    if (!active || !runtime || !activeProgram) {
+      return;
+    }
+    if (yieldedRef.current === runtime) {
+      return;
+    }
+    yieldedRef.current = runtime;
+    void haltProgramRuns(runtime, activeProgram.id).catch((error: unknown) => {
+      console.error(
+        "[motiongraph] the active program did not halt for the program under edit",
+        error,
+      );
+    });
+  }, [active, activeProgram, runtime]);
+
   useEffect(() => {
     const previous = previousSessionRef.current;
     const targetChanged =
@@ -342,21 +373,41 @@ function MotionGraphRuntimeBridge({
       previous.controllerId !== null &&
       previous.playbackState !== "stopped" &&
       playbackState === "stopped";
-    if ((targetChanged || transitionedToStopped) && previous.spec && runtime) {
-      const stoppedSpec = previous.spec;
-      void (async () => {
-        try {
+    previousSessionRef.current = { controllerId, playbackState, spec };
+    if (!(targetChanged || transitionedToStopped) || !runtime) {
+      return;
+    }
+    // Stopped, the program under edit lets go of its outputs, and the active
+    // program it stood in for runs again.
+    const stoppedSpec = previous.spec;
+    const resume =
+      playbackState === "stopped" &&
+      yieldedRef.current === runtime &&
+      activeProgram
+        ? activeProgram
+        : null;
+    if (resume) {
+      yieldedRef.current = null;
+    }
+    void (async () => {
+      try {
+        if (stoppedSpec) {
           const keys = await outputKeys(stoppedSpec);
           if (keys.length > 0) {
             await runtime.invoke("reset_keys", { keys: { strs: keys } });
           }
-        } catch (error) {
-          console.warn("[motiongraph] resetting the program's outputs", error);
         }
-      })();
-    }
-    previousSessionRef.current = { controllerId, playbackState, spec };
-  }, [controllerId, playbackState, runtime, spec]);
+        if (resume) {
+          await runProgram(runtime, resume);
+        }
+      } catch (error) {
+        console.warn(
+          "[motiongraph] returning the face to its active program",
+          error,
+        );
+      }
+    })();
+  }, [activeProgram, controllerId, playbackState, runtime, spec]);
 
   return (
     <>

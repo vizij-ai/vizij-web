@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph";
+import { BEHAVIOR_RUNS } from "@vizij/runtime";
 import {
   GraphRuntimeStoreProvider,
   createGraphRuntimeStore,
@@ -36,9 +37,11 @@ const device = vi.hoisted(() => ({
   ),
   hold: vi.fn(),
   release: vi.fn(),
-  readValues: vi.fn((paths: string[]) =>
-    Object.fromEntries(paths.map((path) => [path, null])),
-  ),
+  halt: vi.fn(async (_run: string) => undefined),
+  /** The store as tests set it; any other key reads `null`. */
+  store: {} as Record<string, unknown>,
+  listKeys: vi.fn(async (_prefix?: string) => [] as Array<{ path: string }>),
+  readValues: vi.fn((paths: string[]): Record<string, unknown> => ({})),
   moduleAnimation: vi.fn((animation: { id: string }) => ({
     moduleAnimation: { clipOf: animation },
   })),
@@ -49,7 +52,13 @@ const face = vi.hoisted(() => ({
   status: "ready",
   error: null,
   runtime: device,
-  description: { graphs: [], animatables: {}, rigInputs: [] },
+  description: {
+    graphs: [],
+    animatables: {},
+    rigInputs: [],
+    programs: [{ id: "idle", label: "Idle", graph: { nodes: [] } }],
+    activeProgramId: "idle",
+  },
 }));
 
 vi.mock("@vizij/runtime-react", () => ({
@@ -69,6 +78,12 @@ vi.mock("@vizij/runtime", async (importOriginal) => ({
     composed: { gltf, options },
   })),
   outputKeys: vi.fn(async () => ["rig/face/standard/brow/inner_up"]),
+  behaviorValue: vi.fn(async (graph: unknown) => ({ behaviorOf: graph })),
+  // The test's run statuses are plain strings.
+  runStatus: (value: unknown) =>
+    value && typeof value === "object" && "str" in value
+      ? (value as { str: string }).str
+      : undefined,
 }));
 
 // The real demo mounts its own runtime provider and fetches a GLB, neither of
@@ -167,6 +182,13 @@ const methodsInvoked = () => device.invoke.mock.calls.map(([method]) => method);
 describe("Viewer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    device.store = {};
+    device.listKeys.mockResolvedValue([]);
+    device.readValues.mockImplementation((paths: string[]) =>
+      Object.fromEntries(
+        paths.map((path) => [path, device.store[path] ?? null]),
+      ),
+    );
     useAnimationStore.getState().reset();
     useEditorStore.getState().clear();
   });
@@ -231,11 +253,7 @@ describe("Viewer", () => {
             },
           },
         },
-        options: {
-          graphs: ["rig", "pose-driver", "pose"],
-          program: "none",
-          animations: true,
-        },
+        options: { program: "none", animations: true },
       },
     });
   });
@@ -424,6 +442,40 @@ describe("Viewer", () => {
 
     expect(motionGraphValueSamplerSpy).toHaveBeenLastCalledWith({
       active: true,
+    });
+  });
+
+  it("halts the active program while a program under edit plays, and runs it again once stopped", async () => {
+    // The face runs its active program "idle" as run "r1".
+    device.listKeys.mockResolvedValue([
+      { path: `${BEHAVIOR_RUNS}r1/name` },
+      { path: `${BEHAVIOR_RUNS}r1/status` },
+    ]);
+    device.store = {
+      [`${BEHAVIOR_RUNS}r1/name`]: { str: "idle" },
+      [`${BEHAVIOR_RUNS}r1/status`]: { str: "running" },
+    };
+    const { rerender } = renderViewer({
+      motionGraphPlaybackState: "playing",
+      motionGraphRuntimeControllerId: "graph:test",
+      motionGraphRuntimeNodes: [],
+      motionGraphRuntimeEdges: [],
+    });
+    await settle();
+
+    expect(device.halt).toHaveBeenCalledWith("r1");
+
+    rerender({
+      motionGraphPlaybackState: "stopped",
+      motionGraphRuntimeControllerId: null,
+      motionGraphRuntimeNodes: null,
+      motionGraphRuntimeEdges: null,
+    });
+    await settle();
+
+    expect(device.invoke).toHaveBeenCalledWith("run_behavior", {
+      name: "idle",
+      behavior: { behaviorOf: { nodes: [] } },
     });
   });
 

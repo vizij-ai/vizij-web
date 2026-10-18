@@ -19,7 +19,6 @@ import {
   isPoseWeightInputPath,
 } from "../../poseRig/utils";
 import { Button } from "../ui";
-import { AUTHORING_FACE_OPTIONS } from "./faceComposition";
 import { RuntimeFaceControlsOverlay } from "./RuntimeFaceControlsOverlay";
 import { buildRuntimeInputCatalogFromDescription } from "./runtimeInputsFromConstraints";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
@@ -174,11 +173,7 @@ export function ReferenceFaceRuntime({
   }
 
   return (
-    <VizijRuntimeProvider
-      glb={file}
-      options={AUTHORING_FACE_OPTIONS}
-      run={visible}
-    >
+    <VizijRuntimeProvider glb={file} run={visible}>
       <ReferenceFaceBridge
         onStandardInputsReady={onStandardInputsReady}
         onLoadingStateChange={onLoadingStateChange}

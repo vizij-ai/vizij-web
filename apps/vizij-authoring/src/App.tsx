@@ -18,7 +18,6 @@ import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
 } from "@vizij/utils";
-import { AUTHORING_FACE_OPTIONS } from "./components/app/faceComposition";
 import { readBakedAnimationRecords } from "./animationImport/bakedAnimationProvenance";
 import { WorkspaceLayout } from "./layouts/WorkspaceLayout";
 import {
@@ -590,13 +589,10 @@ export default function App() {
   // The main face's provider holds the whole workspace, so the viewport, the
   // inspector, the panels, the rig controller, the motion-graph editor and the
   // timeline all reach the same `Runtime`. With no face its `glb` is null and
-  // the workspace stays mounted.
+  // the workspace stays mounted. The face loads as any app loads it: its
+  // graphs and standard adaptation, with its active program running.
   return (
-    <VizijRuntimeProvider
-      glb={mainFaceBytes}
-      vizijId={MAIN_FACE_VIZIJ_ID}
-      options={AUTHORING_FACE_OPTIONS}
-    >
+    <VizijRuntimeProvider glb={mainFaceBytes} vizijId={MAIN_FACE_VIZIJ_ID}>
       <RigControllerProvider
         namespace={DEFAULT_NAMESPACE}
         rootId={assetLoader.rootId}
