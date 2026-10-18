@@ -11,6 +11,7 @@ import {
 } from "../state/RigControllerProvider";
 import type { SceneObjectNode, SceneObjectFeature } from "./sceneGraph";
 import { createFeatureMutations } from "./featureMutations";
+import { withComponent } from "./componentValue";
 import type { FeatureEntry } from "./featureEntries";
 import type { VectorComponent } from "./featureEntries";
 import {
@@ -238,14 +239,11 @@ export function useSceneComposer(): SceneComposer {
 
         // 1. Update Live Value
         const nextValues = new Map(state.values);
-        if (channel) {
+        const type = state.animatables[id]?.type;
+        if (channel && typeof value === "number") {
           const current =
-            state.values.get(lookup) ?? state.animatables[id]?.default ?? {};
-          const next = {
-            ...(typeof current === "object" ? current : {}),
-            [channel]: value,
-          };
-          nextValues.set(lookup, next as RawValue);
+            state.values.get(lookup) ?? state.animatables[id]?.default;
+          nextValues.set(lookup, withComponent(current, type, channel, value));
         } else {
           nextValues.set(lookup, value);
         }
@@ -254,14 +252,10 @@ export function useSceneComposer(): SceneComposer {
         let nextAnimatables = state.animatables;
         if (saveToDefault && state.animatables[id]) {
           const currentAnim = state.animatables[id];
-          let nextDefault = value;
-          if (channel) {
-            const currentDefault = currentAnim.default ?? {};
-            nextDefault = {
-              ...(typeof currentDefault === "object" ? currentDefault : {}),
-              [channel]: value,
-            } as any;
-          }
+          const nextDefault =
+            channel && typeof value === "number"
+              ? withComponent(currentAnim.default, type, channel, value)
+              : value;
           nextAnimatables = {
             ...state.animatables,
             [id]: {
