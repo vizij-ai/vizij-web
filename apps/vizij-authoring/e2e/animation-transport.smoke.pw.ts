@@ -113,14 +113,23 @@ async function watch(
   );
 }
 
-/** Wait until the playhead has left zero: the device plays the clip. */
-async function untilMoving(field: Locator): Promise<void> {
+/** Wait until the playhead has left `from` (seconds): the device plays the
+ * clip. Returns the first reading away from it. */
+async function untilMoving(field: Locator, from = 0): Promise<number> {
+  let reading = from;
   await expect
-    .poll(() => readPlayhead(field), {
-      message: "the playhead never left zero",
-      timeout: FRAMES_TIMEOUT_MS,
-    })
-    .toBeGreaterThan(0);
+    .poll(
+      async () => {
+        reading = await readPlayhead(field);
+        return Math.abs(reading - from) > 1e-3;
+      },
+      {
+        message: `the playhead never left ${from}s`,
+        timeout: FRAMES_TIMEOUT_MS,
+      },
+    )
+    .toBe(true);
+  return reading;
 }
 
 /** Distinct playhead readings over a window, in order of first appearance. */
@@ -246,10 +255,11 @@ test("plays from a seek made while stopped @smoke", async ({ page }) => {
 
   await t.play();
   await expect(t.chip).toContainText("Animation: Playing");
-  await samplePlayhead(t.playhead, 700);
 
+  // The first reading away from the seek, before the clip can loop back
+  // past it: a 5 s clip played through a window of slow frames wraps.
   expect(
-    await readPlayhead(t.playhead),
+    await untilMoving(t.playhead, 2),
     `play rewound to the start instead of running on from the seek${t.runtimeLog()}`,
   ).toBeGreaterThan(2);
 });
