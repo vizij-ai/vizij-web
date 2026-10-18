@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@vizij/render": "workspace:*",
-    "@vizij/runtime": "^6.2.0",
+    "@vizij/runtime": "^7.0.0",
     "@vizij/runtime-react": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
