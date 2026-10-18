@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import {
   describe,
   loadVizij,
+  ready,
   unloadVizij,
-  whenReady,
   type Runtime,
   type VizijDescription,
   type VizijOptions,
@@ -24,6 +24,10 @@ import { TweenContext, createTweens, type Tweens } from "./tweens";
  * milliseconds. The browser throttles a hidden page's timers (to about once
  * a second, and less as the page stays hidden) unless it plays audio. */
 const HIDDEN_STEP_MS = 10;
+
+/** How often the provider checks whether its face is drawn, in
+ * milliseconds. */
+const DRAWN_POLL_MS = 50;
 
 /** A face's GLB: a URL to fetch, or its bytes. */
 export type VizijSource = string | URL | Blob | ArrayBuffer | Uint8Array;
@@ -78,6 +82,26 @@ function takeDown(
   unloadVizij(vizijId);
   runtime.dispose();
   setLoaded((previous) => ({ ...previous, runtime: null }));
+}
+
+/** Resolves `true` once the Vizij is drawn (`ready`), or `false` once
+ * `load` is cancelled first. It sets no deadline: the runtime reports a
+ * Vizij drawn after at most 600 drawn frames, whatever holds it back, so
+ * only the GPU's pace bounds the wait — and a software GPU compiles a
+ * face's pipelines for a minute or more. A hidden page draws nothing, so
+ * its face stays loading until the page shows again. */
+function drawn(
+  vizijId: string,
+  load: { cancelled: boolean },
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const poll = () => {
+      if (load.cancelled) resolve(false);
+      else if (ready(vizijId)) resolve(true);
+      else setTimeout(poll, DRAWN_POLL_MS);
+    };
+    poll();
+  });
 }
 
 /**
@@ -197,8 +221,7 @@ export function VizijRuntimeProvider({
           previous.dispose();
         }
         setLoaded((state) => ({ ...state, runtime: next }));
-        await whenReady(vizijId);
-        if (load.cancelled) return;
+        if (!(await drawn(vizijId, load))) return;
         setLoaded((state) => ({ ...state, status: "ready" }));
       } catch (error) {
         if (load.cancelled) return;

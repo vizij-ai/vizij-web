@@ -66,7 +66,7 @@ const runtime = vi.hoisted(() => ({
   describe: vi.fn(),
   loadVizij: vi.fn(),
   unloadVizij: vi.fn(),
-  whenReady: vi.fn(),
+  ready: vi.fn(),
 }));
 vi.mock("@vizij/runtime", () => runtime);
 const progress = vi.hoisted(() => vi.fn());
@@ -85,7 +85,7 @@ let loaded: FakeRuntime[];
 beforeEach(() => {
   loaded = [];
   runtime.describe.mockResolvedValue(DESCRIPTION);
-  runtime.whenReady.mockResolvedValue(undefined);
+  runtime.ready.mockReturnValue(true);
   runtime.loadVizij.mockImplementation(async () => {
     const face = new FakeRuntime({ [HAPPY]: { f32: 0 } });
     loaded.push(face);
@@ -290,6 +290,41 @@ describe("VizijRuntimeProvider", () => {
     await waitFor(() => expect(loaded[0].dispose).toHaveBeenCalled());
     expect(loaded[0].stop).toHaveBeenCalled();
     expect(runtime.unloadVizij).toHaveBeenCalledWith("hero");
+  });
+
+  it("stays loading until the face is drawn, however long that takes", async () => {
+    let drawn = false;
+    runtime.ready.mockImplementation(() => drawn);
+    render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(runtime.ready.mock.calls.length).toBeGreaterThan(3),
+    );
+    expect(screen.getByTestId("status").textContent).toMatch(/^loading\|0/);
+    drawn = true;
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready\|0/),
+    );
+    expect(runtime.ready).toHaveBeenCalledWith("hero");
+  });
+
+  it("takes down a face unmounted before it is drawn", async () => {
+    runtime.ready.mockReturnValue(false);
+    const { unmount } = render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() => expect(runtime.ready).toHaveBeenCalled());
+    unmount();
+    await waitFor(() => expect(loaded[0].dispose).toHaveBeenCalled());
+    expect(runtime.unloadVizij).toHaveBeenCalledWith("hero");
+    const polls = runtime.ready.mock.calls.length;
+    await sleep(200);
+    expect(runtime.ready.mock.calls.length).toBe(polls);
   });
 
   it("reports a failed load", async () => {
