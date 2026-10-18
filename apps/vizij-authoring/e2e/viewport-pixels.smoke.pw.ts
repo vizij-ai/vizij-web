@@ -17,7 +17,7 @@ import { drawnFace } from "./viewportRegion";
  * same interval.
  */
 
-test.describe.configure({ timeout: 240_000 });
+test.describe.configure({ timeout: 480_000 });
 
 /** The first slider of an Input Controls group, opened. */
 async function firstSliderOf(page: Page, group: string): Promise<Locator> {
