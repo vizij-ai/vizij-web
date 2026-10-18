@@ -109,9 +109,10 @@ test("profile JSON round-trip: export, edit, replace, deploy @workflow", async (
   // Deploy the authored GLB on the wasm runtime: composeVizij applies the
   // embedded-overrides-built-in precedence, and the edited mapping drives
   // the face — the built-in would have one-hotted "sad" (happy ≈ 0).
+  // The device starts on the composed spec: a `loadGraph` resolves only
+  // once a step applies it, so awaiting one before stepping never returns.
   const spec = (await composeVizij(gltf, { program: "none" })) as object;
-  const runtime = await startRuntime();
-  await runtime.loadGraph(spec);
+  const runtime = await startRuntime(spec);
   runtime.setValue("standard/ros4hri/expression/name", { text: "sad" });
   runtime.setValue("standard/ros4hri/expression/valence", { f32: 0.8 });
   for (let i = 0; i < 5; i += 1) {
