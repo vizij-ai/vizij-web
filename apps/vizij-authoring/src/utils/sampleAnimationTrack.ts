@@ -47,16 +47,17 @@ function tangentOr(value: unknown, fallback: number): number {
 
 /**
  * Keyframes are almost always already in order — `compileAnimationClipIr`
- * sorts them, and the editor inserts in place — so the common case can skip
- * an allocation and a sort per sample.
+ * sorts them, and the editor inserts in place — so a sorted track is sampled
+ * in place, with no copy and no sort per sample.
  *
- * Memoized on the array's identity, because the check is itself O(n) and a
- * bake samples a track once per keyframe: running it on every call left the
- * whole operation quadratic, which is what removing the per-sample sort was
- * supposed to fix. Measured as ~20x the cost for 4x the keyframes before this
- * cache, ~4x after. Keyed on the array because every edit path in this app
- * replaces it rather than mutating in place; an in-place mutation would need
- * to hand over a new array to be seen.
+ * A bake samples a track once per keyframe, so a sample must read O(log n)
+ * keys: the binary search below, and nothing that walks the whole array. The
+ * sortedness check does walk it, so its answer is memoized on the array's
+ * identity and the walk happens once per array, not once per sample. Keyed
+ * on the array because every edit path in this app replaces it rather than
+ * mutating in place; an in-place mutation would need to hand over a new
+ * array to be seen. `sampleAnimationTrack.test.ts` pins the bound by
+ * counting the keys each sample reads.
  */
 const sortedCache = new WeakMap<AnimationTrackIR["keyframes"], boolean>();
 
