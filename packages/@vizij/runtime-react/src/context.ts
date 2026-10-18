@@ -11,8 +11,9 @@ export type VizijRuntimeStatus = "loading" | "ready" | "error";
 export interface VizijRuntimeContextValue {
   /** The id the face is loaded and shown under. */
   vizijId: string;
-  /** `loading` until the face's scene shows its device's pose, and again
-   * while a new `glb` loads; `error` when loading failed. */
+  /** `loading` until the face is drawn — its scene showing its device's
+   * pose — however long its GPU takes, and again while a new `glb` loads;
+   * `error` when loading failed. */
   status: VizijRuntimeStatus;
   error: Error | null;
   /** The device's standing behavior error (`Runtime.behaviorError`): the
