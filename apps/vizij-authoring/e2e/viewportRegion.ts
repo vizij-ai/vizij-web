@@ -8,6 +8,14 @@ import {
 } from "./viewportPixels";
 
 /**
+ * How long a spec waits on what the viewport shows. Under a software GPU, as
+ * in CI, one sample takes seconds: the screenshot waits on a frame of the
+ * canvas, and decoding it waits on a page whose thread is busy drawing. A
+ * press's pick reaches the page on a later frame, too.
+ */
+export const VIEWPORT_POLL_TIMEOUT_MS = 120_000;
+
+/**
  * The middle of the main viewport, in page coordinates: the face's slot
  * without its edges, where the status chips and the reset button sit over
  * the canvas and change with the frame rate.
@@ -67,7 +75,7 @@ export async function drawnFace(page: Page): Promise<Rect> {
       {
         message: "the face draws in the middle of the viewport and holds still",
         intervals: [500],
-        timeout: 30_000,
+        timeout: VIEWPORT_POLL_TIMEOUT_MS,
       },
     )
     .toBe(true);

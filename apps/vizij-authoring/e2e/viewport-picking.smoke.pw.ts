@@ -7,6 +7,7 @@ import {
   drawnFace,
   emptyPoint,
   pagePoint,
+  VIEWPORT_POLL_TIMEOUT_MS,
   viewportMiddle,
 } from "./viewportRegion";
 
@@ -18,7 +19,7 @@ import {
  * framing puts it.
  */
 
-test.describe.configure({ timeout: 240_000 });
+test.describe.configure({ timeout: 480_000 });
 
 async function selectedElements(page: Page): Promise<string[]> {
   return page
@@ -46,6 +47,7 @@ test("a press on a face element selects it, and a press where no element draws c
   await expect
     .poll(() => selectedElements(page), {
       message: "the press at the face's centre selects its inner face",
+      timeout: VIEWPORT_POLL_TIMEOUT_MS,
     })
     .toEqual(["InnerFace"]);
 
@@ -53,6 +55,7 @@ test("a press on a face element selects it, and a press where no element draws c
   await expect
     .poll(() => selectedElements(page), {
       message: "a press on no element clears the selection",
+      timeout: VIEWPORT_POLL_TIMEOUT_MS,
     })
     .toEqual([]);
 });
@@ -95,13 +98,17 @@ test("a press on an ellipse or a rectangle selects it @smoke", async ({
           centre = found ? pagePoint(middle, pixels, found) : null;
           return found !== null;
         },
-        { message: `${shape.name} is drawn in its fill colour` },
+        {
+          message: `${shape.name} is drawn in its fill colour`,
+          timeout: VIEWPORT_POLL_TIMEOUT_MS,
+        },
       )
       .toBe(true);
     await press(page, centre!);
     await expect
       .poll(() => selectedElements(page), {
         message: `the press on ${shape.name} selects it`,
+        timeout: VIEWPORT_POLL_TIMEOUT_MS,
       })
       .toEqual([shape.name]);
   }
