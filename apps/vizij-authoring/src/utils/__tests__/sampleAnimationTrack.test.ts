@@ -154,42 +154,69 @@ describe("sampleTrackAt", () => {
     });
   });
 
-  it("costs no more per sample as the track grows", () => {
-    // A bake samples a track once per key, so a per-sample sort or an O(n)
-    // scan turns a three-minute 60fps channel into ~10^8 operations.
-    //
-    // Asserted as a ratio, not a wall-clock bound. An absolute threshold
-    // measures the machine as much as the code: the first version of this
-    // test allowed 1000ms and failed at 1177ms purely because a Playwright
-    // run was loading the same box. Quadrupling the input should cost about
-    // four times as much for a binary search and about sixteen for a scan,
-    // and both measurements here run under whatever load is present.
-    const sampleCost = (keys: number): number => {
-      const subject = track(
-        Array.from({ length: keys }, (_, index) => ({
-          id: `k${index}`,
-          time: index / 60,
-          value: index % 2,
-        })),
-      );
-      const started = performance.now();
-      for (let index = 0; index < keys; index += 1) {
-        sampleTrackAt(subject, index / 60);
-      }
-      return performance.now() - started;
+  describe("keys read per sample", () => {
+    // A bake samples a track once per key, so anything that touches every key
+    // on every sample — a per-sample sort, an unmemoized sortedness check, a
+    // linear segment scan — makes a three-minute 60fps channel cost ~10^8
+    // operations. The bound is stated as keys read rather than time taken:
+    // the count is a property of the code, while a timing on a shared runner
+    // is a property of the runner.
+
+    /**
+     * A sorted track of `keys` keys whose array counts every element read.
+     * Copying to sort, scanning and indexing all read through the
+     * proxy, so each of the regressions above shows up in the count.
+     */
+    const countedTrack = (keys: number) => {
+      const counter = { reads: 0 };
+      const keyframes = Array.from({ length: keys }, (_, index) => ({
+        id: `k${index}`,
+        time: index / 60,
+        value: index % 2,
+      }));
+      const counted = new Proxy(keyframes, {
+        get(target, property, receiver) {
+          if (typeof property === "string" && /^\d+$/.test(property)) {
+            counter.reads += 1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const subject = track([]);
+      subject.keyframes = counted;
+      return { subject, counter };
     };
 
-    // Warm up, so the first measurement does not carry JIT compilation.
-    sampleCost(2_000);
+    /** A binary search, plus the handful of reads around it. */
+    const logarithmicBound = (keys: number) =>
+      2 * Math.ceil(Math.log2(keys)) + 8;
 
-    const small = Math.max(sampleCost(2_500), 0.5);
-    const large = sampleCost(10_000);
+    it("reads O(log n) keys per sample across a bake", () => {
+      const keys = 10_000;
+      const { subject, counter } = countedTrack(keys);
 
-    expect(
-      large / small,
-      "quadrupling the keyframes cost far more than four times as much, " +
-        "which is what a per-sample sort or a linear scan looks like",
-    ).toBeLessThan(10);
+      // The first sample may walk the whole array once, comparing each pair
+      // of neighbours to learn that the track is already sorted. That answer
+      // is kept for the array, so it is paid once per track, not per sample.
+      sampleTrackAt(subject, 0);
+      expect(counter.reads).toBeLessThanOrEqual(
+        2 * keys + logarithmicBound(keys),
+      );
+
+      let worst = 0;
+      for (let index = 1; index < keys; index += 1) {
+        for (const time of [index / 60, (index - 0.5) / 60]) {
+          counter.reads = 0;
+          sampleTrackAt(subject, time);
+          worst = Math.max(worst, counter.reads);
+        }
+      }
+      expect(
+        worst,
+        "a sample read more keys than a binary search does, which is what a " +
+          "per-sample sort, sortedness check or linear scan looks like",
+      ).toBeLessThanOrEqual(logarithmicBound(keys));
+    });
   });
 
   it("sorts keyframes before sampling", () => {
