@@ -25,16 +25,29 @@ const MAGENTA = (r: number, g: number, b: number) =>
   r > 120 && b > 120 && g < 90;
 const GREEN = (r: number, g: number, b: number) => g > 120 && r < 90 && b < 90;
 
-/** Start recording the main face's load state, and mark the edit's start. */
+/** Start recording the main face's load state and the page's frames, from
+ * the next click on: the edit's start. */
 async function recordLoads(page: Page): Promise<void> {
   await page.evaluate(() => {
     const record = {
       start: performance.now(),
       states: [] as { at: number; ready: boolean }[],
+      /** Each animation frame's time, in ms from the edit's start. */
+      frames: [] as number[],
     };
     (window as unknown as { faceLoads: typeof record }).faceLoads = record;
+    window.addEventListener(
+      "click",
+      () => {
+        record.start = performance.now();
+        record.states = [];
+        record.frames = [];
+      },
+      { capture: true, once: true },
+    );
     let last: boolean | null = null;
-    const watch = () => {
+    const watch = (now: number) => {
+      record.frames.push(now - record.start);
       const slot = document.querySelector('[data-vizij-id="authoring-main"]');
       const status = document.querySelector(
         '[data-testid="main-runtime-status"]',
@@ -48,7 +61,7 @@ async function recordLoads(page: Page): Promise<void> {
       }
       requestAnimationFrame(watch);
     };
-    watch();
+    requestAnimationFrame(watch);
   });
 }
 
@@ -168,18 +181,58 @@ test("a structural edit of Quori reloads it; the load time is reported @workflow
     })
     .not.toBeNull();
   const { readyAgainMs } = await loads(page);
-  // The app measures each export of the world (`MAIN_FACE_EXPORT_MEASURE`).
-  const exportMs = await page.evaluate(() => {
-    const exports = performance.getEntriesByName(
-      "vizij-authoring:main-face-export",
-    );
-    return exports[exports.length - 1]?.duration ?? null;
+  // The app measures each export of the world and marks each newly loaded
+  // face (`MAIN_FACE_EXPORT_MEASURE`, `MAIN_FACE_LOADED_MARK`).
+  const timeline = await page.evaluate(() => {
+    const { start, frames } = (
+      window as unknown as { faceLoads: { start: number; frames: number[] } }
+    ).faceLoads;
+    const last = (name: string) => {
+      const entries = performance.getEntriesByName(name);
+      return entries[entries.length - 1] ?? null;
+    };
+    const exported = last("vizij-authoring:main-face-export");
+    const loaded = last("vizij-authoring:main-face-loaded");
+    return {
+      exportStart: exported ? exported.startTime - start : null,
+      exportEnd: exported
+        ? exported.startTime + exported.duration - start
+        : null,
+      loaded: loaded ? loaded.startTime - start : null,
+      frames,
+    };
   });
-  // From the click to the reloaded face ready: the export of the world, then
-  // the `loadVizij` of its bytes up to the face's first frame.
+  const total = readyAgainMs!;
+  const loaded = timeline.loaded ?? total;
+  // The frames between the device's load and the face drawn: the view's
+  // work on the new scene, its pipelines included.
+  const viewFrames = timeline.frames.filter((at) => at > loaded && at <= total);
+  const frameGaps = viewFrames
+    .slice(1)
+    .map((at, index) => at - viewFrames[index]!);
+  const round = (ms: number | null) => (ms === null ? null : Math.round(ms));
   const measured = {
-    totalMs: Math.round(readyAgainMs!),
-    exportMs: exportMs === null ? null : Math.round(exportMs),
+    totalMs: round(total),
+    editToExportMs: round(timeline.exportStart),
+    exportMs: round(
+      timeline.exportEnd !== null && timeline.exportStart !== null
+        ? timeline.exportEnd - timeline.exportStart
+        : null,
+    ),
+    deviceLoadMs: round(
+      timeline.exportEnd !== null && timeline.loaded !== null
+        ? timeline.loaded - timeline.exportEnd
+        : null,
+    ),
+    viewToReadyMs: round(total - loaded),
+    // The page's main thread from the device's load to its next frame: the
+    // workspace's render on the new `Runtime` and the device's first steps.
+    loadedToFirstFrameMs: round(
+      viewFrames.length ? viewFrames[0]! - loaded : null,
+    ),
+    viewFrames: viewFrames.length,
+    longestViewFrameMs: round(frameGaps.length ? Math.max(...frameGaps) : null),
+    lastViewFrameMs: round(frameGaps.at(-1) ?? null),
   };
   testInfo.annotations.push({
     type: "structural-edit-load",
