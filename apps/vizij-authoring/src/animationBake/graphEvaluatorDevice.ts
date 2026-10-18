@@ -134,14 +134,23 @@ export async function createDeviceGraphEvaluator(options: {
   };
 }
 
+/** The time each probe step carries: enough for a spring, a damper or a
+ * slew to move measurably, as none moves at a step with no time in it. */
+const PROBE_STEP_MS = 1;
+
 /**
- * How many zero-dt ticks a spec needs before a staged input is visible at
- * `outputPath`.
+ * How many ticks a spec needs before a staged input is visible at
+ * `outputPath`: the zero-dt ticks the bake adds after each frame.
  *
  * Measured rather than assumed: the hop count depends on how many sources the
  * value crosses, which is a property of the composed graph, not something a
- * caller should hardcode. Returns `null` when the output never responds,
- * which means the path is not driven by that input at all.
+ * caller should hardcode. Two devices of the spec step side by side, each
+ * step carrying a little time so a smoother on the way moves, one with the
+ * input changed; the first step after which their outputs differ is the
+ * count. Comparing against the twin, not against the output's earlier
+ * value, keeps a smoother still settling from its own start from reading as
+ * the response. Returns `null` when the output never responds, which means
+ * the path is not driven by that input at all.
  */
 export async function measurePropagationTicks(options: {
   spec: GraphSpec;
@@ -150,32 +159,32 @@ export async function measurePropagationTicks(options: {
   maxTicks?: number;
 }): Promise<number | null> {
   const maxTicks = options.maxTicks ?? 8;
-  const runtime: Runtime = await startRuntime(options.spec);
+  const [probe, twin] = await Promise.all([
+    startRuntime(options.spec),
+    startRuntime(options.spec),
+  ]);
+  const read = (runtime: Runtime) =>
+    numericFrom(runtime.readValues([options.outputPath])[options.outputPath]);
   try {
-    // Settle first, so the measurement is of the *response* to a change and
-    // not of the graph's initial convergence from zero.
-    for (let tick = 0; tick < maxTicks; tick += 1) {
-      runtime.step(0);
-    }
-    const before = numericFrom(
-      runtime.readValues([options.outputPath])[options.outputPath],
+    const current = numericFrom(
+      probe.readValues([options.inputPath])[options.inputPath],
     );
-
-    runtime.setValue(options.inputPath, { float: 1 });
+    probe.setValue(options.inputPath, { float: (current ?? 0) + 1 });
     for (let tick = 0; tick <= maxTicks; tick += 1) {
-      runtime.step(0);
-      const after = numericFrom(
-        runtime.readValues([options.outputPath])[options.outputPath],
-      );
+      probe.step(PROBE_STEP_MS);
+      twin.step(PROBE_STEP_MS);
+      const changed = read(probe);
+      const unchanged = read(twin);
       if (
-        after !== null &&
-        (before === null || Math.abs(after - before) > 1e-9)
+        changed !== null &&
+        (unchanged === null || Math.abs(changed - unchanged) > 1e-9)
       ) {
         return tick;
       }
     }
     return null;
   } finally {
-    runtime.dispose();
+    probe.dispose();
+    twin.dispose();
   }
 }
