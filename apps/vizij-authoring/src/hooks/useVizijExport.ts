@@ -1485,10 +1485,6 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       "vizij_speech_thinking_path",
     );
     const agentName = localStorage.getItem("vizij_agent_name");
-    const emotionGroupId = localStorage.getItem(
-      "vizij_speech_emotion_group_id",
-    );
-    const visemeGroupId = localStorage.getItem("vizij_speech_viseme_group_id");
     const voice = localStorage.getItem("vizij_speech_voice");
     const mode = localStorage.getItem("vizij_speech_mode") as
       | "echo"
@@ -1504,8 +1500,6 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       userSpeakingInputPath ||
       thinkingInputPath ||
       agentName ||
-      emotionGroupId ||
-      visemeGroupId ||
       voice ||
       mode ||
       systemPrompt ||
@@ -1519,8 +1513,6 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       config.userSpeakingInputPath = userSpeakingInputPath;
     if (thinkingInputPath) config.thinkingInputPath = thinkingInputPath;
     if (agentName) config.agentName = agentName;
-    if (emotionGroupId) config.emotionGroupId = emotionGroupId;
-    if (visemeGroupId) config.visemeGroupId = visemeGroupId;
     if (voice) config.voice = voice;
     if (mode) config.mode = mode;
     if (systemPrompt) config.systemPrompt = systemPrompt;

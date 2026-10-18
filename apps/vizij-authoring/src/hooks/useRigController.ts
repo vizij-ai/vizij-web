@@ -100,6 +100,7 @@ import {
   deriveAliasFromInputDescriptor,
   syncBindingParentAliasReferences,
 } from "../utils/rigPipelineAliases";
+import { useEditHolds } from "./useEditHolds";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { FEATURE_FLAG_DEFAULTS, useFeatureLabels } from "./useFeatureLabels";
@@ -1324,15 +1325,22 @@ export function useRigController(
     graphRuntimeStore.setState({ setStoreState });
   }, [graphRuntimeStore, setStoreState]);
 
-  // The main face's device: rig inputs are written to its store.
+  // The main face's device: rig inputs are written to its store, and held
+  // there against the face's own behavior while an edit writes them.
   const mainFace = useOptionalVizijRuntime();
   const mainFaceRuntime = mainFace?.runtime ?? null;
   const mainFaceRuntimeRef = useRef(mainFaceRuntime);
   mainFaceRuntimeRef.current = mainFaceRuntime;
+  const holdWhileEditing = useEditHolds(mainFaceRuntime);
+  const holdWhileEditingRef = useRef(holdWhileEditing);
+  holdWhileEditingRef.current = holdWhileEditing;
   const getStageRuntimeInput = useCallback(() => {
     const runtime = mainFaceRuntimeRef.current;
     return runtime
-      ? (graphPath: string, value: number) => runtime.setValue(graphPath, value)
+      ? (graphPath: string, value: number) => {
+          runtime.setValue(graphPath, value);
+          holdWhileEditingRef.current(graphPath);
+        }
       : undefined;
   }, []);
 

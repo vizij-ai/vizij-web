@@ -8,12 +8,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeGlb } from "../../animationImport/__tests__/makeGlb";
-import { AUTHORING_FACE_OPTIONS } from "./faceComposition";
 import { ReferenceFaceRuntime } from "./ReferenceFaceRuntime";
 
 /** What the provider was last rendered with. */
-let providerProps: { glb: unknown; options: unknown; run: unknown } | null =
-  null;
+let providerProps: { glb: unknown; run: unknown } | null = null;
 
 /** The reference face's device: its keys under `rig/face/`. */
 function makeDevice(overrideKeys: string[] = []) {
@@ -38,7 +36,6 @@ vi.mock("@vizij/runtime-react", () => ({
     ...props
   }: {
     glb: unknown;
-    options: unknown;
     run: unknown;
     children: React.ReactNode;
   }) => {
@@ -133,13 +130,9 @@ describe("ReferenceFaceRuntime", () => {
     rigInputs = [];
   });
 
-  it("loads the file as its own Vizij, composed as the main face is, running while visible", () => {
+  it("loads the file as its own Vizij, running while visible", () => {
     const { rerender } = render(<ReferenceFaceRuntime file={FACE_FILE} />);
-    expect(providerProps).toEqual({
-      glb: FACE_FILE,
-      options: AUTHORING_FACE_OPTIONS,
-      run: true,
-    });
+    expect(providerProps).toEqual({ glb: FACE_FILE, run: true });
 
     rerender(<ReferenceFaceRuntime file={FACE_FILE} visible={false} />);
     expect(providerProps?.run).toBe(false);

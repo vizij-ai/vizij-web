@@ -7,15 +7,13 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useAnimateValue, useOptionalVizijRuntime } from "@vizij/runtime-react";
+import { useOptionalVizijRuntime } from "@vizij/runtime-react";
 import { normalizeStandardRigInputPath } from "@vizij/utils";
 import { useGraphRuntimeStore } from "../../state/graphRuntimeStore";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import { useEditorStore } from "../../motiongraph/store/useEditorStore";
 import { buildRigInputPath } from "../../poseRig/utils";
-import type { PoseDefinition, PoseGroupDefinition } from "../../poseRig/types";
-import { resolvePoseMembership } from "../../poseRig/groupMembership";
-import { useSpeechPlayback } from "../../hooks/useSpeechPlayback";
+import { useSay } from "../../hooks/useSay";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
 import { useConversation } from "../../hooks/useConversation";
 import { POLLY_VOICES, type PollyVoice } from "../../data/pollyVoices";
@@ -60,7 +58,12 @@ const THINKING_PATH_KEY = "vizij_speech_thinking_path";
 const DEFAULT_SPEAKING_PATH = "/speech/speaking";
 const DEFAULT_USER_SPEAKING_PATH = "/speech/user_speaking";
 const DEFAULT_THINKING_PATH = "/speech/thinking";
-const EMOTION_GROUP_KEY = "vizij_speech_emotion_group_id";
+const VOICE_KEY = "vizij_speech_voice";
+const DEFAULT_VOICE: PollyVoice = "Ruth";
+const DEFAULT_SCRIPT =
+  "Vizij is a framework for defining, animating, and deploying expressive rendered robot faces";
+/** The face standard's expression weights, relative to the face. */
+const EXPRESSIONS = "standard/vizij/expression/";
 const AUTO_ACTIVATE_MIC_KEY = "vizij_speech_auto_activate_mic";
 
 function getStoredPath(key: string, defaultValue: string): string {
@@ -79,11 +82,14 @@ function getStoredAgentName(): string {
   }
 }
 
-function getStoredId(key: string): string | null {
+function getStoredVoice(): PollyVoice {
   try {
-    return localStorage.getItem(key);
+    const stored = localStorage.getItem(VOICE_KEY);
+    return stored && (POLLY_VOICES as readonly string[]).includes(stored)
+      ? (stored as PollyVoice)
+      : DEFAULT_VOICE;
   } catch {
-    return null;
+    return DEFAULT_VOICE;
   }
 }
 
@@ -115,47 +121,36 @@ function parseEmotionResponse(
   return null;
 }
 
-const EMPTY_POSES: PoseDefinition[] = [];
-const EMPTY_GROUPS: PoseGroupDefinition[] = [];
-
 interface SpeechPanelProps {
   onClosePanel?: () => void;
 }
 
+/**
+ * The speech panel: the main face speaks a script through its `say` method,
+ * echoes what the microphone hears, or answers it through a language model
+ * in conversation mode. While the face speaks, the panel shows the
+ * utterance and its viseme timeline as the face reports them. An answer's
+ * emotion is the face standard's expression of that name, among those the
+ * face implements.
+ */
 export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
-  const faceId = useGraphRuntimeStore((s) => s.faceId);
-  const poses = useGraphRuntimeStore((s) => s.poseConfig?.poses ?? EMPTY_POSES);
-  const poseGroups = useGraphRuntimeStore(
-    (s) => s.poseConfig?.poseGroups ?? EMPTY_GROUPS,
-  );
   const faceSegment = useGraphRuntimeStore((s) => s.faceSegment);
   const mainFace = useOptionalVizijRuntime();
   const mainFaceRuntime = mainFace?.runtime ?? null;
   const runtimeReady = mainFace?.status === "ready";
-  const { animateValue } = useAnimateValue();
-  const stageRuntimeInput = useMemo(
-    () =>
-      mainFaceRuntime
-        ? (graphPath: string, value: number) =>
-            mainFaceRuntime.setValue(graphPath, value)
-        : undefined,
-    [mainFaceRuntime],
-  );
-  const animateRuntimeValue = useMemo(
-    () =>
-      mainFaceRuntime
-        ? (graphPath: string, value: number, duration: number) => {
-            void animateValue(graphPath, value, { duration }).catch(
-              (error: unknown) => {
-                console.error(
-                  `[vizij-authoring] ${graphPath} did not animate`,
-                  error,
-                );
-              },
-            );
-          }
-        : undefined,
-    [animateValue, mainFaceRuntime],
+  const say = useSay();
+  const [script, setScript] = useState(DEFAULT_SCRIPT);
+  const [selectedVoice, setSelectedVoice] =
+    useState<PollyVoice>(getStoredVoice);
+  const writeRigInput = useCallback(
+    (relativePath: string, value: number) => {
+      if (!mainFaceRuntime || !runtimeReady) return;
+      mainFaceRuntime.setValue(
+        buildRigInputPath(faceSegment, relativePath),
+        value,
+      );
+    },
+    [faceSegment, mainFaceRuntime, runtimeReady],
   );
 
   const standardInputsByPath = useBindingAuthoring(
@@ -206,83 +201,39 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
     }
   }, []);
 
-  // --- Emotion group + derived state ---
-  const [selectedEmotionGroupId, setSelectedEmotionGroupId] = useState<
-    string | null
-  >(() => getStoredId(EMOTION_GROUP_KEY));
-
-  const handleEmotionGroupChange = useCallback((id: string | null) => {
-    setSelectedEmotionGroupId(id);
-    try {
-      if (id) localStorage.setItem(EMOTION_GROUP_KEY, id);
-      else localStorage.removeItem(EMOTION_GROUP_KEY);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const emotionGroupOptions = useMemo(
-    (): SelectOption[] =>
-      poseGroups.map((g) => ({ value: g.id, label: g.path || g.name || g.id })),
-    [poseGroups],
-  );
-
-  const defaultEmotionGroupId = useMemo((): string | null => {
-    const found = poseGroups.find(
-      (g) =>
-        g.path?.toLowerCase().includes("emotion") ||
-        g.name?.toLowerCase().includes("emotion"),
-    );
-    return found?.id ?? null;
-  }, [poseGroups]);
-
-  const effectiveEmotionGroupId = useMemo(() => {
-    if (
-      selectedEmotionGroupId &&
-      emotionGroupOptions.some((o) => o.value === selectedEmotionGroupId)
-    ) {
-      return selectedEmotionGroupId;
-    }
-    return defaultEmotionGroupId;
-  }, [selectedEmotionGroupId, defaultEmotionGroupId, emotionGroupOptions]);
-
-  const emotionPoses = useMemo(() => {
-    if (!effectiveEmotionGroupId || poseGroups.length === 0) return [];
-    return poses.filter((pose) => {
-      const membership = resolvePoseMembership(pose, poseGroups);
-      return membership.groupIds.includes(effectiveEmotionGroupId);
-    });
-  }, [poses, poseGroups, effectiveEmotionGroupId]);
-
-  const availableEmotions = useMemo(
-    () => emotionPoses.map((p) => p.id),
-    [emotionPoses],
-  );
-
-  // --- Speech playback ---
-  const speech = useSpeechPlayback({
-    faceId,
-    poses,
-    poseGroups,
-    stageRuntimeInput,
-    animateRuntimeValue,
-    runtimeReady,
-    speakingInputPath,
-  });
-
-  // Persist viseme group selection for export
+  // --- Emotions: the face standard's expressions the face implements ---
+  const [availableEmotions, setAvailableEmotions] = useState<string[]>([]);
   useEffect(() => {
-    try {
-      if (speech.selectedGroupId)
-        localStorage.setItem(
-          "vizij_speech_viseme_group_id",
-          speech.selectedGroupId,
+    setAvailableEmotions([]);
+    if (!mainFaceRuntime) return;
+    let current = true;
+    const prefix = mainFaceRuntime.path(EXPRESSIONS);
+    mainFaceRuntime.listKeys(prefix).then(
+      (keys) => {
+        if (!current) return;
+        setAvailableEmotions(
+          keys
+            .map((key) => key.path.slice(prefix.length))
+            .filter((name) => name.length > 0 && !name.includes("/"))
+            .sort(),
         );
-      else localStorage.removeItem("vizij_speech_viseme_group_id");
-    } catch {
-      /* ignore */
-    }
-  }, [speech.selectedGroupId]);
+      },
+      (error: unknown) => {
+        console.error(
+          "[vizij-authoring] the face's expressions did not list",
+          error,
+        );
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [mainFaceRuntime]);
+
+  const speak = useCallback(
+    (text?: string) => say.speak(text ?? script, selectedVoice),
+    [say, script, selectedVoice],
+  );
 
   // --- API keys ---
   const [dgKey, setDgKey] = useState<string | null>(getDeepgramApiKey);
@@ -322,11 +273,11 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   // Persist voice selection for export
   useEffect(() => {
     try {
-      localStorage.setItem("vizij_speech_voice", speech.selectedVoice);
+      localStorage.setItem(VOICE_KEY, selectedVoice);
     } catch {
       /* ignore */
     }
-  }, [speech.selectedVoice]);
+  }, [selectedVoice]);
 
   // --- Agent name (persisted to localStorage) ---
   const [agentName, setAgentName] = useState(getStoredAgentName);
@@ -385,35 +336,27 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   // Thinking = LLM processing OR TTS fetching, but only in conversation mode
   const isConversationThinking =
     mode === "conversation" &&
-    (conversation.isProcessing || speech.status === "preparing");
+    (conversation.isProcessing || say.status === "preparing");
 
-  // --- Emotion activation ---
+  // --- Emotion activation: the chosen expression at full weight ---
   const activateEmotion = useCallback(
     (emotionName: string | null) => {
-      if (!stageRuntimeInput || !runtimeReady) return;
-      // Reset all emotion inputs to 0
+      if (!mainFaceRuntime || !runtimeReady) return;
       for (const name of availableEmotions) {
-        stageRuntimeInput(
-          buildRigInputPath(faceSegment, `/speech/emotion/${name}`),
-          0,
-        );
-      }
-      // Activate the chosen one
-      if (emotionName && availableEmotions.includes(emotionName)) {
-        stageRuntimeInput(
-          buildRigInputPath(faceSegment, `/speech/emotion/${emotionName}`),
-          1,
+        mainFaceRuntime.setValue(
+          mainFaceRuntime.path(`${EXPRESSIONS}${name}`),
+          name === emotionName ? 1 : 0,
         );
       }
     },
-    [stageRuntimeInput, runtimeReady, faceSegment, availableEmotions],
+    [availableEmotions, mainFaceRuntime, runtimeReady],
   );
 
   // --- Refs for async callbacks ---
-  const handleSpeakRef = useRef(speech.handleSpeak);
-  handleSpeakRef.current = speech.handleSpeak;
-  const setScriptRef = useRef(speech.setScript);
-  setScriptRef.current = speech.setScript;
+  const handleSpeakRef = useRef(speak);
+  handleSpeakRef.current = speak;
+  const setScriptRef = useRef(setScript);
+  setScriptRef.current = setScript;
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const conversationRef = useRef(conversation);
@@ -463,39 +406,26 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   // Sync interim transcript to the text area while listening
   useEffect(() => {
     if (asr.listening && asr.interimTranscript) {
-      speech.setScript(asr.interimTranscript);
+      setScript(asr.interimTranscript);
     }
-  }, [asr.listening, asr.interimTranscript, speech.setScript]);
+  }, [asr.listening, asr.interimTranscript]);
 
-  // Drive /speech/user_speaking PAP input based on mic state
+  // Drive the /speech/speaking, /speech/user_speaking and /speech/thinking
+  // PAP inputs from the face's speech, the mic and the language model.
   useEffect(() => {
-    if (!stageRuntimeInput || !runtimeReady || !userSpeakingInputPath) return;
-    stageRuntimeInput(
-      buildRigInputPath(faceSegment, userSpeakingInputPath),
-      asr.listening ? 1 : 0,
-    );
-  }, [
-    asr.listening,
-    stageRuntimeInput,
-    runtimeReady,
-    faceSegment,
-    userSpeakingInputPath,
-  ]);
+    if (!speakingInputPath) return;
+    writeRigInput(speakingInputPath, say.status === "speaking" ? 1 : 0);
+  }, [say.status, speakingInputPath, writeRigInput]);
 
-  // Drive /speech/thinking PAP input (conversation mode only)
   useEffect(() => {
-    if (!stageRuntimeInput || !runtimeReady || !thinkingInputPath) return;
-    stageRuntimeInput(
-      buildRigInputPath(faceSegment, thinkingInputPath),
-      isConversationThinking ? 1 : 0,
-    );
-  }, [
-    isConversationThinking,
-    stageRuntimeInput,
-    runtimeReady,
-    faceSegment,
-    thinkingInputPath,
-  ]);
+    if (!userSpeakingInputPath) return;
+    writeRigInput(userSpeakingInputPath, asr.listening ? 1 : 0);
+  }, [asr.listening, userSpeakingInputPath, writeRigInput]);
+
+  useEffect(() => {
+    if (!thinkingInputPath) return;
+    writeRigInput(thinkingInputPath, isConversationThinking ? 1 : 0);
+  }, [isConversationThinking, thinkingInputPath, writeRigInput]);
 
   // Auto-provision /speech/speaking, /speech/user_speaking and /speech/thinking PAP inputs
   const lastProvisionedRef = useRef<string | null>(null);
@@ -530,39 +460,6 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
     speakingInputPath,
     userSpeakingInputPath,
     thinkingInputPath,
-    standardInputsByPath,
-    handleCreateCustomStandardInput,
-    enabledMotionGraphInputs,
-    toggleMotionGraphInput,
-  ]);
-
-  // Auto-provision /speech/emotion/<name> PAP inputs for each available emotion
-  const lastProvisionedEmotionsRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!runtimeReady || !faceSegment || availableEmotions.length === 0) return;
-    const key = `${faceSegment}::${availableEmotions.join(",")}`;
-    if (lastProvisionedEmotionsRef.current === key) return;
-    lastProvisionedEmotionsRef.current = key;
-
-    for (const emotionName of availableEmotions) {
-      const relativePath = `/speech/emotion/${emotionName}`;
-      const normalizedPath = normalizeStandardRigInputPath(relativePath);
-      let input = standardInputsByPath.get(normalizedPath);
-      if (!input) {
-        const created = handleCreateCustomStandardInput(relativePath);
-        input = created ?? undefined;
-      }
-      if (input) {
-        const fullPath = buildRigInputPath(faceSegment, input.path);
-        if (!enabledMotionGraphInputs.has(fullPath)) {
-          toggleMotionGraphInput(fullPath);
-        }
-      }
-    }
-  }, [
-    runtimeReady,
-    faceSegment,
-    availableEmotions,
     standardInputsByPath,
     handleCreateCustomStandardInput,
     enabledMotionGraphInputs,
@@ -609,43 +506,41 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
       ? "Listening"
       : isThinking
         ? "Thinking"
-        : speech.status === "idle"
+        : say.status === "idle"
           ? "Idle"
-          : speech.status === "preparing"
+          : say.status === "preparing"
             ? "Preparing"
             : "Speaking";
     const tone =
-      asr.listening || isThinking || speech.status === "speaking"
+      asr.listening || isThinking || say.status === "speaking"
         ? "accent"
         : "muted";
     return <Badge tone={tone}>{label}</Badge>;
-  }, [speech.status, asr.listening, conversation.isProcessing]);
+  }, [say.status, asr.listening, conversation.isProcessing]);
 
   // --- Button state ---
   const buttonLabel =
-    speech.status === "preparing"
+    say.status === "preparing"
       ? "Preparing..."
-      : speech.status === "speaking"
+      : say.status === "speaking"
         ? "Stop"
         : "Speak";
 
-  const buttonVariant = speech.status === "speaking" ? "danger" : "primary";
+  const buttonVariant = say.status === "speaking" ? "danger" : "primary";
 
   const buttonHandler =
-    speech.status === "speaking"
-      ? speech.handleStop
-      : () => void speech.handleSpeak();
+    say.status === "speaking" ? say.stop : () => void speak();
 
   const buttonDisabled =
-    speech.status === "preparing" ||
+    say.status === "preparing" ||
     !runtimeReady ||
     asr.listening ||
     conversation.isProcessing;
 
   const micDisabled =
     !dgKey ||
-    speech.status === "preparing" ||
-    speech.status === "speaking" ||
+    say.status === "preparing" ||
+    say.status === "speaking" ||
     conversation.isProcessing ||
     (mode === "conversation" && !oaiKey);
 
@@ -656,10 +551,11 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
   const oaiFromEnv = hasEnvOpenaiApiKey();
   const needsKeys = !dgKey || (mode === "conversation" && !oaiKey);
 
-  const displayError = speech.error || asr.error || conversation.error;
+  const displayError = say.error || asr.error || conversation.error;
 
   return (
     <Panel
+      data-testid="speech-panel"
       title="Speech"
       description="Draft speech, trigger playback, and configure conversation input paths for the active runtime face."
       badge={statusBadge}
@@ -679,16 +575,17 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
     >
       <div className="flex flex-col gap-3">
         <TextArea
-          value={speech.script}
-          onChange={(e) => speech.setScript(e.target.value)}
+          data-testid="speech-script"
+          value={script}
+          onChange={(e) => setScript(e.target.value)}
           rows={3}
           placeholder="Type something for the avatar to say..."
           disabled={asr.listening || conversation.isProcessing}
         />
         <Select
           label="Voice"
-          value={speech.selectedVoice}
-          onChange={(val) => speech.setSelectedVoice(val as PollyVoice)}
+          value={selectedVoice}
+          onChange={(val) => setSelectedVoice(val as PollyVoice)}
           options={VOICE_OPTIONS}
           size="sm"
         />
@@ -705,6 +602,7 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
         )}
         <div className="flex gap-2">
           <Button
+            data-testid="speech-speak"
             variant={buttonVariant}
             size="sm"
             className="flex-1"
@@ -734,6 +632,40 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
             </Button>
           )}
         </div>
+
+        {/* What the face says, and its visemes as it takes them */}
+        {say.visemes.length > 0 || say.utterance ? (
+          <div className="flex flex-col gap-1">
+            {say.utterance ? (
+              <p
+                data-testid="speech-utterance"
+                className="text-[11px] text-text-primary leading-snug"
+              >
+                {say.utterance}
+              </p>
+            ) : null}
+            <div
+              data-testid="speech-viseme-timeline"
+              className="flex flex-wrap gap-1"
+            >
+              {say.visemes.map((entry, index) => (
+                <span
+                  key={`${entry.at}-${index}`}
+                  data-testid="speech-viseme"
+                  title={`${(entry.at / 1000).toFixed(2)}s`}
+                  className={`rounded border px-1.5 py-0.5 text-[11px] ${
+                    say.status === "speaking" &&
+                    index === say.visemes.length - 1
+                      ? "border-accent bg-accent/20 text-text-primary"
+                      : "border-border-default bg-bg-panel text-text-muted"
+                  }`}
+                >
+                  {entry.viseme}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* Conversation history */}
         {mode === "conversation" && conversation.history.length > 0 && (
@@ -775,15 +707,6 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
           </div>
         )}
       </div>
-
-      {/* Hidden audio element for playback */}
-      <audio
-        ref={speech.audioRef}
-        className="hidden"
-        onPlay={speech.handleAudioPlay}
-        onPause={speech.handleAudioPause}
-        onEnded={speech.handleAudioEnded}
-      />
 
       {/* Settings — always visible */}
       <div className="mt-3 border-t border-border-default/30 pt-3">
@@ -922,24 +845,6 @@ export function SpeechPanel({ onClosePanel }: SpeechPanelProps) {
                   className="h-7 px-2 text-xs rounded-md border border-border-default/50 bg-bg-input text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50 font-mono"
                 />
               </div>
-              {speech.groupOptions.length > 0 && (
-                <Select
-                  label="Visemes Input Group"
-                  value={speech.selectedGroupId ?? ""}
-                  onChange={(val) => speech.setSelectedGroupId(val || null)}
-                  options={speech.groupOptions}
-                  size="sm"
-                />
-              )}
-              {emotionGroupOptions.length > 0 && (
-                <Select
-                  label="Emotions Input Group"
-                  value={effectiveEmotionGroupId ?? ""}
-                  onChange={(val) => handleEmotionGroupChange(val || null)}
-                  options={emotionGroupOptions}
-                  size="sm"
-                />
-              )}
               {availableEmotions.length > 0 && (
                 <p className="text-[10px] text-text-muted leading-snug">
                   Emotions: {availableEmotions.join(", ")}

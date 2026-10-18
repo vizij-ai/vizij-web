@@ -628,6 +628,7 @@ export function AppMenuBar({
           Inspector
         </MenuCheckboxItem>
         <MenuCheckboxItem
+          testId="app-menu-view-right-speech"
           checked={speechPanelVisible}
           onCheckedChange={(checked) => setPanelVisibility("speech", checked)}
         >
