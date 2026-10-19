@@ -190,9 +190,14 @@ export function useBundleSynchronizer({
   const rigInputsRevisionByFingerprintRef = useRef<Map<string, number>>(
     new Map(),
   );
-  // Bumped when an import finishes in a run that a newer run superseded. The
-  // newer run found that import in flight and left the next stage to it, so
-  // the sync re-runs here rather than waiting for an unrelated change.
+  // Set by a run that finds a stage in flight and leaves it to the run that
+  // holds it. The holder has been superseded, so when its stage ends it
+  // re-runs the sync (bumping `supersededImportRevision`) rather than the
+  // sync waiting for an unrelated change. It re-runs only when a run deferred
+  // to it: a re-run supersedes the current run, so when that run is importing
+  // the stage itself, the re-run cancels it, and its own superseded stage
+  // would re-run in turn — each import cancelling the next, without end.
+  const runDeferredToInflightStageRef = useRef(false);
   const [supersededImportRevision, setSupersededImportRevision] = useState(0);
 
   useEffect(() => {
@@ -205,6 +210,12 @@ export function useBundleSynchronizer({
         ...update,
         operationId,
       });
+    };
+    const rerunIfDeferredTo = () => {
+      if (cancelled && runDeferredToInflightStageRef.current) {
+        runDeferredToInflightStageRef.current = false;
+        setSupersededImportRevision((revision) => revision + 1);
+      }
     };
 
     const waitForFaceIdMatch = async (
@@ -275,6 +286,11 @@ export function useBundleSynchronizer({
       }
 
       await waitForNextFrame();
+      // A run superseded while it waited leaves the bundle to the run that
+      // superseded it; starting a stage here would hold that run off it.
+      if (cancelled) {
+        return;
+      }
 
       const bundleGraphs = loadedBundle.graphs as
         | BundleGraphWithIr[]
@@ -432,9 +448,7 @@ export function useBundleSynchronizer({
           );
         } finally {
           inflightRigFingerprintsRef.current.delete(fingerprint);
-          if (cancelled) {
-            setSupersededImportRevision((revision) => revision + 1);
-          }
+          rerunIfDeferredTo();
         }
         if (cancelled) {
           return;
@@ -442,6 +456,7 @@ export function useBundleSynchronizer({
       }
 
       if (rigInFlight && !rigAlreadyImported) {
+        runDeferredToInflightStageRef.current = true;
         return;
       }
 
@@ -531,13 +546,13 @@ export function useBundleSynchronizer({
           );
         } finally {
           inflightPoseFingerprintsRef.current.delete(fingerprint);
-          if (cancelled) {
-            setSupersededImportRevision((revision) => revision + 1);
-          }
+          rerunIfDeferredTo();
         }
         if (cancelled) {
           return;
         }
+      } else if (poseInFlight) {
+        runDeferredToInflightStageRef.current = true;
       }
 
       const poseComplete =
