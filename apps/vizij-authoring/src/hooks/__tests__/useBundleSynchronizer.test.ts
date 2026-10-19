@@ -144,15 +144,21 @@ function isBundleSynced(update: FaceLoadPhaseUpdate): boolean {
 describe("useBundleSynchronizer", () => {
   let frames: FrameRequestCallback[] = [];
 
-  /** Runs `count` animation frames, settling the promises each one resolves. */
-  async function runFrames(count = 20): Promise<void> {
-    for (let index = 0; index < count; index += 1) {
+  /**
+   * Runs `count` animation frames, settling the promises each one resolves.
+   * React renders the updates they make every `framesPerRender` frames: a
+   * busy page renders less often than it draws.
+   */
+  async function runFrames(count = 20, framesPerRender = 1): Promise<void> {
+    for (let index = 0; index < count; index += framesPerRender) {
       await act(async () => {
-        const pending = frames;
-        frames = [];
-        pending.forEach((callback) => callback(0));
-        for (let tick = 0; tick < 10; tick += 1) {
-          await Promise.resolve();
+        for (let frame = 0; frame < framesPerRender; frame += 1) {
+          const pending = frames;
+          frames = [];
+          pending.forEach((callback) => callback(0));
+          for (let tick = 0; tick < 10; tick += 1) {
+            await Promise.resolve();
+          }
         }
       });
     }
@@ -337,6 +343,27 @@ describe("useBundleSynchronizer", () => {
     });
     await runFrames(80);
 
+    expect(props.importPoseConfigFromData).toHaveBeenCalledTimes(1);
+    expect(phases.filter(isBundleSynced)).toHaveLength(1);
+  });
+
+  it("imports the rig graph when a superseded run releases it to the run importing it", async () => {
+    const { hook, props, phases } = renderSynchronizer({});
+    // The first run claims the rig graph import and waits on the frame after
+    // normalizing it.
+    await runFrames(2);
+    expect(normalizeGraphSpec).toHaveBeenCalledTimes(1);
+
+    // A new phase callback supersedes it. The new run's first frame is the
+    // one on which the first run gives up and releases the import, so the new
+    // run finds nothing in flight and takes the import over, while React
+    // renders only every other frame.
+    hook.rerender({ ...props, onPhaseChange: (update) => phases.push(update) });
+    await runFrames(40, 2);
+
+    expect(props.importGraphSpec).toHaveBeenCalledTimes(1);
+    // The first run's normalization and the new run's.
+    expect(normalizeGraphSpec).toHaveBeenCalledTimes(2);
     expect(props.importPoseConfigFromData).toHaveBeenCalledTimes(1);
     expect(phases.filter(isBundleSynced)).toHaveLength(1);
   });
