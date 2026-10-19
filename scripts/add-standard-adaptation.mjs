@@ -11,9 +11,9 @@
  * command travels as far as `standard/vizij/expression/happy` and stops — the
  * profile writes the control, and no graph reads it.
  *
- * The mapping is the shipped reference adaptation's, vizij-rs
- * `fixtures/faces/quori/standard-adaptation.json`, carried onto whatever
- * controls this face's rig has:
+ * The mapping is the shipped reference adaptation's,
+ * `apps/vizij-authoring/public/assets/Quori_Current_Extended.standard-adaptation.json`,
+ * carried onto whatever controls this face's rig has:
  *
  * - expressions and visemes: each face pose sums the standard controls that
  *   should drive it, clamped to [0, 1] (the profile's 27 expressions fold onto
@@ -46,9 +46,12 @@
  *        [--sidecar <adaptation.json>] [--dry-run]
  *
  * `--sidecar` also writes the graph as a pretty-printed sidecar, the form
- * `vizij-bundle add-graph --kind standard-adaptation` reads. Re-running
- * replaces the graph in place (it grafts under a stable id), so an adapted GLB
- * can be re-adapted after a re-export without accumulating copies.
+ * `vizij-bundle add-graph --kind standard-adaptation` reads. A shipped face's
+ * sidecar is the source of truth for its adaptation, beside its GLB as
+ * `<face>.standard-adaptation.json`, and `scripts/face-adaptations.mjs` holds
+ * the GLB to it (docs/face-adaptations.md). Re-running replaces the graph in
+ * place (it grafts under a stable id), so an adapted GLB can be re-adapted
+ * after a re-export without accumulating copies.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";

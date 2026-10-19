@@ -48,9 +48,10 @@ interface UseStandardAdaptationOptions {
  *
  * Unlike a standard *profile*, an adaptation has no canonical face-independent
  * form: it writes this face's own pose paths. It is stored and exported
- * verbatim, matching the shipped reference adaptation
- * (`fixtures/faces/quori/standard-adaptation.json` in vizij-rs), so an exported
- * file drops straight into `vizij-bundle add-graph`.
+ * verbatim, in the form of the shipped faces' sidecars
+ * (`<face>.standard-adaptation.json` beside each GLB under `public/assets`),
+ * so an exported file is a sidecar as it is: `vizij-bundle add-graph` grafts
+ * it, and so does `scripts/face-adaptations.mjs pack` beside its GLB.
  */
 export function useStandardAdaptation({
   bundle,

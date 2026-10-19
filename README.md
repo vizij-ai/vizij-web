@@ -35,6 +35,7 @@ This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via th
 - This repo is the canonical source for `vizij-web` implementation detail, package/app workflows, and local execution docs.
 - `vizij-web/apps/vizij-authoring/docs/*` is the detailed execution source for authoring work; `vizij-docs` summarizes that work at the cross-repo level.
 - `vizij-ai.github.io` is the curated public-docs/tutorial/showcase surface.
+- A shipped face's standard adaptation is reviewed as the sidecar beside its GLB, `<face>.standard-adaptation.json`, which the GLB is packed from: see [Face adaptations](docs/face-adaptations.md).
 
 ---
 
@@ -164,6 +165,8 @@ From the repo root:
 | `pnpm run prep`                          | Format, then lint, then run `typecheck:all` across the workspace.                                |
 | `pnpm run prep:push`                     | Full validation: format → clean → build → lint → `typecheck:all` → test (CI-friendly).           |
 | `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.                                        |
+| `pnpm run adaptations:check`             | Check every face GLB's standard adaptation against its sidecar (part of `lint` and `lint:all`).  |
+| `pnpm run adaptations:pack [<face.glb>]` | Graft each face's adaptation sidecar into its GLB.                                               |
 | `pnpm run typecheck` / `typecheck:all`   | Regular type checks (`typecheck`) or no-bail mode that surfaces every failure (`typecheck:all`). |
 | `pnpm run test`                          | Execute all test scripts (Vitest).                                                               |
 | `pnpm run clean`                         | Remove workspace build outputs.                                                                  |
@@ -245,7 +248,7 @@ The repository now favours incremental checks by default while keeping “all wo
   - `pnpm run validate` (targeted) + `pnpm run build` catch most regressions without traversing the entire tree. If you need a clean build of everything, use `pnpm run build:packages` / `pnpm run build:apps`.
   - For full coverage (e.g. release prep), use `pnpm run validate:all` or `pnpm run prep:all`. The pre-push hook still calls `pnpm run validate`, and setting `HOOK_RUN_WEB_BUILD=1` forces an additional `pnpm run build`.
 - **Continuous Integration**
-  - CI runs `pnpm run format:check`, `lint:all`, `typecheck:all`, `test:all`, and `build`, so even if you lean on the incremental workflow locally, the pipeline proves a clean checkout passes every check.
+  - CI runs `pnpm run format:check`, `lint:all`, `typecheck:all`, `test:all`, and `build`, so even if you lean on the incremental workflow locally, the pipeline proves a clean checkout passes every check. `lint` and `lint:all` include `adaptations:check`, which fails when a face GLB's standard adaptation differs from its sidecar.
 
 - **Troubleshooting**
   - All validation scripts route through `scripts/run-affected.sh`, which uses pnpm’s bidirectional filters (`...[$BASE]...`) to include both changed workspaces and their dependents—so apps automatically re-validate when shared packages change.
