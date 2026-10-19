@@ -1,3 +1,5 @@
+import { memoryBytes } from "@vizij/runtime";
+
 export type MemoryInvestigationScope =
   | "full"
   | "main-runtime-only"
@@ -25,6 +27,10 @@ interface UserAgentMemorySnapshot {
 interface BrowserMemorySnapshot {
   jsHeap: JsHeapSnapshot | null;
   userAgentSpecificMemory: UserAgentMemorySnapshot | null;
+  /** The Vizij wasm module's linear memory (`memoryBytes()`), which never
+   * shrinks: flat across face loads and unloads when nothing leaks. `null`
+   * before the module is initialized. */
+  vizijMemoryBytes: number | null;
 }
 
 export interface MemoryDebugCheckpoint {
@@ -134,11 +140,21 @@ function resolveScope(
   }
 }
 
+function readVizijMemoryBytes(): number | null {
+  try {
+    return memoryBytes();
+  } catch {
+    return null;
+  }
+}
+
 function resolveBrowserMemorySnapshot(): Promise<BrowserMemorySnapshot> {
+  const vizijMemoryBytes = readVizijMemoryBytes();
   if (typeof performance === "undefined") {
     return Promise.resolve({
       jsHeap: null,
       userAgentSpecificMemory: null,
+      vizijMemoryBytes,
     });
   }
 
@@ -176,6 +192,7 @@ function resolveBrowserMemorySnapshot(): Promise<BrowserMemorySnapshot> {
     return Promise.resolve({
       jsHeap,
       userAgentSpecificMemory: null,
+      vizijMemoryBytes,
     });
   }
 
@@ -183,6 +200,7 @@ function resolveBrowserMemorySnapshot(): Promise<BrowserMemorySnapshot> {
     .call(perf)
     .then((result) => ({
       jsHeap,
+      vizijMemoryBytes,
       userAgentSpecificMemory: {
         bytes: typeof result?.bytes === "number" ? result.bytes : null,
         breakdownCount: Array.isArray(result?.breakdown)
@@ -192,6 +210,7 @@ function resolveBrowserMemorySnapshot(): Promise<BrowserMemorySnapshot> {
     }))
     .catch((error: unknown) => ({
       jsHeap,
+      vizijMemoryBytes,
       userAgentSpecificMemory: {
         bytes: null,
         breakdownCount: null,
