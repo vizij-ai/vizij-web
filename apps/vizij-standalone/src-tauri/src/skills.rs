@@ -1,67 +1,65 @@
 //! The device's skill plane: the pieces the arora run composes to serve
-//! `look_at`.
+//! `look_at` and to read the ROS4HRI surface.
 //!
 //! The arora runtime owns everything operational — the step loop, the
 //! built-in keys, bridge pumping, `DescribeMethods`, and the interpreter
-//! module's SPAWN/HALT — so this module only *builds*: the gaze host module
-//! (the described `look_at` contract, from [`vizij_arora_behavior::gaze`])
-//! and the graph interpreter holding the shipped look_at fragment. The
-//! behavior stays data (the `skills/look_at.json` asset), exactly as on the
-//! native app.
+//! module's SPAWN/HALT — so this module only *builds* the graph interpreter
+//! holding the shipped look_at fragment, and states which keys a remote may
+//! write. No module implements look_at: the fragment carries the contract's
+//! description (from [`vizij_arora_behavior::gaze`]), so the interpreter
+//! describes the method and a remote spawns it through the interpreter
+//! module. The behavior stays data (the `skills/look_at.json` asset), exactly
+//! as on the native app.
 
-use arora::{HostModule, ModuleBuilder};
-use arora_types::call::CallResult;
-use vizij_arora_behavior::{gaze, task, ProcessingGraph};
-use vizij_arora_host::skills::LOOK_AT_FUNCTION;
+use std::collections::HashMap;
+
+use arora_types::data::{DataStore, Key, KeyMeta};
+use arora_types::value::Type;
+use vizij_arora_behavior::{gaze, ProcessingGraph};
 
 /// The graph interpreter the device runs: the shipped ROS4HRI profile as the
 /// base graph — `standard/ros4hri/*` keys (typed topics, the gaze skill's
-/// writes) become the face's `standard/vizij/*` controls right on the device,
-/// so the webview only renders — with the look_at fragment registered on top
-/// (runs exist only while goals are live). `rig_prefix` namespaces the
-/// profile's outputs onto the face the webview advertised (empty: none did).
-pub fn interpreter(rig_prefix: &str) -> ProcessingGraph {
-    let (_, profile) = vizij_arora_host::ros4hri::ros4hri_source(rig_prefix);
+/// writes) become `standard/vizij/*` controls on the device — with the
+/// look_at fragment registered on top (runs exist only while goals are live).
+/// The controls carry no rig prefix: the device drives no face of its own.
+pub fn interpreter() -> ProcessingGraph {
+    let (_, profile) = vizij_arora_host::ros4hri::ros4hri_source("");
     let spec = vizij_arora_behavior::parse_spec(&profile.to_string())
         .expect("the shipped ros4hri profile parses");
     let mut graph = ProcessingGraph::from_spec(spec).expect("the ros4hri profile encodes");
-    graph.set_task_fragment(gaze::look_at_id(), gaze::look_at_fragment());
+    graph.set_task_fragment(
+        gaze::look_at::ids::look_at::FUNCTION,
+        gaze::look_at_fragment(),
+    );
     graph
 }
 
-/// The rig prefix of the face the webview advertised — the path segment its
-/// standard controls live under (e.g. `rig/quori_latest/` out of
-/// `rig/quori_latest/standard/vizij/mouth/morph/jaw_open`). Empty until a
-/// face with standard coverage loads.
-pub fn rig_prefix_of(key_paths: impl Iterator<Item = String>) -> String {
-    key_paths
-        .filter_map(|path| {
-            path.find("standard/vizij/")
-                .map(|at| path[..at].to_string())
+/// Open the ROS4HRI profile's inputs to remote writers: the keys the ROS 2
+/// preset's typed topics (`/robot_face/look_at`, `/skill/set_expression`,
+/// `/tts/viseme`, …) and any other bridge write, and the profile graph turns
+/// into controls. Each states its range, its rest, and the type its profile
+/// states, so the run refuses a write of another type — but for a structure:
+/// the bridges land a gaze point in the store's vec3 form (`ArrayF32`), where
+/// the profile names a structure, so that input states no type. Every other
+/// key stays closed, the profile's outputs — what the device reports —
+/// included.
+pub fn open_ros4hri_inputs(store: &dyn DataStore) {
+    let meta: HashMap<Key, KeyMeta> = vizij_arora_host::profile::ros4hri_profile()
+        .keys
+        .into_iter()
+        .filter(|key| key.kind.as_deref() == Some("input"))
+        .map(|key| {
+            let mut meta = KeyMeta::new().editable();
+            meta.ty = key.value_type.filter(|ty| !matches!(ty, Type::Structure));
+            meta.min = key.min;
+            meta.max = key.max;
+            meta.default = key.default_value;
+            (Key::from(key.path), meta)
         })
-        .next()
-        .unwrap_or_default()
-}
-
-/// The gaze module: the look_at contract, described so bridges discover it
-/// (and the ROS4HRI exposure profile binds `/skill/look_at` to it). The
-/// closure is only reached when the device did not register the fragment —
-/// it fails the run rather than pretending to gaze.
-pub fn gaze_module() -> HostModule {
-    ModuleBuilder::new(gaze::module_id())
-        .described_function(
-            gaze::look_at_id(),
-            LOOK_AT_FUNCTION,
-            gaze::look_at_signature(),
-            |_call| {
-                log::warn!("look_at invoked as a module call: no task fragment is registered");
-                Ok(CallResult {
-                    ret: task::failure(),
-                    mutated: Vec::new(),
-                })
-            },
-        )
-        .build()
+        .collect();
+    if let Err(e) = store.set_meta(meta) {
+        log::warn!("the store keeps no key meta: the ROS4HRI inputs stay closed ({e:?})");
+    }
 }
 
 #[cfg(test)]
@@ -72,21 +70,20 @@ mod tests {
     use arora_behavior::{interpreter_module, RunPolicy};
     use arora_simple_data_store::SimpleDataStore;
     use arora_types::call::Call;
-    use arora_types::data::{DataStore, Key};
     use arora_types::value::{StructureField, Value};
+    use vizij_arora_behavior::task;
     use vizij_arora_host::ros4hri;
 
-    /// The standalone's composition end to end: an arora over the SHARED
+    /// The standalone's composition end to end: an arora over the shared
     /// store serves a look_at goal — spawn through the engine, the fragment
-    /// grafts, steps write the gaze surface into the store the webview and
-    /// bridges observe, and the handle's stop call ends the run.
+    /// grafts, steps write the gaze surface into the store the bridges
+    /// observe, and the handle's stop call ends the run.
     #[test]
     fn the_arora_serves_a_look_at_run_on_the_shared_store() {
         let store = SimpleDataStore::new();
         let mut arora = arora::Arora::builder()
             .with_data_store(Box::new(store.clone()))
-            .with_host_module(gaze_module())
-            .with_behavior_interpreter(Box::new(interpreter("rig/test_face/")))
+            .with_behavior_interpreter(Box::new(interpreter()))
             .build()
             .expect("the device composes");
 
@@ -99,9 +96,10 @@ mod tests {
                 .0,
             value: Box::new(value),
         };
+        // look_at is described under the interpreter module, which spawns it.
         let look_at = Call {
-            module_id: Some(gaze::module_id()),
-            id: gaze::look_at_id(),
+            module_id: Some(interpreter_module::ID),
+            id: gaze::look_at::ids::look_at::FUNCTION,
             args: vec![
                 arg("policy", Value::String(String::new())),
                 arg("target", Value::ArrayF32(vec![1.0, 0.3, 0.1])),
@@ -139,28 +137,38 @@ mod tests {
         assert_ne!(read(&handle.status), Some(task::running()));
 
         // The ROS4HRI profile runs as the interpreter's base graph: the gaze
-        // intent the run wrote onto standard/ros4hri/* comes out as the
-        // face's rig-prefixed standard controls — ROS4HRI understanding on
-        // the device itself, the webview only renders.
+        // intent the run wrote onto standard/ros4hri/* comes out as
+        // standard/vizij/* controls, unprefixed.
         let snapshot = store.snapshot();
         assert!(
-            snapshot.storage.iter().any(|(key, value)| key
-                .path
-                .starts_with("rig/test_face/standard/vizij/")
-                && value.is_some()),
-            "the profile writes the face's standard controls"
+            snapshot
+                .storage
+                .iter()
+                .any(|(key, value)| key.path.starts_with("standard/vizij/") && value.is_some()),
+            "the profile writes the standard controls"
         );
     }
 
-    /// The rig prefix is read off the advertised catalog: the segment before
-    /// the face's standard controls.
+    /// The profile's inputs are open, typed as the profile states but for the
+    /// gaze point, which arrives as the preset's `ArrayF32`; its reported
+    /// speech stays closed.
     #[test]
-    fn the_rig_prefix_comes_from_the_catalog() {
-        let paths = [
-            "gaze/pupil/left/x".to_string(),
-            "rig/quori_latest/standard/vizij/mouth/morph/jaw_open".to_string(),
-        ];
-        assert_eq!(rig_prefix_of(paths.into_iter()), "rig/quori_latest/");
-        assert_eq!(rig_prefix_of(std::iter::empty()), "");
+    fn the_ros4hri_inputs_are_open_and_its_outputs_closed() {
+        let store = SimpleDataStore::new();
+        open_ros4hri_inputs(&store);
+        let meta = store.meta(&[
+            Key::from(ros4hri::GAZE_TARGET_KEY),
+            Key::from(ros4hri::EXPRESSION_NAME_KEY),
+            Key::from(ros4hri::VISEME_KEY),
+            Key::from(ros4hri::SPEECH_TEXT_KEY),
+        ]);
+        let input = |at: usize| meta[at].as_ref().expect("an input is described");
+        for at in 0..3 {
+            assert!(input(at).editable);
+        }
+        assert_eq!(input(0).ty, None);
+        assert_eq!(input(1).ty, Some(Type::String));
+        assert_eq!(input(2).ty, Some(Type::U8));
+        assert!(!meta[3].as_ref().is_some_and(|meta| meta.editable));
     }
 }
