@@ -18,7 +18,7 @@
     "url": "https://github.com/vizij-ai/vizij-web",
     "directory": "packages/@vizij/utils"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "files": [
     "dist",
     "README.md"
