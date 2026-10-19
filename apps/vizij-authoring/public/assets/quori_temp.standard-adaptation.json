@@ -1,0 +1,76 @@
+{
+  "nodes": [
+    {
+      "id": "c0",
+      "type": "constant",
+      "params": {
+        "value": 0
+      }
+    },
+    {
+      "id": "c1",
+      "type": "constant",
+      "params": {
+        "value": 1
+      }
+    },
+    {
+      "id": "in_blink",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/blink",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_blink",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_blink",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/lids/blink"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": {
+        "node_id": "in_blink"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_blink"
+      },
+      "to": {
+        "node_id": "out_blink",
+        "input": "in"
+      }
+    }
+  ]
+}
