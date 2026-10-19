@@ -183,8 +183,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -391,8 +391,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -425,8 +425,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -480,8 +480,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -577,8 +577,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -614,8 +614,8 @@ importers:
         specifier: 2.10.1
         version: 2.10.1
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -814,8 +814,8 @@ importers:
         specifier: ^0.170.0
         version: 0.170.0
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       prettier:
         specifier: ^3.4.2
         version: 3.6.2
@@ -859,8 +859,8 @@ importers:
         specifier: workspace:^
         version: link:../render
       '@vizij/runtime':
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^7.1.0
+        version: 7.1.0
       jsdom:
         specifier: ^24.1.3
         version: 24.1.3
@@ -3455,14 +3455,20 @@ packages:
   '@vizij/node-graph@0.9.0':
     resolution: {integrity: sha512-rO3KXqWg8GSE03vM77QG7JhksWlm3z120QlRfxvMlD6Ehotjf7iYmCy4DEBJAvMaoJKRBbE1CXeAcNE0zLne4w==}
 
-  '@vizij/runtime@7.0.0':
-    resolution: {integrity: sha512-iQ2b7v5b5KdilkawA2Nx4xm6FUvy9eSBYn+Eof85J560ExFiG+PQ1FCWEDY3567LAq+HiwwuFlxpvDJyZOHThA==}
+  '@vizij/runtime@7.1.0':
+    resolution: {integrity: sha512-bsJCnh4KTj9iTfeOXv9lHtTXD7wdIhalBNvvzL1t1R+MMohLMI7FJegRgpo6mYK3ZcKNTeD5jRmEtabLJAQZnQ==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
 
+  '@vizij/value-json@0.2.1':
+    resolution: {integrity: sha512-XB9Nv7nH7ygmGNaKJldj+wzRT7NlkMcYeOcy+IlMpgEfQU6J7jyJUiolLUTg2TQHLkLto5QNX6yt8a+9rIHp0Q==}
+
   '@vizij/wasm-loader@0.1.5':
     resolution: {integrity: sha512-YQR1wOUmyHfEU44/ZnBr47FY/d4OsE0ceMHbS9zHQKOCBR7HTCOBWKavbFeSQUdsqiHtuYfJCyccv6J0v7Bpfw==}
+
+  '@vizij/wasm-loader@0.1.6':
+    resolution: {integrity: sha512-4AsVNfHnZUddkbM/66cMjFbM1EW7qGNr/T/KROhywmFooflwzE6mzHrQOBP9c2uyEt5cmuZM7dmZU6wx6r74EA==}
 
   '@webcontainer/env@1.1.1':
     resolution: {integrity: sha512-6aN99yL695Hi9SuIk1oC88l9o0gmxL1nGWWQ/kNy81HigJ0FoaoTXpytCj6ItzgyCEwA9kF1wixsTuv5cjsgng==}
@@ -8812,14 +8818,18 @@ snapshots:
       '@vizij/value-json': 0.2.0
       '@vizij/wasm-loader': 0.1.5
 
-  '@vizij/runtime@7.0.0':
+  '@vizij/runtime@7.1.0':
     dependencies:
-      '@vizij/value-json': 0.2.0
-      '@vizij/wasm-loader': 0.1.5
+      '@vizij/value-json': 0.2.1
+      '@vizij/wasm-loader': 0.1.6
 
   '@vizij/value-json@0.2.0': {}
 
+  '@vizij/value-json@0.2.1': {}
+
   '@vizij/wasm-loader@0.1.5': {}
+
+  '@vizij/wasm-loader@0.1.6': {}
 
   '@webcontainer/env@1.1.1': {}
 
