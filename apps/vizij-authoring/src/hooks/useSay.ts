@@ -22,11 +22,14 @@ const textOf = (value: unknown): string | null =>
     : null;
 
 /**
- * The main face speaking through its device's `say` method: the text goes to
- * the text-to-speech service, the audio plays through the page, and the
- * face's lips follow through its standard adaptation. While a run plays, its
- * viseme timeline grows from the visemes the face reports, frame by frame,
- * and `utterance` is what the face says. `stop` halts the run.
+ * The face of the nearest `VizijRuntimeProvider` speaking through its
+ * device's `say` method: the text goes to the text-to-speech service, the
+ * audio plays through the page, and the face's lips follow through its
+ * standard adaptation. While a run plays, its viseme timeline grows by one
+ * entry each frame the face's viseme changes — a viseme held for less than a
+ * frame can be missing — and `utterance` is the line the face reports
+ * saying. Both stay once the line is over, until the next `speak` clears
+ * them. `stop` halts the run.
  */
 export function useSay() {
   const face = useOptionalVizijRuntime();
@@ -60,8 +63,10 @@ export function useSay() {
         );
       }
     }
-    if (speechKey in changes) {
-      setUtterance(textOf(changes[speechKey]) ?? "");
+    // The face reports the line only while its audio plays, empty after.
+    const spoken = speechKey in changes ? textOf(changes[speechKey]) : null;
+    if (spoken) {
+      setUtterance(spoken);
     }
     if (run.handle.status in changes) {
       const state = runStatus(changes[run.handle.status]);

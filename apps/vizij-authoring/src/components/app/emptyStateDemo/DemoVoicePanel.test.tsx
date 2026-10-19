@@ -4,21 +4,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DemoVoicePanel } from "./DemoVoicePanel";
 
 const RUN = { run: "run-1", status: "task/run-1/status" };
+const SPEECH = "rig/quori/standard/vizij/speech";
+const VISEME = "rig/quori/standard/vizij/viseme";
 
-const face = {
+const face = vi.hoisted(() => ({
   status: "ready",
-  values: {} as Record<string, unknown>,
-};
-const runtime = {
+  listeners: [] as Array<(changes: Record<string, unknown>) => void>,
+}));
+const runtime = vi.hoisted(() => ({
   path: (relative: string) => `rig/quori/${relative}`,
   invoke: vi.fn(),
-  halt: vi.fn().mockResolvedValue(undefined),
-};
+  halt: vi.fn(async (_run: string) => undefined),
+}));
 
 vi.mock("@vizij/runtime-react", () => ({
   useVizijRuntime: () => ({ status: face.status, runtime }),
-  useVizijValues: (paths: string[]) =>
-    Object.fromEntries(paths.map((path) => [path, face.values[path] ?? null])),
+  useOptionalVizijRuntime: () => ({ status: face.status, runtime }),
+  useVizijChanges: (listener: (changes: Record<string, unknown>) => void) => {
+    face.listeners[0] = listener;
+  },
 }));
 
 vi.mock("@vizij/runtime", () => ({
@@ -32,10 +36,26 @@ vi.mock("@vizij/runtime", () => ({
 const speakButton = () =>
   screen.getByTestId("empty-state-demo-voice-speak") as HTMLButtonElement;
 
+const speak = () =>
+  act(async () => {
+    fireEvent.click(speakButton());
+  });
+
+/** The face's store changing, as one batch the provider hands out. */
+const batch = (changes: Record<string, unknown>) =>
+  act(() => {
+    face.listeners[0]!(changes);
+  });
+
+const chips = () =>
+  screen.queryAllByTestId("empty-state-demo-viseme").map((chip) => ({
+    viseme: chip.textContent,
+    current: chip.getAttribute("aria-current") === "true",
+  }));
+
 describe("DemoVoicePanel", () => {
   beforeEach(() => {
     face.status = "ready";
-    face.values = {};
     runtime.invoke.mockReset().mockResolvedValue(RUN);
     runtime.halt.mockClear();
   });
@@ -53,41 +73,76 @@ describe("DemoVoicePanel", () => {
     expect(speakButton().disabled).toBe(true);
   });
 
-  it("says the script in the chosen voice, shows the viseme, and stops the run", async () => {
-    face.values = {
-      "rig/quori/standard/vizij/speech": { str: "Hello" },
-      "rig/quori/standard/vizij/viseme": { str: "aa" },
-      [RUN.status]: { str: "running" },
-    };
+  it("says the script in the chosen voice, adds each viseme as the face takes it, and stops the run", async () => {
     render(<DemoVoicePanel />);
     fireEvent.change(screen.getByTestId("empty-state-demo-voice-script"), {
       target: { value: "Hello" },
     });
-
-    await act(async () => {
-      fireEvent.click(speakButton());
-    });
+    await speak();
 
     expect(runtime.invoke).toHaveBeenCalledWith("say", {
       text: "Hello",
       voice: "Ruth",
     });
-    expect(screen.getByTestId("empty-state-demo-viseme").textContent).toBe(
-      "aa",
-    );
     expect(speakButton().disabled).toBe(true);
+
+    batch({ [SPEECH]: { str: "Hello" }, [VISEME]: { str: "PP" } });
+    batch({ [VISEME]: { str: "PP" } });
+    batch({ [VISEME]: { str: "sil" } });
+    batch({ [VISEME]: { str: "aa" } });
+
+    expect(screen.getByTestId("empty-state-demo-utterance").textContent).toBe(
+      "Hello",
+    );
+    expect(chips()).toEqual([
+      { viseme: "PP", current: false },
+      { viseme: "sil", current: false },
+      { viseme: "aa", current: true },
+    ]);
 
     fireEvent.click(screen.getByTestId("empty-state-demo-voice-stop"));
     expect(runtime.halt).toHaveBeenCalledWith(RUN.run);
+  });
+
+  it("keeps the line and its visemes once it is said, none of them current", async () => {
+    render(<DemoVoicePanel />);
+    await speak();
+    batch({ [SPEECH]: { str: "Hello" }, [VISEME]: { str: "aa" } });
+    batch({ [SPEECH]: { str: "" }, [VISEME]: { str: "sil" } });
+    batch({ [RUN.status]: { str: "success" } });
+
+    expect(speakButton().disabled).toBe(false);
+    expect(screen.queryByTestId("empty-state-demo-voice-stop")).toBeNull();
+    expect(screen.getByTestId("empty-state-demo-utterance").textContent).toBe(
+      "Hello",
+    );
+    expect(chips()).toEqual([
+      { viseme: "aa", current: false },
+      { viseme: "sil", current: false },
+    ]);
+  });
+
+  it("clears the previous line's visemes when it speaks again", async () => {
+    render(<DemoVoicePanel />);
+    await speak();
+    batch({ [SPEECH]: { str: "Hello" }, [VISEME]: { str: "aa" } });
+    batch({ [RUN.status]: { str: "success" } });
+
+    runtime.invoke.mockResolvedValue({
+      run: "run-2",
+      status: "task/run-2/status",
+    });
+    await speak();
+
+    expect(chips()).toEqual([]);
+    expect(screen.queryByTestId("empty-state-demo-utterance")).toBeNull();
   });
 
   it("shows why the face could not speak", async () => {
     runtime.invoke.mockRejectedValue(new Error("speech service unreachable"));
     render(<DemoVoicePanel />);
 
-    await act(async () => {
-      fireEvent.click(speakButton());
-    });
+    await speak();
 
     expect(screen.getByTestId("empty-state-demo-voice-error").textContent).toBe(
       "speech service unreachable",
