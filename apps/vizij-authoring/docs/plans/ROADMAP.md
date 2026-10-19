@@ -197,7 +197,7 @@ Backlog scope:
 
 Execution model:
 
-- Delivered as the `G7.*` lane; the design contract now lives in the app README (`../../README.md` — "Animation authoring is runtime-truthful too").
+- Delivered as the `G7.*` lane; the design contract now lives in [`../ARCHITECTURE.md`](../ARCHITECTURE.md#the-face-runs-on-the-deployed-runtime) ("The Face Runs on the Deployed Runtime").
 
 Exit gate:
 

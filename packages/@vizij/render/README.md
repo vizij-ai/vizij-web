@@ -223,6 +223,14 @@ loop, and the loading view's stages, labels and overrides, against a stand-in of
 `@vizij/runtime` (`tests/runtime-stand-in.mjs`). `size-limit` guards the bundle
 size.
 
+Faces are drawn by `@vizij/runtime`'s Bevy view, a peer dependency. `three` is
+imported only by the loader (`src/functions/load-gltf.ts`,
+`src/functions/gltf-loading/`) and the exporter
+(`src/functions/build-scene-graph.ts`, `src/functions/export.ts`,
+`src/functions/vizij-bundle.ts`); the rest imports its types at most. An API
+change updates the apps that use the package and `@vizij/runtime-react` in the
+same change.
+
 ---
 
 ## Publishing
@@ -230,7 +238,7 @@ size.
 A change carries a changeset (`pnpm changeset`). Merging to `main` updates the
 Version Packages PR, and merging that publishes through
 [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
-See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
+See [`CONTRIBUTING.md` › Releasing](../../../CONTRIBUTING.md#releasing).
 
 ---
 

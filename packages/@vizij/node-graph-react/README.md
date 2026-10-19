@@ -43,7 +43,7 @@ npm install @vizij/node-graph-react @vizij/node-graph react react-dom
 yarn add @vizij/node-graph-react @vizij/node-graph react react-dom
 ```
 
-When consuming linked WASM packages during development, configure Vite (or your bundler) to preserve symlinks and exclude the wasm shim from prebundling. See the [vizij-web README](../../../README.md#local-wasm-development) for details.
+When consuming linked WASM packages during development, exclude the wasm package from your bundler's pre-bundling (Vite's `optimizeDeps.exclude`). Linking a local vizij-rs build is described in [`CONTRIBUTING.md` › A local vizij-rs checkout](../../../CONTRIBUTING.md#a-local-vizij-rs-checkout).
 
 > **Bundler note:** The underlying `@vizij/node-graph` package emits a `.wasm` binary. Enable async WebAssembly and emit `.wasm` assets in your bundler. For Next.js:
 >
@@ -213,37 +213,26 @@ pnpm --filter "@vizij/node-graph-react" typecheck
 
 Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise the real WASM runtime end-to-end, rebuild the wrapper in `vizij-rs` and run one of the demo apps (e.g., `apps/demo-graph-studio`).
 
+The package follows `@vizij/node-graph`: when that package's API or ABI
+changes, raise the dependency range and update `src/compat.tsx` with it, and
+update the apps that use this package (`vizij-authoring`, `demo-graph-studio`,
+`minimal-demo-graph`, `minimal-demo-animation-graph`) in the same change.
+
 ---
 
 ## Publishing
 
-Publishing uses the shared workflow in [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
-
-1. Run a changeset and apply version bumps:
-
-   ```bash
-   pnpm changeset
-   pnpm version:packages
-   ```
-
-2. Validate locally:
-
-   ```bash
-   pnpm install
-   pnpm --filter "@vizij/node-graph-react" build
-   pnpm --filter "@vizij/node-graph-react" test
-   pnpm --filter "@vizij/node-graph-react" typecheck
-   pnpm --filter "@vizij/node-graph-react" exec npm pack --dry-run
-   ```
-
-3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
+A change carries a changeset (`pnpm changeset`). Merging to `main` updates the
+Version Packages PR, and merging that publishes through
+[`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
+See [`CONTRIBUTING.md` › Releasing](../../../CONTRIBUTING.md#releasing).
 
 ---
 
 ## Related Packages
 
-- [`@vizij/node-graph`](../../../vizij-rs/npm/@vizij/node-graph/README.md) – wasm wrapper consumed by this package.
-- [`vizij-graph-wasm`](../../../vizij-rs/crates/node-graph/vizij-graph-wasm/README.md) – Rust crate providing the wasm binding.
-- [`vizij-graph-core`](../../../vizij-rs/crates/node-graph/vizij-graph-core/README.md) – Core evaluator that ultimately runs the graph.
+- [`@vizij/node-graph`](https://github.com/vizij-ai/vizij-rs/blob/main/npm/@vizij/node-graph/README.md) – wasm wrapper consumed by this package.
+- [`vizij-graph-wasm`](https://github.com/vizij-ai/vizij-rs/blob/main/crates/node-graph/vizij-graph-wasm/README.md) – Rust crate providing the wasm binding.
+- [`vizij-graph-core`](https://github.com/vizij-ai/vizij-rs/blob/main/crates/node-graph/vizij-graph-core/README.md) – Core evaluator that ultimately runs the graph.
 
 Need help or spot something missing? File an issue in the Vizij repo—consistent docs keep our integration story sharp. ⚙️

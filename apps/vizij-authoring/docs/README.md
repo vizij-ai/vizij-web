@@ -24,7 +24,7 @@ This folder is organized into active execution docs, active contracts, reference
 ## Active Contracts
 
 1. `apps/vizij-authoring/docs/ARCHITECTURE.md`
-   - System boundaries, compile/runtime invariants, and path/identity contracts.
+   - How the app runs faces on the deployed runtime, the rig input pipeline and its override stage, compile/runtime invariants, and path/identity contracts.
 2. `apps/vizij-authoring/docs/UI_DESIGN.md`
    - UI behavior contract for authoring workflows.
 3. `apps/vizij-authoring/docs/Authoring_Blueprint.md`

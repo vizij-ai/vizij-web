@@ -1,6 +1,6 @@
 # Vizij Authoring UI Design
 
-Last updated: 2026-02-26
+Last updated: 2026-10-19
 Status: active
 
 This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `plans/ROADMAP.md` and `plans/BACKLOG.md`.
@@ -8,7 +8,7 @@ This file defines UI/UX behavior contracts. Delivery sequencing is tracked in `p
 ## Design Principles
 
 1. Inspector-first workflows: complete common authoring tasks without unnecessary panel switching.
-2. Runtime-truthful values: displayed current/applied values must come from runtime-authoritative channels.
+2. Values from the device: displayed current/applied values come from the face's runtime, never from a UI-side estimate.
 3. Progressive complexity: default flows stay simple; advanced internals are available when explicitly needed.
 4. Deterministic editing: equivalent user actions produce equivalent authored/compiled outputs.
 5. Dense-scene usability: search, hierarchy, and controls remain legible under large datasets.
@@ -185,6 +185,22 @@ Direct+pose effective-channel contract:
 Generic UI building blocks come from **`@semio/ui`**. `src/components/ui/` holds the app's _variants_ —
 components that compose `@semio/ui` exports and add an app contract — plus the few things `@semio/ui`
 has no counterpart for. No file in `src/components/ui/` should re-implement a generic primitive.
+Feature code imports from `../ui`.
+
+When a feature needs a building block, in this order:
+
+1. Use an existing component from `src/components/ui/`.
+2. Extend that component.
+3. Build a new `src/components/ui/` variant on top of a `@semio/ui` export. Check `@semio/ui`'s
+   surface first: it is broad (form controls, overlays, tree and list grids, scroll areas with sync
+   hooks, and a large icon set including keyframe, bezier, easing and playhead glyphs).
+4. Only where `@semio/ui` offers no substrate, build on `radix-ui`, the primitive stack `@semio/ui`
+   itself uses.
+
+Never re-implement a primitive inline in feature code: competing comboboxes, collapsibles or numeric
+inputs drift apart in behaviour and theming. A new element is accessible and uses the semantic theme
+tokens, so it works in every theme. The look is clean and technical; colour other than greys is used
+sparingly, because it draws the eye.
 
 Adopting `@semio/ui` means adopting its structural conventions: its `Variant`/`Size` cascade drives
 spacing, height, radius, and state styling. **Vizij keeps its own palette** — `@semio/ui`'s color ramps

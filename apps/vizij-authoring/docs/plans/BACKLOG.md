@@ -903,7 +903,7 @@ Acceptance checks:
 
 ## Block G — Animation + Runtime Unification
 
-This lane is delivered end-to-end; its design contract now lives in the app README (`../../README.md` — "Animation authoring is runtime-truthful too"), which links on to the runtime/transport/interpolation detail in `@vizij/runtime-react`.
+This lane is delivered end-to-end; its design contract now lives in [`../ARCHITECTURE.md`](../ARCHITECTURE.md#the-face-runs-on-the-deployed-runtime) ("The Face Runs on the Deployed Runtime").
 
 ### [x] G7.1 Playback Authority Contract Lock
 
