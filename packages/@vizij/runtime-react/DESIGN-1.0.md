@@ -554,8 +554,9 @@ pull request per package or app goes into it, in this order:
 8. **vizij-authoring**: VIZ-148's sequence (gate, exporter in `ExportDialog`,
    viewport, programs and timeline, reloads, StrictMode memory, load time).
 
-Between PR 1 and the last app PR the workspace typecheck of the branch is red
-(D4); each PR is green on its own scope. The branch is rebase-merged onto
+Each PR is green on its own and keeps the branch green: an app whose PR has not
+landed stays on the published versions of the packages being rewritten (D4).
+The branch is rebase-merged onto
 `main` once every PR is in and the whole workspace is green. Done when the
 lockfile holds no `@vizij/runtime-react@0.4` and no `@vizij/runtime@2`.
 
@@ -626,7 +627,7 @@ Decided with Victor on 2026-10-10 and 2026-10-12.
 | D1  | How apps command a face                                       | Through its Arora API: the methods it declares and its data store. An app uses the standard profile it chooses; a Vizij app uses the vizij standard (`standard/vizij/…`) by default (section 4). Eyes move through the standard's gaze target; a blink is `standard/vizij/blink` or the face's program. |
 | D2  | The shared canvas's place                                     | One canvas fixed over the page, pointer events off, the page's UI above it by z-index; the authoring viewport positions its canvas itself with pointer events on.                                                                                                                                       |
 | D3  | Pausing a program (demo-vizij-player `ProgramsPanel.tsx:133`) | Pause is a halt; resume is a new spawn.                                                                                                                                                                                                                                                                 |
-| D4  | The integration branch between PRs                            | One PR per package or app into the integration branch, each green on its own scope; the branch's workspace typecheck is red until the last app PR.                                                                                                                                                      |
+| D4  | The integration branch between PRs                            | One PR per package or app into the integration branch, each green on its own, and the branch green throughout: an app not yet ported stays on the published versions of the packages being rewritten until its own PR.                                                                                  |
 | D5  | The showcase's Voice section                                  | The device's `say`, which needs no credentials. The Polly timeline and the slider that scrubs through visemes go.                                                                                                                                                                                       |
 | D6  | tutorial-agent-face's volume-driven mouth                     | No mouth from audio volume: `say`'s visemes own the jaw, and the face's program does not write it. tutorial-agent-face's `useVolumeChin` goes.                                                                                                                                                          |
 | D8  | The showcase's hidden-section stepping at 1 Hz                | Deleted: an offscreen face stops (`run={visible}`).                                                                                                                                                                                                                                                     |

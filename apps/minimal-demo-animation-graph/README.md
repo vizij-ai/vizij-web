@@ -118,9 +118,16 @@ useEffect(() => {
 
 ```bash
 pnpm --filter minimal-demo-animation-graph dev            # start Vite dev server
-pnpm --filter minimal-demo-animation-graph build          # type-check & build production bundle
+pnpm --filter minimal-demo-animation-graph build          # build the production bundle
+pnpm --filter minimal-demo-animation-graph preview        # preview it
+pnpm --filter minimal-demo-animation-graph typecheck
+pnpm --filter minimal-demo-animation-graph test
 ```
 
-Ensure any linked packages are rebuilt before launching the demo. The Vite config already skips pre-bundling the wasm packages and preserves symlinks for linked development.
+Rebuild both `@vizij/animation-react` and `@vizij/node-graph-react` after
+changing either: the demo runs both providers, and a stale build of one shows
+as a provider that never becomes ready. The Vite config excludes the wasm
+packages from pre-bundling. The app is the place to check a provider's staging
+and initialisation order.
 
 Enjoy experimenting with the animation × graph pipeline! 🎛️

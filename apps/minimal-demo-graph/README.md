@@ -13,7 +13,8 @@
 4. [How It Works](#how-it-works)
 5. [Supported JSON Formats](#supported-json-formats)
 6. [Key Files](#key-files)
-7. [Troubleshooting](#troubleshooting)
+7. [Development](#development)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -31,15 +32,14 @@
 ```bash
 # From repo root
 pnpm install
-
-# Ensure the WASM package is built (if you are linking locally)
-node ../vizij-rs/scripts/build-graph-wasm.mjs
-cd ../vizij-rs/npm/@vizij/node-graph && pnpm run build
-cd ../../../vizij-web
+pnpm run build:packages
 
 # Run the demo
 pnpm --filter minimal-demo-graph dev
 ```
+
+To run it against a local vizij-rs build of `@vizij/node-graph`, see
+[`CONTRIBUTING.md` › A local vizij-rs checkout](../../CONTRIBUTING.md#a-local-vizij-rs-checkout).
 
 Open the printed local URL (default `http://localhost:5173`). Use the control bar to pick a sample, toggle playback, or load custom specs.
 
@@ -121,6 +121,22 @@ All formats are normalised through `@vizij/node-graph` before loading.
 | ------------------- | -------------------------------------------------------------------------------------------- |
 | `src/App.tsx`       | Top-level UI: manages sample selection, playback, JSON editing, and renders graph IO panels. |
 | `src/utils/file.ts` | File helpers for reading/staging uploaded graph specs.                                       |
+
+---
+
+## Development
+
+```bash
+pnpm --filter minimal-demo-graph dev
+pnpm --filter minimal-demo-graph build
+pnpm --filter minimal-demo-graph preview
+pnpm --filter minimal-demo-graph typecheck
+pnpm --filter minimal-demo-graph lint
+```
+
+The sample graphs come from `@vizij/node-graph-react`'s `samples`. Check a UI
+change both playing and paused: the demo re-stages its inputs every frame
+while playing, and stages them once when paused.
 
 ---
 

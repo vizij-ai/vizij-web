@@ -10,6 +10,8 @@ The page renders `@vizij/render`'s `<VizijCanvas>` once, fixed over the page wit
 - runs the face's device while the section is visible (`run={visible}`), so an offscreen face stops;
 - passes the section's `loadVizij` options: no program by default, Quori's program where the section relies on it.
 
+Every section's face is Quori, loaded from `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` through [`src/lib/faceAssets.ts`](./src/lib/faceAssets.ts).
+
 [`RuntimeFaceFrame`](./src/components/RuntimeFaceFrame.tsx) places the face's slot (`VizijRuntimeFace`) in a card; the canvas draws the face over it, cropped at the canvas's edge as the page scrolls.
 
 ## What The App Demonstrates

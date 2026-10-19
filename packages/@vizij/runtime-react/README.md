@@ -117,3 +117,7 @@ pnpm --filter "@vizij/runtime-react" lint
 
 The tests (Vitest, jsdom) run the provider and the hooks against stand-ins of
 `@vizij/runtime` and `@vizij/render`.
+
+A new export that wraps or duplicates what Arora or `@vizij/runtime` provides
+needs its justification written in [`DESIGN-1.0.md`](./DESIGN-1.0.md) section
+5.1; a capability the apps miss is added to `@vizij/runtime` instead.

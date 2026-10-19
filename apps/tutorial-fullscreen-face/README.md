@@ -20,6 +20,13 @@ pnpm --filter fullscreen-face lint
 `?autoplay` runs the face's active program from load. The e2e spec is
 `e2e/tests/fullscreen-face.spec.ts` (port 5204).
 
+The face is Quori, loaded from
+`apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` by
+`src/FaceApp.tsx`. The app drives it only through the face standard's keys
+(`runtime.path("standard/vizij/…")`) and `play_viseme`, and writes no rig path.
+The hotkeys come from the `vizij-face` profile, so an expression or viseme the
+standard gains gets a key without a code change.
+
 ## Key Files
 
 - [`src/FaceApp.tsx`](./src/FaceApp.tsx): the canvas, the provider and the

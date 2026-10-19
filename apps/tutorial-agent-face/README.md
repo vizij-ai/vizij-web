@@ -54,6 +54,22 @@ The HTTPS dev flow generates a local self-signed certificate under `apps/tutoria
 
 Use `pnpm`, not `npm`, in this workspace. The monorepo uses `workspace:*` dependencies, so `npm install` is not supported here.
 
+## How It Drives The Face
+
+- The face is Quori, loaded from
+  `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb`
+  (`faceAssetUrl` in `src/FaceApp.tsx`).
+- The app drives it only through its Arora API: the face standard's keys
+  (`standard/vizij/*`) and the device's `play_viseme`.
+- Quori's program writes the eye positions, so the app steers the eyes
+  through the standard's gaze target (`useGazeTarget`), never through the eye
+  positions.
+- **Mouth source** picks the viseme timeline: a text-only baseline, or audio
+  and text, synthesised or aligned. **Viseme lead** shifts it against the
+  audio. The device's viseme players smooth and blend the visemes.
+- The debug controls turn on mouse gaze, the expression hotkeys and the
+  emotion buttons, and give the agent its `express_emotion` tool.
+
 ## Docs
 
 - App walkthrough: [`tutorial.md`](./tutorial.md)

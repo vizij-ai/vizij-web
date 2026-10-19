@@ -17,6 +17,13 @@ panels built out of what the GLB declares.
   writes for rig inputs and pose weights, the animation module's transport
   and the rest module's `reset` by name, programs as interpreter runs.
 
+The face loads with its rig, pose driver and poses only
+(`options: { graphs: ["rig", "pose-driver", "pose"], program: "none" }` in
+`src/App.tsx`), without the standard adaptation, so the panels drive its rig
+inputs and pose weights directly; its programs start from the Programs panel.
+A capability the panels need belongs in `@vizij/runtime`, not in a helper
+here.
+
 The walkthrough is [`docs/runtime-react-walkthrough.md`](./docs/runtime-react-walkthrough.md).
 
 ## Key Files
@@ -28,6 +35,12 @@ The walkthrough is [`docs/runtime-react-walkthrough.md`](./docs/runtime-react-wa
 - [`src/components/AnimationPanel.tsx`](./src/components/AnimationPanel.tsx): the animation module's transport.
 - [`src/components/ProgramsPanel.tsx`](./src/components/ProgramsPanel.tsx): programs as runs.
 - [`src/components/DiagnosticsPanel.tsx`](./src/components/DiagnosticsPanel.tsx): what the device lists of itself.
+- [`src/state/storage.ts`](./src/state/storage.ts): the persisted source and
+  panels. Bump its `STORAGE_VERSION` whenever their shape changes, so a stored
+  state of the old shape is not read back.
+
+The curated sample is Quori from `apps/vizij-authoring/public/assets`; keep
+`src/data/samples.ts` aligned with the assets there.
 
 ## Scripts
 

@@ -1,356 +1,59 @@
-# vizij-web Monorepo
-
-> **TypeScript packages, React integrations, and demo applications that showcase Vizij’s real-time animation platform.**
-
-This workspace consumes the Rust artefacts from [`vizij-rs`](../vizij-rs) via the published `@vizij/*` bindings (the `@vizij/animation` and `@vizij/node-graph` engines plus the `@vizij/runtime` runtime) and exposes production-ready packages plus a suite of internal apps.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Workspace Layout](#workspace-layout)
-3. [Tooling Requirements](#tooling-requirements)
-4. [First-Time Setup](#first-time-setup)
-5. [Scripts](#scripts)
-6. [Local WASM Development](#local-wasm-development)
-7. [Development Tips](#development-tips)
-8. [Validation Workflow](#validation-workflow)
-9. [End-to-end Tests](#end-to-end-tests)
-10. [Publishing & Versioning](#publishing--versioning)
-11. [Deployments](#deployments)
-12. [Related Repositories](#related-repositories)
-
----
-
-## Overview
-
-- **Packages** – Reusable libraries (`@vizij/*`) that wrap WASM runtimes, provide rig utilities, share configs, and expose rendering primitives.
-- **Apps** – Demo and tooling front-ends (Vite + React) used for development, QA, and showcasing Vizij capabilities.
-- **pnpm workspace** – Shared dependency graph, consistent linting/typechecking, and streamlined scripts.
-
-## Documentation & Source Of Truth
-
-- `vizij-docs` is the canonical internal source for cross-repo architecture, roadmap framing, lifecycle status, known issues, and release-note policy.
-- This repo is the canonical source for `vizij-web` implementation detail, package/app workflows, and local execution docs.
-- `vizij-web/apps/vizij-authoring/docs/*` is the detailed execution source for authoring work; `vizij-docs` summarizes that work at the cross-repo level.
-- `vizij-ai.github.io` is the curated public-docs/tutorial/showcase surface.
-
----
-
-## Workspace Layout
-
-### Packages
-
-| Package                       | Path                                   | Summary                                                         | Key scripts                                  |
-| ----------------------------- | -------------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
-| `@vizij/animation-react`      | `packages/@vizij/animation-react`      | React provider for the animation WASM engine.                   | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/minimal-demo-ui`      | `packages/@vizij/minimal-demo-ui`      | Shared chrome and theme layer for minimal demos.                | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/node-graph-authoring` | `packages/@vizij/node-graph-authoring` | Authoring/compiler helpers and IR report CLI.                   | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/node-graph-react`     | `packages/@vizij/node-graph-react`     | React provider & hooks for node graphs.                         | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/render`               | `packages/@vizij/render`               | Three.js renderer + controllers for Vizij rigs.                 | `dev`, `build`, `typecheck`, `clean`         |
-| `@vizij/runtime-react`        | `packages/@vizij/runtime-react`        | Runtime provider wiring the renderer to an Arora device engine. | `dev`, `build`, `test`, `typecheck`, `clean` |
-| `@vizij/utils`                | `packages/@vizij/utils`                | Shared math/value utilities consumed across packages/apps.      | `dev`, `build`, `test`, `clean`              |
-
-### Apps
-
-| App                            | Path                                | Purpose                                                                                         | Typical scripts                        |
-| ------------------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `demo-animation-studio`        | `apps/demo-animation-studio`        | Playground for animation presets & advanced rig control.                                        | `dev`, `build`, `typecheck`, `preview` |
-| `demo-graph-studio`            | `apps/demo-graph-studio`            | Work-in-progress Vizij node graph editor.                                                       | `dev`, `build`, `typecheck`, `preview` |
-| `vizij-authoring`              | `apps/vizij-authoring`              | Author vizij assets, configure rig bindings, and export GLBs.                                   | `dev`, `build`, `typecheck`, `preview` |
-| `demo-vizij-player`            | `apps/demo-vizij-player`            | Bundle-first reference player/showcase for `@vizij/runtime-react`.                              | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-animation`       | `apps/minimal-demo-animation`       | Minimal animation runtime example for quick smoke tests.                                        | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-animation-graph` | `apps/minimal-demo-animation-graph` | Animation + node-graph integration showcase (URDF IK, filtering).                               | `dev`, `build`, `typecheck`, `preview` |
-| `minimal-demo-graph`           | `apps/minimal-demo-graph`           | Lightweight node-graph playground (inputs, outputs, staging behaviour).                         | `dev`, `build`, `typecheck`, `preview` |
-| `tutorial-fullscreen-face`     | `apps/tutorial-fullscreen-face`     | Runtime tutorial app built on `@vizij/runtime-react`.                                           | `dev`, `build`, `typecheck`            |
-| `tutorial-agent-face`          | `apps/tutorial-agent-face`          | Tutorial/demo app with agent-facing interaction flow.                                           | `dev`, `build`, `typecheck`            |
-| `vizij-showcase`               | `apps/vizij-showcase`               | Shareable fullscreen showcase with runtime, voice, and staging helpers.                         | `dev`, `build`, `typecheck`            |
-| `vizij-standalone`             | `apps/vizij-standalone`             | The face page: a face on the Bevy view (`@vizij/runtime`) with a voice agent, in a Tauri shell. | `dev`, `vite`, `build`, `test`         |
-
-There is also an `apps/vizij-ws-app` directory in the repo, but it is not part of the primary current pnpm app map or root command aliases. Treat it as a transitional implementation surface while the standalone/protocol story is normalized.
-
-### vizij-authoring Features
-
-The `vizij-authoring` app is the primary tool for creating and configuring Vizij face rigs. Key features include:
-
-- **Scene Composer** – Import GLB models and configure scene hierarchy
-- **Rigging Panel** – Create bindings between standard inputs and animatable components using expressions
-- **Standard Feature Spaces Editor** – Define and configure standard input channels for facial animation:
-  - **Setup Tab**: Load a reference face GLB to use as a visual guide
-  - **Channels Tab**: Manage the standard input hierarchy (namespace → channel → track → attribute)
-  - **Mapping Tab**: Compare main and reference faces side-by-side, configure bindings with a group-centric editor
-- **Import/Export** – Save and load Vizij bundles as GLB files with embedded rig graphs
-
-### Standard Feature Spaces
-
-Standard Feature Spaces provide a unified naming convention for rig inputs, enabling interoperability between different face rigs and animation systems. Each standard input follows a hierarchical path:
-
-```text
-/standard/{namespace}/{channel}/{track}/{attribute}
-```
-
-- **Namespace**: Groups related channels under a feature space (e.g., `semio`)
-- **Channel**: Feature group (e.g., `mouth`, `left_eye`, `right_eye`, `left_eyebrow`)
-- **Track**: Control type (e.g., `pos`, `morph`, `rotation`)
-- **Attribute**: Individual value (e.g., `x`, `y`, `z`, or morph target names)
-
-#### Semio Namespace
-
-The `semio` namespace is the primary standard feature space for Vizij facial rigs. It defines channels for:
-
-| Channel                          | Description                 | Common Tracks                         |
-| -------------------------------- | --------------------------- | ------------------------------------- |
-| `left_eye` / `right_eye`         | Eye gaze and lid control    | `pos` (x, y), `rotation`              |
-| `left_eyebrow` / `right_eyebrow` | Eyebrow movement            | `pos`, `morph`                        |
-| `mouth`                          | Lip shapes and jaw movement | `morph` (visemes, expressions), `pos` |
-| `head`                           | Head orientation            | `pos`, `rotation`                     |
-| `jaw`                            | Jaw articulation            | `pos`, `rotation`                     |
-
-The actual channels available depend on the loaded reference face GLB. Use the Standard Feature Spaces Editor in `vizij-authoring` to explore and configure channels for your specific rig.
-
----
-
-## Tooling Requirements
-
-- **Node.js** 18 LTS or newer (Node 20 recommended).
-- **pnpm** 9.x (Corepack recommended: `corepack enable`).
-- Optional: VS Code with recommended extensions (`.vscode/extensions.json`).
-
-When linking local WASM builds you’ll also need the Rust toolchain from [`vizij-rs`](../vizij-rs).
-
----
-
-## First-Time Setup
-
-1. Install dependencies:
-
-   ```bash
-   pnpm install
-   ```
-
-2. Build packages so apps receive compiled outputs:
-
-   ```bash
-   pnpm run build:packages
-   ```
-
-   To bundle renderer/utilities specifically:
-
-   ```bash
-   pnpm --filter "@vizij/render" build
-   pnpm --filter "@vizij/utils" build
-   ```
-
-3. Start a dev server:
-
-   ```bash
-   pnpm run dev:demo-animation-studio
-   # or start any other app via pnpm --filter "<workspace>" dev
-   ```
-
----
-
-## Scripts
-
-From the repo root:
-
-| Command                                  | Description                                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `pnpm run dev:<workspace>`               | Start a specific app (e.g. `dev:demo-vizij-player`, `dev:minimal-demo-graph`).                   |
-| `pnpm run build`                         | Build packages then apps in dependency order.                                                    |
-| `pnpm run build:packages` / `build:apps` | Run just the package builds or just the app builds.                                              |
-| `pnpm run prep`                          | Format, then lint, then run `typecheck:all` across the workspace.                                |
-| `pnpm run prep:push`                     | Full validation: format → clean → build → lint → `typecheck:all` → test (CI-friendly).           |
-| `pnpm run lint`                          | Aggregate lint command for workspaces that expose `lint`.                                        |
-| `pnpm run typecheck` / `typecheck:all`   | Regular type checks (`typecheck`) or no-bail mode that surfaces every failure (`typecheck:all`). |
-| `pnpm run test`                          | Execute all test scripts (Vitest).                                                               |
-| `pnpm run clean`                         | Remove workspace build outputs.                                                                  |
-| `pnpm run reset` / `reset:hard`          | Drop `node_modules` (and lockfiles via `reset:hard`) to rebuild the workspace from scratch.      |
-
-Use `pnpm --filter "<workspace>" <script>` when you want to target a specific package/app.
-
----
-
-## Local WASM Development
-
-When you need edits from the Rust workspace:
-
-1. In `vizij-rs`:
-
-   ```bash
-   pnpm run link:wasm
-   # optional: pnpm run watch:wasm:<animation|graph> for continuous rebuilds
-   ```
-
-2. Back in this repo, link the packages you want (and verify status):
-
-   ```bash
-   # link a subset
-   pnpm run wasm:link -- --pkgs "node-graph runtime"
-   # or link everything
-   pnpm run wasm:link -- --pkgs all
-
-   # confirm which ones are local vs registry
-   pnpm run wasm:status
-   ```
-
-3. Optionally, reinstall to refresh workspace symlinks / resolution:
-
-   ```bash
-   pnpm install
-   ```
-
-Tips:
-
-- Restart Vite dev servers after linking so they pick up new symlinks.
-- Keep crate/npm versions aligned to avoid ABI mismatch errors (`expected 2, got 1`). Rebuild when they diverge.
-- When you want to revert to published packages:
-
-  ```bash
-  pnpm run wasm:unlink -- --pkgs all
-  pnpm install
-  ```
-
-Implementation note:
-
-- `pnpm run wasm:link` uses direct symlinks under `node_modules/@vizij/*` pointing at `../vizij-rs/npm/@vizij/*` (rather than `pnpm link --global`), to avoid pnpm global-link flakiness and keep the workflow local to this checkout.
-
-Vite configuration essentials (already applied in apps):
-
-- `resolve.preserveSymlinks = true`
-- `optimizeDeps.exclude` includes `@vizij/*-wasm`
-- `server.watch.ignored` un-ignores the linked wasm package
-- `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers required for wasm threads
-
----
-
-## Development Tips
-
-- Use `pnpm --filter "<workspace>" dev` for quick iteration without spinning up every app.
-- Set `USE_LINKED_WASM=1` (where provided) to toggle behaviour when running against local builds.
-- Git hooks run automatically: pre-commit formats/lints staged files via `lint-staged`, and pre-push runs the targeted validation pipeline (see below). Export `SKIP_GIT_HOOKS=1` to bypass in emergencies.
-- The top-level `pnpm run validate` command scopes lint/typecheck/test to the workspaces that changed against your branch upstream, so use it for quick confidence between commits.
-- When Vite cache issues arise, `pnpm run clean` or `pnpm run reset` usually resolves them.
-
-## Validation Workflow
-
-The repository now favours incremental checks by default while keeping “all workspaces” fallbacks close at hand.
-
-- **Day-to-day editing**
-  - Rely on the pre-commit hook to format/lint staged files. To preview the same behaviour manually, run `pnpm exec lint-staged`.
-  - Run `pnpm run validate` whenever you want a local confidence sweep; it lint/typechecks/tests only the workspaces affected since your branch’s upstream (you can override the base via `PNPM_BASE_REF`).
-- **Before pushing / handing off**
-  - `pnpm run validate` (targeted) + `pnpm run build` catch most regressions without traversing the entire tree. If you need a clean build of everything, use `pnpm run build:packages` / `pnpm run build:apps`.
-  - For full coverage (e.g. release prep), use `pnpm run validate:all` or `pnpm run prep:all`. The pre-push hook still calls `pnpm run validate`, and setting `HOOK_RUN_WEB_BUILD=1` forces an additional `pnpm run build`.
-- **Continuous Integration**
-  - CI runs `pnpm run format:check`, `lint:all`, `typecheck:all`, `test:all`, and `build`, so even if you lean on the incremental workflow locally, the pipeline proves a clean checkout passes every check.
-
-- **Troubleshooting**
-  - All validation scripts route through `scripts/run-affected.sh`, which uses pnpm’s bidirectional filters (`...[$BASE]...`) to include both changed workspaces and their dependents—so apps automatically re-validate when shared packages change.
-  - Use `PNPM_BASE_REF=<commitish>` to compare against a different target (e.g. a release branch) without editing the scripts.
-
----
-
-### Verifying Hooks
-
-To ensure your git hooks are correctly installed, run:
+# vizij-web
+
+The web packages and apps of Vizij: author a face, show it on a page, drive it
+from React. Every face here runs on
+[`@vizij/runtime`](https://github.com/vizij-ai/vizij-rs/tree/main/npm/@vizij/runtime),
+the browser build of [vizij-rs](https://github.com/vizij-ai/vizij-rs), the
+same runtime a deployed Vizij runs.
+
+## Apps
+
+| App                                                                 | What it is                                                                                                  | Start it                                    |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| [`vizij-authoring`](apps/vizij-authoring)                           | Author a face: load a GLB, bind its rig to the face standard, author poses and animations, export the face. | `pnpm run dev:vizij-authoring`              |
+| [`vizij-standalone`](apps/vizij-standalone)                         | The face page: one face with a voice agent, in a Tauri shell.                                               | `pnpm run dev:vizij-standalone:web`         |
+| [`vizij-showcase`](apps/vizij-showcase)                             | Several face experiences on one page: expressions, gaze, voice, rig controls.                               | `pnpm run dev:vizij-showcase`               |
+| [`demo-vizij-player`](apps/demo-vizij-player)                       | Load a face export and drive its rig, poses, animations and programs.                                       | `pnpm run dev:demo-vizij-player`            |
+| [`tutorial-fullscreen-face`](apps/tutorial-fullscreen-face)         | The smallest React app driving a face, with its walkthrough.                                                | `pnpm run dev:tutorial-fullscreen-face`     |
+| [`tutorial-agent-face`](apps/tutorial-agent-face)                   | A face wired to a live Gemini agent, with its walkthrough.                                                  | `pnpm run dev:tutorial-agent-face`          |
+| [`demo-animation-studio`](apps/demo-animation-studio)               | A playground for the animation engine: presets, players and their outputs.                                  | `pnpm run dev:demo-animation-studio`        |
+| [`demo-graph-studio`](apps/demo-graph-studio)                       | An editor for node graphs.                                                                                  | `pnpm run dev:demo-graph-studio`            |
+| [`minimal-demo-animation`](apps/minimal-demo-animation)             | The smallest page on the animation engine.                                                                  | `pnpm run dev:minimal-demo-animation`       |
+| [`minimal-demo-graph`](apps/minimal-demo-graph)                     | The smallest page on the node-graph engine.                                                                 | `pnpm run dev:minimal-demo-graph`           |
+| [`minimal-demo-animation-graph`](apps/minimal-demo-animation-graph) | Animation tracks feeding a node graph (URDF IK, filtering).                                                 | `pnpm run dev:minimal-demo-animation-graph` |
+
+Each app's README says what it needs, such as an API key.
+
+## Packages
+
+Published on npm, for apps of your own:
+
+- [`@vizij/render`](packages/@vizij/render): the page's canvas and the face
+  slot, the GLB loader and exporter.
+- [`@vizij/runtime-react`](packages/@vizij/runtime-react): a face in a React
+  tree, and hooks over its values.
+- [`@vizij/utils`](packages/@vizij/utils),
+  [`@vizij/node-graph-authoring`](packages/@vizij/node-graph-authoring),
+  [`@vizij/node-graph-react`](packages/@vizij/node-graph-react),
+  [`@vizij/animation-react`](packages/@vizij/animation-react): shared helpers,
+  the binding compiler, and React bindings for the engines.
+
+## Run it
+
+You need Node 24 and pnpm 9 (`corepack enable` provides it). From the
+repository root:
 
 ```bash
-./scripts/doctor.sh
-```
-
-If the check fails, run `./scripts/install-git-hooks.sh` to fix it.
-
-## End-to-end Tests
-
-Two Playwright suites, each starting the servers it tests. Both need `pnpm run build:packages` first.
-
-| Suite                                                              | Command                                                                     | Serves on                                                                                                           |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Authoring ([`apps/vizij-authoring/e2e`](apps/vizij-authoring/e2e)) | `pnpm --filter vizij-authoring test:e2e:smoke` (`test:e2e` adds `workflow`) | `4175`, a preview of a fresh build; `4176`, a dev server, with `VIZIJ_E2E_SERVER_MODE=dev`                          |
-| Workspace and standalone demos ([`e2e/`](e2e))                     | `pnpm run e2e` (`e2e:heavy` adds the journeys)                              | `5199` for authoring, then one port per demo in [`e2e/standalone-demos.ts`](e2e/standalone-demos.ts), `5200`–`5203` |
-
-Two variables keep a run on servers it started itself:
-
-- **`VIZIJ_E2E_PORT_OFFSET`** (default `0`) is added to every port above. Checkouts that run e2e at the same time each need their own offset; give each worktree a multiple of 100, which keeps every port of one checkout clear of every port of another:
-
-  ```bash
-  # in one worktree
-  pnpm --filter vizij-authoring test:e2e:smoke
-  # in another, at the same time
-  VIZIJ_E2E_PORT_OFFSET=100 pnpm --filter vizij-authoring test:e2e:smoke
-  ```
-
-  Specs reach their servers through the configs' `baseURL` and `e2e/standalone-demos.ts`, which apply the offset. A new server or a spec that builds a URL takes its port from those, never from a literal, or it stops following the offset.
-
-- **`VIZIJ_E2E_REUSE_SERVER=1`** lets a run test a server that already answers on its port instead of starting one. Without it, a port already in use fails the run (`http://127.0.0.1:4175 is already used`), because the server holding it may belong to another checkout and serve another build. Set it only for a server you started from the same checkout, such as a dev server you are iterating against.
-
-## Publishing & Versioning
-
-npm packages publish **automatically from CI**: whenever a publishable
-`@vizij/*` package's version in the repo is not yet on npm, CI publishes it.
-
-- Workflow: [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml) — runs on every push to `main` that touches `packages/**`, and on manual `workflow_dispatch`.
-- It runs [`scripts/publish-unpublished.mjs`](scripts/publish-unpublished.mjs), which decides per package against the registry: a version already on npm is **skipped**, a version that is absent is **published**, and a package that does not exist on npm at all is reported as needing a one-time **bootstrap** (see below). Already-published versions are skipped, so re-runs are safe and one package failing does not block the rest.
-
-Authentication is **npm trusted publishing** (OIDC) — no `NPM_TOKEN`. Each package has a trusted publisher configured on npm against this repository and the `publish-npm.yml` workflow, and publishes are signed with provenance. **Do not rename `publish-npm.yml`**: the trusted-publisher configs reference it by name, and renaming breaks OIDC publishing until every one is reconfigured.
-
-### Releasing a change
-
-1. In your PR, run `pnpm changeset` and commit the generated `.changeset/*.md`. Describe the change for a reader of the changelog, not for a reviewer of the diff.
-2. Merge to `main`. [`.github/workflows/release.yml`](.github/workflows/release.yml) opens or updates a **Version Packages** PR that applies every pending changeset: version bumps, patch bumps cascaded to workspace dependents, and the `CHANGELOG.md` entries.
-3. Merge the Version Packages PR. The bumped versions land on `main`, and `publish-npm.yml` publishes each one that isn't on npm yet.
-
-Versioning and publishing stay decoupled: `release.yml` never touches npm, and `publish-npm.yml` publishes whatever versions reach `main`, however they were bumped — a hand-edited `version` field still ships. You can run the publisher manually via `workflow_dispatch`, or locally with `pnpm publish:unpublished` (`--dry-run` to preview).
-
-A changeset may name a private app (`vizij-authoring`, `vizij-standalone`) alongside published packages; those get versions and changelogs but are never published. An app with **no** `version` field cannot appear in a changeset at all — changesets treats it as ignored and refuses the whole run with `Mixed changesets that contain both ignored and not ignored packages are not allowed`.
-
-## Deployments
-
-`vizij-authoring` is a Firebase Hosting site — project `semio-vizij`, site `vizij-workspace`, configured by [`apps/vizij-authoring/firebase.json`](apps/vizij-authoring/firebase.json) with the SPA rewrites and the COOP/COEP headers the WASM runtime requires.
-
-- **Production** — [`.github/workflows/deploy-authoring.yml`](.github/workflows/deploy-authoring.yml) deploys the `live` channel on every push to `main` that touches the app, one of its five workspace packages, or `pnpm-lock.yaml`. Also available on `workflow_dispatch` to redeploy the current `main`.
-- **Per-PR previews** — [`.github/workflows/preview-authoring.yml`](.github/workflows/preview-authoring.yml) deploys a `pr-<number>` channel and comments the URL. Channels expire after 30 days. Fork PRs are skipped: they get no secrets.
-
-Both need a `FIREBASE_SERVICE_ACCOUNT_SEMIO_VIZIJ` repository secret — a service-account JSON for `semio-vizij` with the Hosting Admin role. Without it a preview warns and skips, while a production deploy **fails**: a deploy that quietly does nothing is how the live site went months stale unnoticed.
-
-To deploy by hand from an authenticated machine:
-
-```bash
+pnpm install
 pnpm run build:packages
-cd apps/vizij-authoring && firebase deploy --only hosting:vizij-workspace
+pnpm run dev:vizij-authoring
 ```
 
-### First publish of a new package
+## More
 
-Trusted publishing **cannot create a brand-new package name** over OIDC — the first publish 404s. For a new `@vizij/*` package, once:
-
-1. Materialise the `workspace:` ranges first — this is the step CI normally does for you, and skipping it publishes literal `workspace:*` ranges to the registry, which makes the package uninstallable (`EUNSUPPORTEDPROTOCOL`). `@vizij/speech-react@0.1.1` shipped that way. From the repo root, on an npm-authenticated machine:
-
-   ```bash
-   node scripts/prepare-publish-manifests.mjs apply
-   (cd packages/@vizij/<name> && pnpm build && npm publish --access public)
-   node scripts/prepare-publish-manifests.mjs restore
-   ```
-
-   Run the `restore` even if the publish fails, so the `workspace:` ranges come back. Confirm the result with `npm view @vizij/<name> dependencies` — no `workspace:` should appear.
-
-2. Add a trusted publisher for it on npm (npmjs.com → the package → Settings → Trusted Publisher): repository `vizij-ai/vizij-web`, workflow `publish-npm.yml`.
-
-From then on CI publishes its new versions like any other package. The publisher lists any package still in this state at the end of its run.
-
-### Prerequisites
-
-- Internal package dependencies use the workspace protocol (`workspace:*`); the publisher materialises them to real versions at publish time and restores the manifests afterward.
-- Each publishable package sets `"private": false` (or omits `private`) and a `publishConfig.access` entry. Private packages and apps are skipped automatically.
-
----
-
-## Related Repositories
-
-- [`vizij-rs`](../vizij-rs) – Rust source for the animation and graph cores plus WASM bundles.
-- [`vizij-docs`](../vizij-docs) – Canonical internal cross-repo architecture, roadmap, decisions, and status summaries.
-- [`vizij-ai.github.io`](../vizij-ai.github.io) – Curated public docs, tutorials, and showcase content.
-
-Questions or contributions? Open an issue or reach out to the Vizij front-end & tooling team. Great docs keep this monorepo approachable. 🚀
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): setup for working on this repository,
+  checks, branches and releases.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): how the packages, the apps and
+  vizij-rs fit together.
+- [vizij-rs](https://github.com/vizij-ai/vizij-rs): the runtime, the face
+  standard and the native `vizij` app.

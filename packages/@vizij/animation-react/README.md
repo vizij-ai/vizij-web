@@ -44,7 +44,7 @@ npm install @vizij/animation-react @vizij/animation react react-dom
 yarn add @vizij/animation-react @vizij/animation react react-dom
 ```
 
-During local development with linked WASM packages, ensure your bundler preserves symlinks and excludes `@vizij/animation` from pre-bundling (see the [`vizij-web` README](../../../README.md#local-wasm-development) for a Vite example).
+During local development with linked WASM packages, exclude `@vizij/animation` from your bundler's pre-bundling (Vite's `optimizeDeps.exclude`). Linking a local vizij-rs build is described in [`CONTRIBUTING.md` › A local vizij-rs checkout](../../../CONTRIBUTING.md#a-local-vizij-rs-checkout).
 
 > **Bundler note:** `@vizij/animation-react` depends on `@vizij/animation`, which emits a `.wasm` artefact. Enable async WebAssembly and treat `.wasm` files as emitted assets in your bundler. For Next.js:
 >
@@ -204,37 +204,26 @@ pnpm --filter "@vizij/animation-react" typecheck
 
 Vitest mocks the wasm binding to keep tests fast; end-to-end checks can be exercised via demo apps (e.g., `apps/demo-animation-studio`) after linking local builds.
 
+The package follows `@vizij/animation`: when that package's API or ABI
+changes, raise the dependency range and update the value helper exports with
+it, and update the apps that use this package (`demo-animation-studio`,
+`minimal-demo-animation`, `minimal-demo-animation-graph`) in the same change.
+
 ---
 
 ## Publishing
 
-This package is published via the repository-wide workflow at [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml). To cut a release:
-
-1. Generate a changeset and apply version bumps:
-
-   ```bash
-   pnpm changeset
-   pnpm version:packages
-   ```
-
-2. Verify the package locally:
-
-   ```bash
-   pnpm install
-   pnpm --filter "@vizij/animation-react" build
-   pnpm --filter "@vizij/animation-react" test
-   pnpm --filter "@vizij/animation-react" typecheck
-   pnpm --filter "@vizij/animation-react" exec npm pack --dry-run
-   ```
-
-3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
+A change carries a changeset (`pnpm changeset`). Merging to `main` updates the
+Version Packages PR, and merging that publishes through
+[`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
+See [`CONTRIBUTING.md` › Releasing](../../../CONTRIBUTING.md#releasing).
 
 ---
 
 ## Related Packages
 
-- [`@vizij/animation`](../../../vizij-rs/npm/@vizij/animation/README.md) – WASM binding used internally.
-- [`vizij-animation-core`](../../../vizij-rs/crates/animation/vizij-animation-core/README.md) – underlying animation engine.
+- [`@vizij/animation`](https://github.com/vizij-ai/vizij-rs/blob/main/npm/@vizij/animation/README.md) – WASM binding used internally.
+- [`vizij-animation-core`](https://github.com/vizij-ai/vizij-rs/blob/main/crates/animation/vizij-animation-core/README.md) – underlying animation engine.
 - [`@vizij/node-graph-react`](../node-graph-react/README.md) – complementary React bindings.
 
 Questions or feature requests? Open an issue—smooth React integration keeps Vizij animations easy to use. 🎬

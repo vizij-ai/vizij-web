@@ -34,10 +34,19 @@ pnpm --filter demo-graph-studio dev
 Additional scripts:
 
 ```bash
-pnpm --filter demo-graph-studio build      # production build + type checks
+pnpm --filter demo-graph-studio build      # production build
 pnpm --filter demo-graph-studio preview    # preview production output
+pnpm --filter demo-graph-studio typecheck  # TypeScript only
+pnpm --filter demo-graph-studio lint       # ESLint
 pnpm --filter demo-graph-studio test       # Vitest unit tests
 ```
+
+The workspace e2e suite boots it on port 5202
+(`e2e/tests/standalone-demos-smoke.spec.ts`) and fails on any page error.
+
+A change to `@vizij/node-graph-react` or `@vizij/node-graph-authoring` shows
+here after `pnpm run build:packages`. Check the canvas after a React Flow
+(`reactflow`) upgrade: its API changes between majors.
 
 ---
 
