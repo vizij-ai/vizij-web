@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "End-to-end smoke and journey tests for the Vizij apps (Playwright).",
+  "license": "Apache-2.0",
   "scripts": {
     "e2e": "playwright test",
     "e2e:heavy": "RUN_HEAVY=1 playwright test"
