@@ -4931,7 +4931,11 @@ export function VariablesPanel({
     duplicatePose(selectedPoseId);
   };
 
-  const handleCopyReferenceToMain = useCallback(() => {
+  // Not memoized. A memoized callback holds the render it was made in; this
+  // one and `prepareVariableCopyModalState`, memoized at different renders,
+  // each held the other's earlier render, and through them every reference
+  // face loaded since the panel mounted.
+  const handleCopyReferenceToMain = () => {
     const sourceIds =
       selectedReferenceRigIds.size > 0
         ? Array.from(selectedReferenceRigIds)
@@ -4952,7 +4956,7 @@ export function VariablesPanel({
     );
     setVariableCopyBlockingMessages([]);
     setVariableCopyModal(null);
-  }, [referenceRigEntries, selectedReferenceRigIds]);
+  };
 
   const handleCopyReferencePoseToMain = useCallback(() => {
     const sourceIds =
