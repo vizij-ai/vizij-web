@@ -612,31 +612,31 @@ export default function App() {
       vizijId={MAIN_FACE_VIZIJ_ID}
     >
       <MainFaceValues face={mainFace} />
-      <RigControllerProvider
-        namespace={DEFAULT_NAMESPACE}
-        rootId={assetLoader.rootId}
-        sourceName={assetLoader.sourceName}
-        onLoadPhaseChange={updateFaceLoadPhase}
-      >
-        <PoseRigProvider
-          rootId={assetLoader.rootId}
-          onLoadPhaseChange={updateFaceLoadPhase}
-        >
-          <AuthoringUiProvider>
-            <RegistryProvider>
-              {/* Each scene (File > New) mounts a new workspace. The
-                  workspace's callbacks are memoized across renders, and each
-                  holds the render it was made in, with the face that render
-                  saw; a new workspace releases the previous scene's faces. */}
+      <AuthoringUiProvider>
+        <RegistryProvider>
+          {/* Each scene (File > New) mounts a new rig controller, pose rig
+              and workspace. Their callbacks are memoized across renders, and
+              each holds the render it was made in, with the world and face
+              that render saw; new ones release the previous scene's faces. */}
+          <RigControllerProvider
+            key={assetLoader.sceneGeneration}
+            namespace={DEFAULT_NAMESPACE}
+            rootId={assetLoader.rootId}
+            sourceName={assetLoader.sourceName}
+            onLoadPhaseChange={updateFaceLoadPhase}
+          >
+            <PoseRigProvider
+              rootId={assetLoader.rootId}
+              onLoadPhaseChange={updateFaceLoadPhase}
+            >
               <AppContent
-                key={assetLoader.sceneGeneration}
                 loader={assetLoader}
                 onFaceLoadPhaseChange={updateFaceLoadPhase}
               />
-            </RegistryProvider>
-          </AuthoringUiProvider>
-        </PoseRigProvider>
-      </RigControllerProvider>
+            </PoseRigProvider>
+          </RigControllerProvider>
+        </RegistryProvider>
+      </AuthoringUiProvider>
     </VizijRuntimeProvider>
   );
 }
