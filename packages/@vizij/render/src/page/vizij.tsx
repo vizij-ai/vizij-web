@@ -37,8 +37,8 @@ export interface VizijProps {
   /** A press on the face: the element under the pointer, or `null` for a
    * press that hit none. Picks need pointer events on the canvas. */
   onPick?: (pick: Pick) => void;
-  /** The image of the default loading view, in place of the face outline
-   * `@vizij/render` ships; `null` for none. */
+  /** The image of the default loading view, in place of Vizij's logo,
+   * which `@vizij/render` ships; `null` for none. */
   loadingImage?: ReactNode;
   /** The slot's own loading view, in place of the default: called with the
    * stage, its label and its fraction while the face is not drawn. `null`

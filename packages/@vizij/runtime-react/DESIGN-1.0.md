@@ -122,10 +122,10 @@ the whole slot gives it. One slot shows a face at a time.
 | `onPointerMissed`     | `onPick`                                   | a miss is a pick with `elementId: null`; one callback covers presses on and off elements             |
 
 Until its face is first drawn, the slot shows a **loading view** over its
-border box: an image (a face outline `@vizij/render` ships as inline SVG, or
-the page's `loadingImage`), a progress bar and the stage's label — or the
-page's own element (`loading`), or none (`loading={null}`). The stages come
-from one model in `@vizij/render`, keyed by `vizijId`:
+border box: an image (Vizij's logo, which `@vizij/render` ships as inline
+SVG, or the page's `loadingImage`), a progress bar and the stage's label —
+or the page's own element (`loading`), or none (`loading={null}`). The
+stages come from one model in `@vizij/render`, keyed by `vizijId`:
 
 - **the runtime's**, fed by `<VizijCanvas>`: `@vizij/runtime`'s
   `onInitProgress` (the wasm's download in bytes, its compile, its start), then

@@ -106,7 +106,7 @@ have one caller.
 | `showSafeArea`       | Outlines the framed bounds (`safeArea(vizijId)`) over the face, as a DOM overlay.                            |
 | `selection`          | The element ids whose outlines glow (`setSelection`). Absent, the slot leaves the face's selection as it is. |
 | `onPick`             | A press on the face: `{ vizijId, elementId }`, `elementId` `null` for a press that hit no element.           |
-| `loadingImage`       | The default loading view's image, in place of the face outline it ships; `null` for none.                    |
+| `loadingImage`       | The default loading view's image, in place of Vizij's logo, which it ships; `null` for none.                 |
 | `loading`            | The slot's own loading view, `(loading: VizijLoading) => ReactNode`; `null` for none.                        |
 
 The slot carries `data-vizij-id` and `data-vizij-ready`, `"true"` once the
@@ -117,8 +117,8 @@ One slot shows a face at a time.
 ### The loading view
 
 Until its face is first drawn, a slot shows a loading view over its border
-box, centred, in the slot's text colour: an image, a progress bar and a short
-label of the stage. The stages, in order:
+box, centred: an image, Vizij's logo by default, then a progress bar and a
+short label of the stage in the slot's text colour. The stages, in order:
 
 | Stage      | Label                                  | Bar           | Reported by                                  |
 | ---------- | -------------------------------------- | ------------- | -------------------------------------------- |
@@ -146,8 +146,8 @@ one is ready.
   face. A page that calls `loadVizij` itself reports the same way, or leaves
   its slot at "Loading the face" until the face is drawn. `null` says no face
   is loaded under the id any more, and its slot shows the loading view again.
-- **Its image:** `loadingImage` replaces the face outline the view ships (a
-  small inline SVG drawn in the text colour); `null` leaves the image out.
+- **Its image:** `loadingImage` replaces Vizij's logo, which the view ships (a
+  small inline SVG in the logo's own colours); `null` leaves the image out.
 - **Its whole element:** `loading` is called with a `VizijLoading` —
   `{ stage, label, fraction }`, `fraction` from 0 to 1 for a byte count with
   a known total and `null` otherwise — and its result is shown over the slot
