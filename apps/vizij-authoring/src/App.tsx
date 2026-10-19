@@ -554,13 +554,22 @@ export const MAIN_FACE_VIZIJ_ID = "authoring-main";
 
 export default function App() {
   const assetLoader = useVizijAssetLoader();
+  // The callback reads the loader's fields, not the loader: a loader state
+  // captured in it would keep the face it held loaded until the callback is
+  // made anew.
+  const {
+    faceLoadSessionToken,
+    faceLoadMilestones,
+    markFaceLoadMilestone,
+    updateExternalPhase,
+  } = assetLoader;
   const updateFaceLoadPhase = useCallback(
     (update: FaceLoadPhaseChange) => {
-      const sessionToken = assetLoader.faceLoadSessionToken;
+      const sessionToken = faceLoadSessionToken;
       const operationId =
         update.operationId ??
         (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
-      assetLoader.updateExternalPhase({
+      updateExternalPhase({
         ...update,
         sessionToken,
         operationId,
@@ -569,18 +578,18 @@ export default function App() {
         update.stepId === "runtime-stabilization" &&
         update.substepId === "settle-recompiles" &&
         update.status === "complete" &&
-        assetLoader.faceLoadMilestones["bundle-synced"] !== null
+        faceLoadMilestones["bundle-synced"] !== null
       ) {
-        assetLoader.markFaceLoadMilestone("graph-ready", {
+        markFaceLoadMilestone("graph-ready", {
           sessionToken,
         });
       }
     },
     [
-      assetLoader.faceLoadSessionToken,
-      assetLoader.faceLoadMilestones,
-      assetLoader.markFaceLoadMilestone,
-      assetLoader.updateExternalPhase,
+      faceLoadSessionToken,
+      faceLoadMilestones,
+      markFaceLoadMilestone,
+      updateExternalPhase,
     ],
   );
 
@@ -615,7 +624,12 @@ export default function App() {
         >
           <AuthoringUiProvider>
             <RegistryProvider>
+              {/* Each scene (File > New) mounts a new workspace. The
+                  workspace's callbacks are memoized across renders, and each
+                  holds the render it was made in, with the face that render
+                  saw; a new workspace releases the previous scene's faces. */}
               <AppContent
+                key={assetLoader.sceneGeneration}
                 loader={assetLoader}
                 onFaceLoadPhaseChange={updateFaceLoadPhase}
               />
