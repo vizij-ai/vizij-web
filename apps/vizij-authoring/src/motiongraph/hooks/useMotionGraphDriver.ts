@@ -11,7 +11,8 @@ import {
   type EditorEdge,
   type EditorNode,
 } from "../store/useEditorStore";
-import { buildGraphSpec } from "../utils/buildGraphSpec";
+import { buildGraphSpec, unwiredInputs } from "../utils/buildGraphSpec";
+import { useRegistry } from "../contexts/RegistryProvider";
 
 const DEBOUNCE_MS = 50;
 
@@ -43,6 +44,7 @@ export function useMotionGraphDriver(
   edgesOverride?: EditorEdge[],
 ): void {
   const { runtime } = useVizijRuntime();
+  const { getPortsForType } = useRegistry();
   const runRef = useRef<EditorRun | null>(null);
   /** The device calls, one at a time and in order. */
   const queueRef = useRef<Promise<void>>(Promise.resolve());
@@ -61,6 +63,11 @@ export function useMotionGraphDriver(
         ? { nodes: nodesOverride, edges: edgesOverride }
         : useEditorStore.getState();
     const built = buildGraphSpec(nodes, edges);
+    // An input the graph needs and does not wire — the editor's state on its
+    // way between two complete graphs — fails the face's whole behavior
+    // tick, every other run on the face with it, until the next edit. The
+    // run keeps its last complete graph.
+    if (unwiredInputs(built.spec, getPortsForType).length > 0) return;
     const spec = built.spec as unknown as object;
     const signature = JSON.stringify(spec);
 
@@ -103,7 +110,14 @@ export function useMotionGraphDriver(
         signature,
       };
     });
-  }, [controllerId, edgesOverride, enqueue, nodesOverride, runtime]);
+  }, [
+    controllerId,
+    edgesOverride,
+    enqueue,
+    getPortsForType,
+    nodesOverride,
+    runtime,
+  ]);
 
   // Sync now, then on every structural change of the editor's graph.
   useEffect(() => {
