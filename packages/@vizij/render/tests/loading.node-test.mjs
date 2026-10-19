@@ -172,12 +172,20 @@ test("each stage's label, and a fraction only where bytes count against a total"
 
 const slot = (props) => renderToStaticMarkup(createElement(Vizij, props));
 
-test("the default view: the shipped image, a determinate progress bar and the label", () => {
+test("the default view: Vizij's logo, a determinate progress bar and the label", () => {
   mounted();
   setVizijProgress("g", { stage: "fetch", loaded: MB, total: 4 * MB });
   const html = slot({ vizijId: "g" });
   assert.match(html, /data-vizij-loading/);
-  assert.match(html, /<svg/);
+  // The logo at 64 px, in its own colours rather than the text colour: the
+  // teal circle, the orange quadrilateral and the amber triangle.
+  const image = html.match(/<svg[^>]*>[\s\S]*?<\/svg>/)?.[0];
+  assert.ok(image, "the default image is an inline SVG");
+  assert.match(image, /width="64" height="64"/);
+  for (const fill of ["#50c4b6", "#f56b29", "#ff9e00"]) {
+    assert.match(image, new RegExp(`fill="${fill}"`));
+  }
+  assert.doesNotMatch(image, /currentColor/);
   assert.match(html, /role="progressbar"/);
   assert.match(html, /aria-label="Loading the face"/);
   assert.match(html, /aria-valuetext="Loading the face: 1.0 of 4.0 MB"/);

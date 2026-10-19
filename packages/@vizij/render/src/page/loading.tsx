@@ -74,32 +74,31 @@ const INDETERMINATE_CSS = `
 }
 `;
 
-/** The default loading image: a face's outline in the text colour. */
+/** The default loading image: Vizij's logo, in its own colours — a teal
+ * circle under a translucent orange quadrilateral and amber triangle. */
 export function DefaultLoadingImage(): ReactNode {
   return (
-    <svg
-      viewBox="0 0 64 64"
-      width="64"
-      height="64"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      opacity="0.8"
-    >
-      <rect x="8" y="10" width="48" height="44" rx="14" />
-      <circle cx="24" cy="30" r="3" fill="currentColor" stroke="none" />
-      <circle cx="40" cy="30" r="3" fill="currentColor" stroke="none" />
-      <path d="M25 42q7 5 14 0" />
+    <svg viewBox="0 0 1024 1024" width="64" height="64">
+      <circle cx="447.6" cy="486.6" r="400.6" fill="#50c4b6" />
+      <g fillOpacity="0.894">
+        <path
+          fill="#f56b29"
+          d="M471.3 495.5L846.5 488A14.8 14.8 0 0 1 861.5 503.8L835.3 869.7A60.5 60.5 0 0 1 767.6 925.4L469.8 888.9A14.8 14.8 0 0 1 456.8 874.2L456.8 510.3A14.8 14.8 0 0 1 471.3 495.5Z"
+        />
+        <path
+          fill="#ff9e00"
+          d="M824.3 339L983.4 619.9A14.8 14.8 0 0 1 970.7 642L790 644.2A14.8 14.8 0 0 1 775 628.3L796.7 345.1A14.8 14.8 0 0 1 824.3 339Z"
+        />
+      </g>
     </svg>
   );
 }
 
 /**
- * The default loading view, centred in the slot in the text colour: the
- * image (`<DefaultLoadingImage>` when `image` is `undefined`, none when
- * `null`), a progress bar and the stage's label; on a failure, the label
- * alone.
+ * The default loading view, centred in the slot: the image
+ * (`<DefaultLoadingImage>` when `image` is `undefined`, none when `null`),
+ * then a progress bar and the stage's label in the text colour; on a
+ * failure, the label without the bar.
  */
 export function DefaultLoading({
   loading,
