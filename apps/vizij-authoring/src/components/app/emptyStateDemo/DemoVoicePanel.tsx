@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { runStatus, unlockAudio, type RunHandle } from "@vizij/runtime";
-import { useVizijRuntime, useVizijValues } from "@vizij/runtime-react";
+import { useState } from "react";
+import { useVizijRuntime } from "@vizij/runtime-react";
 import { Button, Select, TextArea, type SelectOption } from "../../ui";
 import { POLLY_VOICES, type PollyVoice } from "../../../data/pollyVoices";
+import { useSay } from "../../../hooks/useSay";
 
 const VOICE_OPTIONS: SelectOption[] = POLLY_VOICES.map((voice) => ({
   value: voice,
@@ -12,72 +12,20 @@ const VOICE_OPTIONS: SelectOption[] = POLLY_VOICES.map((voice) => ({
 const DEFAULT_SCRIPT =
   "Vizij is a framework for defining, animating, and deploying expressive rendered robot faces";
 
-/** What the face reports while it speaks: the utterance and its current
- * viseme, both `str`, relative to the face. */
-const SPEECH = "standard/vizij/speech";
-const VISEME = "standard/vizij/viseme";
-
-const textOf = (value: unknown) =>
-  value && typeof value === "object" && "str" in value
-    ? String((value as { str: unknown }).str)
-    : "";
-
 /**
  * The demo face says a line through its device's `say` method: the text goes
  * to the text-to-speech service, the audio plays through the page, and the
- * face's lips follow. The run's status key says when the line is over;
- * Stop halts it.
+ * face's lips follow. The panel shows the line and the visemes the face takes
+ * as it says it, the current one highlighted; both stay once the line is
+ * said, until the next Speak. Stop halts the run.
  */
 export function DemoVoicePanel() {
-  const { status, runtime } = useVizijRuntime();
+  const { status } = useVizijRuntime();
   const ready = status === "ready";
+  const say = useSay();
   const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [voice, setVoice] = useState<PollyVoice>("Ruth");
-  const [preparing, setPreparing] = useState(false);
-  const [run, setRun] = useState<RunHandle | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const speechKey = runtime ? runtime.path(SPEECH) : SPEECH;
-  const visemeKey = runtime ? runtime.path(VISEME) : VISEME;
-  const values = useVizijValues(
-    run ? [run.status, speechKey, visemeKey] : [speechKey, visemeKey],
-  );
-  const runState = run ? runStatus(values[run.status]) : undefined;
-
-  useEffect(() => {
-    if (run && runState && runState !== "running") {
-      setRun(null);
-    }
-  }, [run, runState]);
-
-  const speak = useCallback(async () => {
-    if (!runtime || !ready) {
-      return;
-    }
-    const text = script.trim();
-    if (!text) {
-      setError("Please enter something to say.");
-      return;
-    }
-    setError(null);
-    setPreparing(true);
-    try {
-      await unlockAudio();
-      setRun((await runtime.invoke("say", { text, voice })) as RunHandle);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPreparing(false);
-    }
-  }, [ready, runtime, script, voice]);
-
-  const stop = useCallback(() => {
-    if (runtime && run) {
-      void runtime.halt(run.run);
-    }
-  }, [run, runtime]);
-
-  const busy = preparing || run !== null;
+  const speaking = say.status === "speaking";
 
   return (
     <div
@@ -103,47 +51,74 @@ export function DemoVoicePanel() {
           data-testid="empty-state-demo-voice-speak"
           variant="primary"
           size="sm"
-          disabled={!ready || busy}
-          onClick={() => void speak()}
+          disabled={!ready || say.status !== "idle"}
+          onClick={() => void say.speak(script, voice)}
         >
-          {preparing ? "Preparing…" : run ? "Speaking…" : "Speak"}
+          {say.status === "preparing"
+            ? "Preparing…"
+            : speaking
+              ? "Speaking…"
+              : "Speak"}
         </Button>
-        {run ? (
+        {speaking ? (
           <Button
             data-testid="empty-state-demo-voice-stop"
             variant="subtle"
             size="sm"
-            onClick={stop}
+            onClick={say.stop}
           >
             Stop
           </Button>
         ) : null}
       </div>
-      {error ? (
+      {say.error ? (
         <p
           data-testid="empty-state-demo-voice-error"
           className="text-xs text-red-400"
         >
-          {error}
+          {say.error}
         </p>
       ) : null}
-      {run ? (
+      {say.utterance || say.visemes.length > 0 ? (
         <div className="flex flex-col gap-1">
+          {say.utterance ? (
+            <>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
+                {speaking ? "Saying" : "Said"}
+              </p>
+              <p
+                data-testid="empty-state-demo-utterance"
+                className="text-[11px] text-text-muted"
+              >
+                {say.utterance}
+              </p>
+            </>
+          ) : null}
           <p className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
-            Saying
+            Visemes
           </p>
-          <p className="text-[11px] text-text-muted">
-            {textOf(values[speechKey])}
-          </p>
-          <p className="text-[10px] font-medium uppercase tracking-widest text-text-muted">
-            Viseme
-          </p>
-          <span
-            data-testid="empty-state-demo-viseme"
-            className="self-start rounded border border-accent bg-accent/20 px-1.5 py-0.5 text-[11px] text-text-primary"
+          <div
+            data-testid="empty-state-demo-visemes"
+            className="flex flex-wrap gap-1"
           >
-            {textOf(values[visemeKey]) || "sil"}
-          </span>
+            {say.visemes.map((entry, index) => {
+              const current = speaking && index === say.visemes.length - 1;
+              return (
+                <span
+                  key={`${entry.at}-${index}`}
+                  data-testid="empty-state-demo-viseme"
+                  aria-current={current ? "true" : undefined}
+                  className={`rounded border px-1.5 py-0.5 text-[11px] ${
+                    current
+                      ? "border-accent bg-accent/20 text-text-primary"
+                      : "border-border-default bg-bg-panel text-text-muted"
+                  }`}
+                >
+                  {entry.viseme}
+                </span>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>

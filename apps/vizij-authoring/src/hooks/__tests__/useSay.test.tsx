@@ -80,6 +80,53 @@ describe("useSay", () => {
     expect(say().visemes.map((entry) => entry.viseme)).toEqual(["PP", "aa"]);
   });
 
+  it("keeps the line and its visemes, silence included, once the face falls silent", async () => {
+    const say = renderSay();
+    await act(async () => {
+      await say().speak("Hello", "Ruth");
+    });
+
+    batch({
+      "rig/face/standard/vizij/speech": { str: "Hello" },
+      "rig/face/standard/vizij/viseme": { str: "aa" },
+    });
+    batch({ "rig/face/standard/vizij/viseme": { str: "sil" } });
+    batch({ "rig/face/standard/vizij/viseme": { str: "aa" } });
+    batch({
+      "rig/face/standard/vizij/speech": { str: "" },
+      "rig/face/standard/vizij/viseme": { str: "sil" },
+    });
+    batch({ [RUN.status]: { str: "success" } });
+
+    expect(say().status).toBe("idle");
+    expect(say().utterance).toBe("Hello");
+    expect(say().visemes.map((entry) => entry.viseme)).toEqual([
+      "aa",
+      "sil",
+      "aa",
+      "sil",
+    ]);
+  });
+
+  it("clears the previous line and its visemes when it speaks again", async () => {
+    const say = renderSay();
+    await act(async () => {
+      await say().speak("Hello", "Ruth");
+    });
+    batch({
+      "rig/face/standard/vizij/speech": { str: "Hello" },
+      "rig/face/standard/vizij/viseme": { str: "aa" },
+    });
+    batch({ [RUN.status]: { str: "success" } });
+
+    await act(async () => {
+      await say().speak("Again", "Ruth");
+    });
+
+    expect(say().utterance).toBe("");
+    expect(say().visemes).toEqual([]);
+  });
+
   it("halts the run on stop", async () => {
     const say = renderSay();
     await act(async () => {
