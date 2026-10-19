@@ -329,3 +329,27 @@ export function buildGraphSpecForExport(
 ): { nodes: SpecNode[]; edges: SpecEdge[] } {
   return buildGraphSpecInternal(nodes, edges).spec;
 }
+
+/**
+ * The inputs of `spec`'s nodes that need a wire and have none, each as
+ * `<node id>.<input>`: a graph the face's evaluation rejects ("Remap requires
+ * 'in' input"), failing the face's whole behavior tick. `portsOf` gives a
+ * node type's ports, as the node registry states them; a type it does not
+ * know has nothing required.
+ */
+export function unwiredInputs(
+  spec: BuiltGraphSpec["spec"],
+  portsOf: (type: string) => {
+    inputs: { id: string; optional?: boolean }[];
+  },
+): string[] {
+  const wired = new Set(
+    spec.edges.map((edge) => `${edge.to.node_id}.${edge.to.input}`),
+  );
+  return spec.nodes.flatMap((node) =>
+    portsOf(node.type)
+      .inputs.filter((port) => !port.optional)
+      .map((port) => `${node.id}.${port.id}`)
+      .filter((input) => !wired.has(input)),
+  );
+}

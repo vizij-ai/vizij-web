@@ -18,6 +18,17 @@ const device = vi.hoisted(() => ({
 vi.mock("@vizij/runtime-react", () => ({
   useVizijRuntime: () => ({ runtime: device }),
 }));
+const registry = vi.hoisted(() => ({
+  /** The required inputs per node type the mocked registry states. */
+  required: {} as Record<string, string[]>,
+}));
+vi.mock("../contexts/RegistryProvider", () => ({
+  useRegistry: () => ({
+    getPortsForType: (type: string) => ({
+      inputs: (registry.required[type] ?? []).map((id) => ({ id })),
+    }),
+  }),
+}));
 vi.mock("@vizij/runtime", () => ({
   behaviorValue: vi.fn(async (graph: unknown) => ({ graph })),
   runEdits: vi.fn(async (run: string, from: unknown, to: unknown) => ({
@@ -81,6 +92,7 @@ describe("useMotionGraphDriver", () => {
   let root: Root;
 
   beforeEach(() => {
+    registry.required = {};
     device.invoke.mockClear();
     device.applyGraphEdits.mockClear();
     device.halt.mockClear();
@@ -134,6 +146,53 @@ describe("useMotionGraphDriver", () => {
     expect(device.applyGraphEdits.mock.calls[0]![0]).toMatchObject({
       run: "run-1",
     });
+  });
+
+  it("keeps the run on its last complete graph while a required input is unwired", async () => {
+    // A remap between source and target; its `in` is required.
+    registry.required = { remap: ["in"] };
+    const withRemap = (wired: boolean, outputPath?: string) => {
+      const base = graph(outputPath);
+      const remap = {
+        id: "remap",
+        type: "remap",
+        position: { x: 100, y: 0 },
+        data: {},
+      } as unknown as EditorNode;
+      return {
+        nodes: [base.nodes[0]!, remap, base.nodes[1]!],
+        edges: [
+          ...(wired
+            ? [
+                {
+                  id: "source-remap",
+                  source: "source",
+                  target: "remap",
+                  sourceHandle: "output",
+                  targetHandle: "in",
+                },
+              ]
+            : []),
+          {
+            id: "remap-target",
+            source: "remap",
+            target: "target",
+            sourceHandle: "out",
+            targetHandle: "input",
+          },
+        ] as EditorEdge[],
+      };
+    };
+
+    await renderDriver(withRemap(false));
+    expect(device.invoke).not.toHaveBeenCalled();
+
+    await renderDriver(withRemap(true));
+    expect(device.invoke).toHaveBeenCalledTimes(1);
+
+    await renderDriver(withRemap(false, "rig/face/standard/brow/raise"));
+    expect(device.applyGraphEdits).not.toHaveBeenCalled();
+    expect(device.halt).not.toHaveBeenCalled();
   });
 
   it("halts the run on unmount, leaving its outputs to the caller", async () => {
