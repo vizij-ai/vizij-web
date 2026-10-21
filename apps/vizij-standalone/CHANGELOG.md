@@ -1,5 +1,15 @@
 # vizij-standalone
 
+## 0.3.0
+
+### Minor Changes
+
+- 2e5eb2a: The Tauri shell's device runs on arora 13 and `arora-studio-bridge-client` 10. A remote may write the ROS4HRI profile's inputs (`standard/ros4hri/*`), each of the type the profile states but for the gaze point, and no other key: every bridge, Studio included, refuses a write to any other key or of another type, whole. A remote may call the device's methods. Studio's commands are answered by the device run, so Studio lists the device's keys with their meta and its methods, and calls them. The device publishes each key to Studio under its own path as it wrote it (protocol 3), which a Studio reads from studio client 10 on. The shell serves the page `get_glb_source`, `read_glb_file` and `get_speech_keys`; the store mirror's commands and events, the endpoint and owner commands, and the WebSocket app methods (`reset`, `speak`, `interrupt`, `mute_microphone`, `get_mic_muted`, `transport/*`) are gone, since the page neither calls nor listens to them. With `ros2`, `/skill/set_expression` lands on the expression keys.
+
+### Patch Changes
+
+- 63493e1: With `ros2`, the shell's bridge is arora-bridge-ros2 11.1, which speaks ros2-client 0.14 (RustDDS 0.14): a reliable writer's send window is `ResourceLimits::max_samples` (8192) rather than its history depth, so a reader behind by one sample no longer stalls a reliable writer for its blocking time and a dropped sample.
+
 ## 0.2.0
 
 ### Minor Changes

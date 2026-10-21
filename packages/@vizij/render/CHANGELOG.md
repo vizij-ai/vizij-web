@@ -1,5 +1,13 @@
 # @vizij/render
 
+## 1.0.1
+
+### Patch Changes
+
+- c6db7b4: Licensed under Apache-2.0, where the package said MIT or declared no licence. Releases already published keep the licence they were published under.
+- Updated dependencies [c6db7b4]
+  - @vizij/utils@0.2.1
+
 ## 1.0.0
 
 ### Major Changes

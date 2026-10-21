@@ -1,5 +1,0 @@
----
-"vizij-standalone": minor
----
-
-The Tauri shell's device runs on arora 13 and `arora-studio-bridge-client` 10. A remote may write the ROS4HRI profile's inputs (`standard/ros4hri/*`), each of the type the profile states but for the gaze point, and no other key: every bridge, Studio included, refuses a write to any other key or of another type, whole. A remote may call the device's methods. Studio's commands are answered by the device run, so Studio lists the device's keys with their meta and its methods, and calls them. The device publishes each key to Studio under its own path as it wrote it (protocol 3), which a Studio reads from studio client 10 on. The shell serves the page `get_glb_source`, `read_glb_file` and `get_speech_keys`; the store mirror's commands and events, the endpoint and owner commands, and the WebSocket app methods (`reset`, `speak`, `interrupt`, `mute_microphone`, `get_mic_muted`, `transport/*`) are gone, since the page neither calls nor listens to them. With `ros2`, `/skill/set_expression` lands on the expression keys.
