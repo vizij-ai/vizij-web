@@ -22,7 +22,9 @@ arora-bridge-ws = "7.2"
 # The dual-backend ROS 2 bridge: DDS (default) or the rmw_zenoh-compatible Zenoh
 # backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features. 11's
 # ROS4HRI preset lands `/skill/set_expression` on the expression keys on request.
-arora-bridge-ros2 = { version = "11", optional = true, default-features = false }
+# 11.1 speaks ros2-client 0.14 (RustDDS 0.14): a reliable writer's send window
+# is `ResourceLimits::max_samples` (8192) rather than its history depth.
+arora-bridge-ros2 = { version = "11.1", optional = true, default-features = false }
 # 3.1: the store keeps key meta, which opens the device's inputs.
 arora-simple-data-store = "3.1"
 arora-types = "3.1"
