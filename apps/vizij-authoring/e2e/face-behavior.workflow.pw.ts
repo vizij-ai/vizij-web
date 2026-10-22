@@ -162,14 +162,7 @@ test("the speech panel speaks through the face: its timeline fills with the face
   const area = before.width * before.height;
 
   await panel.getByTestId("speech-script").fill("Hello there");
-  // The page's audio player stops a playback the device has not polled for
-  // a while, judged against how often the device polls; on a page drawing a
-  // few frames a second, its first playback can stop before its first poll.
-  // A first utterance teaches it the page's pace.
-  const speak = panel.getByTestId("speech-speak");
-  await speak.click();
-  await expect(speak).toHaveText("Speak", { timeout: 120_000 });
-  await speak.click();
+  await panel.getByTestId("speech-speak").click();
 
   const visemes = panel.getByTestId("speech-viseme");
   await expect
