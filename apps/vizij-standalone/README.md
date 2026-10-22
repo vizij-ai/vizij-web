@@ -50,10 +50,39 @@ The e2e suite (`e2e/tests/vizij-standalone-face.spec.ts`) boots the page,
 waits for the face to be ready, and checks the canvas shows it and that an
 expression changes it.
 
+## The Tauri shell
+
+The shell hands the page its face and the agent's flags, through the commands
+`get_glb_source`, `read_glb_file` and `get_speech_keys`. Beside the page it
+runs an Arora device of its own, on arora 13, which the page does not render.
+The device runs the ROS4HRI profile graph (`standard/ros4hri/*` in,
+`standard/vizij/*` out), the look_at skill and the `say` module, which plays
+its audio from the shell through the TTS deployment `--api-url` names. A remote
+may write the profile's inputs, `standard/ros4hri/*`, each of the type the
+profile states but for the gaze point, and no other key; it may call the
+device's methods (`look_at`, `say`, the interpreter module's). The device is
+reachable over:
+
+- the WebSocket bridge, `ws://127.0.0.1:9000` (`--port`), with its control
+  panel on the same port unless `--no-web-control`;
+- the ROS 2 bridge, with `--features ros2` (`ros2-zenoh` for the Zenoh
+  backend): the ROS4HRI preset's face topics, the `/skill/look_at` and
+  `/skill/say` actions, `/skill/set_expression` onto the expression keys, and
+  each key published under `/vizij/keys/<path>` (`--ros2-namespace`,
+  `--ros2-domain-id`);
+- Semio Studio, with `--features studio-bridge`, the Android build's feature:
+  `arora-studio-bridge-client` 10, whose keys a Studio reads from studio
+  client 10 on. The device registers as `vizij-<random>`, owned by
+  `DEVICE_OWNERS` or by the owners an earlier launch was given — an APK has
+  neither, so it registers unowned — under one Studio identity across
+  launches; `STUDIO_BRIDGE_ENDPOINT` names another bridge.
+
 ## Files
 
 - [`src/App.tsx`](./src/App.tsx): the page.
 - [`src/face.ts`](./src/face.ts): the face over `@vizij/runtime`.
 - [`src/agent/`](./src/agent): the ear, the mind, the conversation, the keys.
 - [`src/glb.ts`](./src/glb.ts): where the face comes from.
-- [`src-tauri/`](./src-tauri): the desktop shell and its CLI flags.
+- [`src-tauri/`](./src-tauri): the shell, its CLI flags and its device;
+  `src/skills.rs` holds the device's interpreter, `src/studio.rs` its Studio
+  connection.

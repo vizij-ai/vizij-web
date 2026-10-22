@@ -1,0 +1,2268 @@
+{
+  "nodes": [
+    {
+      "id": "c0",
+      "type": "constant",
+      "params": {
+        "value": 0
+      }
+    },
+    {
+      "id": "c1",
+      "type": "constant",
+      "params": {
+        "value": 1
+      }
+    },
+    {
+      "id": "sum_anger",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_angry",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/angry",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_furious",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/furious",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_annoyed",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/annoyed",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_disgusted",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/disgusted",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_anger",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_anger",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_angry.weight"
+      }
+    },
+    {
+      "id": "sum_sad",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_sad",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/sad",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_despaired",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/despaired",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_disappointed",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/disappointed",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_guilty",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/guilty",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_rejected",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/rejected",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_vulnerable",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/vulnerable",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_embarrassed",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/embarrassed",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_pleading",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/pleading",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_sad",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_sad",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_sad.weight"
+      }
+    },
+    {
+      "id": "sum_concerned",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_scared",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/scared",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_horrified",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/horrified",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_suspicious",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/suspicious",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_skeptical",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/skeptical",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_confused",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/confused",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_concerned",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/concerned",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_concerned",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_concerned",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_concerned.weight"
+      }
+    },
+    {
+      "id": "sum_surprise",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_surprised",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/surprised",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_amazed",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/amazed",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_surprise",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_surprise",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_surprise.weight"
+      }
+    },
+    {
+      "id": "sum_happy",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_happy",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/happy",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_excited",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/excited",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_happy",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_happy",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_happy.weight"
+      }
+    },
+    {
+      "id": "sum_sleepy",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_bored",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/bored",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_tired",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/tired",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_asleep",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/asleep",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_expr_sleepy",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/sleepy",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_sleepy",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_sleepy",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_sleepy.weight"
+      }
+    },
+    {
+      "id": "sum_neutral",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_expr_neutral",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/expression/neutral",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_neutral",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_neutral",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_neutral.weight"
+      }
+    },
+    {
+      "id": "sum_p",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_PP",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/PP",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_p",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_lipsync_gain",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/lipsync/gain",
+        "value": 1
+      }
+    },
+    {
+      "id": "clamp_p",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_p",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_p.weight"
+      }
+    },
+    {
+      "id": "sum_f",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_FF",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/FF",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_f",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_f",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_f",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_f.weight"
+      }
+    },
+    {
+      "id": "sum_t_2",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_TH",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/TH",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_t_2",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_t_2",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_t_2",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_t_2.weight"
+      }
+    },
+    {
+      "id": "sum_t",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_DD",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/DD",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_vis_nn",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/nn",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_t",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_t",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_t",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_t.weight"
+      }
+    },
+    {
+      "id": "sum_k",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_kk",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/kk",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_k",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_k",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_k",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_k.weight"
+      }
+    },
+    {
+      "id": "sum_s",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_CH",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/CH",
+        "value": 0
+      }
+    },
+    {
+      "id": "in_vis_SS",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/SS",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_s",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_s",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_s",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_s.weight"
+      }
+    },
+    {
+      "id": "sum_r",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_RR",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/RR",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_r",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_r",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_r",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_r.weight"
+      }
+    },
+    {
+      "id": "sum_a",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_aa",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/aa",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_a",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_a",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_a",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_a.weight"
+      }
+    },
+    {
+      "id": "sum_e",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_E",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/E",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_e",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_e",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_e",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_e.weight"
+      }
+    },
+    {
+      "id": "sum_i",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_ih",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/ih",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_i",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_i",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_i",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_i.weight"
+      }
+    },
+    {
+      "id": "sum_o",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_oh",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/oh",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_o",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_o",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_o",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_o.weight"
+      }
+    },
+    {
+      "id": "sum_u",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_vis_ou",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/ou",
+        "value": 0
+      }
+    },
+    {
+      "id": "gain_u",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_u",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_u",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/poses/pose_u.weight"
+      }
+    },
+    {
+      "id": "in_vis_sil",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/viseme/sil",
+        "value": 0
+      }
+    },
+    {
+      "id": "remap_left_eye_x",
+      "type": "piecewise_remap",
+      "input_defaults": {
+        "input_breakpoints": {
+          "value": {
+            "f32s": [-1, 0, 1]
+          }
+        },
+        "output_breakpoints": {
+          "value": {
+            "f32s": [-5.696944713592529, -3.3484723567962646, -1]
+          }
+        }
+      }
+    },
+    {
+      "id": "in_left_eye_x",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/left_eye/pos/x",
+        "value": 0
+      }
+    },
+    {
+      "id": "out_left_eye_x",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/propsrig/l_eye/translation/x"
+      }
+    },
+    {
+      "id": "remap_left_eye_y",
+      "type": "piecewise_remap",
+      "input_defaults": {
+        "input_breakpoints": {
+          "value": {
+            "f32s": [-1, 0, 1]
+          }
+        },
+        "output_breakpoints": {
+          "value": {
+            "f32s": [-1, 0.37339717149734497, 2]
+          }
+        }
+      }
+    },
+    {
+      "id": "in_left_eye_y",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/left_eye/pos/y",
+        "value": 0
+      }
+    },
+    {
+      "id": "out_left_eye_y",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/propsrig/l_eye/translation/y"
+      }
+    },
+    {
+      "id": "remap_right_eye_x",
+      "type": "piecewise_remap",
+      "input_defaults": {
+        "input_breakpoints": {
+          "value": {
+            "f32s": [-1, 0, 1]
+          }
+        },
+        "output_breakpoints": {
+          "value": {
+            "f32s": [1, 3.3198628425598145, 5.639725685119629]
+          }
+        }
+      }
+    },
+    {
+      "id": "in_right_eye_x",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/right_eye/pos/x",
+        "value": 0
+      }
+    },
+    {
+      "id": "out_right_eye_x",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/propsrig/r_eye/translation/x"
+      }
+    },
+    {
+      "id": "remap_right_eye_y",
+      "type": "piecewise_remap",
+      "input_defaults": {
+        "input_breakpoints": {
+          "value": {
+            "f32s": [-1, 0, 1]
+          }
+        },
+        "output_breakpoints": {
+          "value": {
+            "f32s": [-1, 0.38805896043777466, 2]
+          }
+        }
+      }
+    },
+    {
+      "id": "in_right_eye_y",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/right_eye/pos/y",
+        "value": 0
+      }
+    },
+    {
+      "id": "out_right_eye_y",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/propsrig/r_eye/translation/y"
+      }
+    },
+    {
+      "id": "in_blink",
+      "type": "input",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/standard/vizij/blink",
+        "value": 0
+      }
+    },
+    {
+      "id": "clamp_blink",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_blink",
+      "type": "output",
+      "params": {
+        "path": "rig/hugo_latest_blender_export/lids/blink"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": {
+        "node_id": "in_expr_angry"
+      },
+      "to": {
+        "node_id": "sum_anger",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_furious"
+      },
+      "to": {
+        "node_id": "sum_anger",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_annoyed"
+      },
+      "to": {
+        "node_id": "sum_anger",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_disgusted"
+      },
+      "to": {
+        "node_id": "sum_anger",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_anger"
+      },
+      "to": {
+        "node_id": "clamp_anger",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_anger",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_anger",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_anger"
+      },
+      "to": {
+        "node_id": "out_anger",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_sad"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_despaired"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_disappointed"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_guilty"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_rejected"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_4"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_vulnerable"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_5"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_embarrassed"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_6"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_pleading"
+      },
+      "to": {
+        "node_id": "sum_sad",
+        "input": "operand_7"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_sad"
+      },
+      "to": {
+        "node_id": "clamp_sad",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_sad",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_sad",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_sad"
+      },
+      "to": {
+        "node_id": "out_sad",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_scared"
+      },
+      "to": {
+        "node_id": "sum_concerned",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_horrified"
+      },
+      "to": {
+        "node_id": "sum_concerned",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_suspicious"
+      },
+      "to": {
+        "node_id": "sum_concerned",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_skeptical"
+      },
+      "to": {
+        "node_id": "sum_concerned",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_confused"
+      },
+      "to": {
+        "node_id": "sum_concerned",
+        "input": "operand_4"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_concerned"
+      },
+      "to": {
+        "node_id": "sum_concerned",
+        "input": "operand_5"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_concerned"
+      },
+      "to": {
+        "node_id": "clamp_concerned",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_concerned",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_concerned",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_concerned"
+      },
+      "to": {
+        "node_id": "out_concerned",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_surprised"
+      },
+      "to": {
+        "node_id": "sum_surprise",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_amazed"
+      },
+      "to": {
+        "node_id": "sum_surprise",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_surprise"
+      },
+      "to": {
+        "node_id": "clamp_surprise",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_surprise",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_surprise",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_surprise"
+      },
+      "to": {
+        "node_id": "out_surprise",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_happy"
+      },
+      "to": {
+        "node_id": "sum_happy",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_excited"
+      },
+      "to": {
+        "node_id": "sum_happy",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_happy"
+      },
+      "to": {
+        "node_id": "clamp_happy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_happy",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_happy",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_happy"
+      },
+      "to": {
+        "node_id": "out_happy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_bored"
+      },
+      "to": {
+        "node_id": "sum_sleepy",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_tired"
+      },
+      "to": {
+        "node_id": "sum_sleepy",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_asleep"
+      },
+      "to": {
+        "node_id": "sum_sleepy",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_sleepy"
+      },
+      "to": {
+        "node_id": "sum_sleepy",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_sleepy"
+      },
+      "to": {
+        "node_id": "clamp_sleepy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_sleepy",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_sleepy",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_sleepy"
+      },
+      "to": {
+        "node_id": "out_sleepy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_neutral"
+      },
+      "to": {
+        "node_id": "sum_neutral",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_neutral"
+      },
+      "to": {
+        "node_id": "clamp_neutral",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_neutral",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_neutral",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_neutral"
+      },
+      "to": {
+        "node_id": "out_neutral",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_PP"
+      },
+      "to": {
+        "node_id": "sum_p",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_p"
+      },
+      "to": {
+        "node_id": "gain_p",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_p",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_p"
+      },
+      "to": {
+        "node_id": "clamp_p",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_p",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_p",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_p"
+      },
+      "to": {
+        "node_id": "out_p",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_FF"
+      },
+      "to": {
+        "node_id": "sum_f",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_f"
+      },
+      "to": {
+        "node_id": "gain_f",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_f",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_f"
+      },
+      "to": {
+        "node_id": "clamp_f",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_f",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_f",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_f"
+      },
+      "to": {
+        "node_id": "out_f",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_TH"
+      },
+      "to": {
+        "node_id": "sum_t_2",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_t_2"
+      },
+      "to": {
+        "node_id": "gain_t_2",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_t_2",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_t_2"
+      },
+      "to": {
+        "node_id": "clamp_t_2",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_t_2",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_t_2",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_t_2"
+      },
+      "to": {
+        "node_id": "out_t_2",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_DD"
+      },
+      "to": {
+        "node_id": "sum_t",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_nn"
+      },
+      "to": {
+        "node_id": "sum_t",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_t"
+      },
+      "to": {
+        "node_id": "gain_t",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_t",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_t"
+      },
+      "to": {
+        "node_id": "clamp_t",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_t",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_t",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_t"
+      },
+      "to": {
+        "node_id": "out_t",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_kk"
+      },
+      "to": {
+        "node_id": "sum_k",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_k"
+      },
+      "to": {
+        "node_id": "gain_k",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_k",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_k"
+      },
+      "to": {
+        "node_id": "clamp_k",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_k",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_k",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_k"
+      },
+      "to": {
+        "node_id": "out_k",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_CH"
+      },
+      "to": {
+        "node_id": "sum_s",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_SS"
+      },
+      "to": {
+        "node_id": "sum_s",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_s"
+      },
+      "to": {
+        "node_id": "gain_s",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_s",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_s"
+      },
+      "to": {
+        "node_id": "clamp_s",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_s",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_s",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_s"
+      },
+      "to": {
+        "node_id": "out_s",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_RR"
+      },
+      "to": {
+        "node_id": "sum_r",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_r"
+      },
+      "to": {
+        "node_id": "gain_r",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_r",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_r"
+      },
+      "to": {
+        "node_id": "clamp_r",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_r",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_r",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_r"
+      },
+      "to": {
+        "node_id": "out_r",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_aa"
+      },
+      "to": {
+        "node_id": "sum_a",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_a"
+      },
+      "to": {
+        "node_id": "gain_a",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_a",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_a"
+      },
+      "to": {
+        "node_id": "clamp_a",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_a",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_a",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_a"
+      },
+      "to": {
+        "node_id": "out_a",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_E"
+      },
+      "to": {
+        "node_id": "sum_e",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_e"
+      },
+      "to": {
+        "node_id": "gain_e",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_e",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_e"
+      },
+      "to": {
+        "node_id": "clamp_e",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_e",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_e",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_e"
+      },
+      "to": {
+        "node_id": "out_e",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_ih"
+      },
+      "to": {
+        "node_id": "sum_i",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_i"
+      },
+      "to": {
+        "node_id": "gain_i",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_i",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_i"
+      },
+      "to": {
+        "node_id": "clamp_i",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_i",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_i",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_i"
+      },
+      "to": {
+        "node_id": "out_i",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_oh"
+      },
+      "to": {
+        "node_id": "sum_o",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_o"
+      },
+      "to": {
+        "node_id": "gain_o",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_o",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_o"
+      },
+      "to": {
+        "node_id": "clamp_o",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_o",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_o",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_o"
+      },
+      "to": {
+        "node_id": "out_o",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_ou"
+      },
+      "to": {
+        "node_id": "sum_u",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_u"
+      },
+      "to": {
+        "node_id": "gain_u",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_u",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_u"
+      },
+      "to": {
+        "node_id": "clamp_u",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_u",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_u",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_u"
+      },
+      "to": {
+        "node_id": "out_u",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_left_eye_x"
+      },
+      "to": {
+        "node_id": "remap_left_eye_x",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "remap_left_eye_x"
+      },
+      "to": {
+        "node_id": "out_left_eye_x",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_left_eye_y"
+      },
+      "to": {
+        "node_id": "remap_left_eye_y",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "remap_left_eye_y"
+      },
+      "to": {
+        "node_id": "out_left_eye_y",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_right_eye_x"
+      },
+      "to": {
+        "node_id": "remap_right_eye_x",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "remap_right_eye_x"
+      },
+      "to": {
+        "node_id": "out_right_eye_x",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_right_eye_y"
+      },
+      "to": {
+        "node_id": "remap_right_eye_y",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "remap_right_eye_y"
+      },
+      "to": {
+        "node_id": "out_right_eye_y",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_blink"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_blink"
+      },
+      "to": {
+        "node_id": "out_blink",
+        "input": "in"
+      }
+    }
+  ]
+}

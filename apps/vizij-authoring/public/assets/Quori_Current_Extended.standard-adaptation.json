@@ -1,0 +1,4440 @@
+{
+  "nodes": [
+    {
+      "id": "c0",
+      "type": "constant",
+      "params": {
+        "value": 0.0
+      }
+    },
+    {
+      "id": "c1",
+      "type": "constant",
+      "params": {
+        "value": 1.0
+      }
+    },
+    {
+      "id": "in_expr_neutral",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/neutral",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_angry",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/angry",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_sad",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/sad",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_happy",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/happy",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_surprised",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/surprised",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_disgusted",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/disgusted",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_scared",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/scared",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_pleading",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/pleading",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_vulnerable",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/vulnerable",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_despaired",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/despaired",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_guilty",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/guilty",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_disappointed",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/disappointed",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_embarrassed",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/embarrassed",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_horrified",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/horrified",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_skeptical",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/skeptical",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_annoyed",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/annoyed",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_furious",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/furious",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_suspicious",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/suspicious",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_rejected",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/rejected",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_bored",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/bored",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_tired",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/tired",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_asleep",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/asleep",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_confused",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/confused",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_amazed",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/amazed",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_excited",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/excited",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_concerned",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/concerned",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_expr_sleepy",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/expression/sleepy",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_sil",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/sil",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_PP",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/PP",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_FF",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/FF",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_TH",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/TH",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_DD",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/DD",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_kk",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/kk",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_CH",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/CH",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_SS",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/SS",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_nn",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/nn",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_RR",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/RR",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_aa",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/aa",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_E",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/E",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_ih",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/ih",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_oh",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/oh",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_vis_ou",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/viseme/ou",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_blink",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/blink",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "sum_d_anger",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_anger",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_anger",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_anger_d.weight"
+      }
+    },
+    {
+      "id": "sum_d_sad",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_sad",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_sad",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_sad_d.weight"
+      }
+    },
+    {
+      "id": "sum_d_concerned",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_concerned",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_concerned",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_concerned_d.weight"
+      }
+    },
+    {
+      "id": "sum_d_surprise",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_surprise",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_surprise",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_surprise_d.weight"
+      }
+    },
+    {
+      "id": "sum_d_happy",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_happy",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_happy",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_happy_d.weight"
+      }
+    },
+    {
+      "id": "sum_d_sleepy",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_sleepy",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_sleepy",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_sleepy_d.weight"
+      }
+    },
+    {
+      "id": "sum_d_neutral",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_d_neutral",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_d_neutral",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_d_neutral_d.weight"
+      }
+    },
+    {
+      "id": "sum_p",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_p",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_lipsync_gain",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/lipsync/gain",
+        "value": 1
+      }
+    },
+    {
+      "id": "clamp_p",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_p",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_p.weight"
+      }
+    },
+    {
+      "id": "sum_f",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_f",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_f",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_f",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_f.weight"
+      }
+    },
+    {
+      "id": "sum_t_2",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_t_2",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_t_2",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_t_2",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_t_2.weight"
+      }
+    },
+    {
+      "id": "sum_t",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_t",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_t",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_t",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_t.weight"
+      }
+    },
+    {
+      "id": "sum_k",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_k",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_k",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_k",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_k.weight"
+      }
+    },
+    {
+      "id": "sum_s",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_s",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_s",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_s",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_s.weight"
+      }
+    },
+    {
+      "id": "sum_r",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_r",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_r",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_r",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_r.weight"
+      }
+    },
+    {
+      "id": "sum_a",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_a",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_a",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_a",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_a.weight"
+      }
+    },
+    {
+      "id": "sum_e",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_e",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_e",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_e",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_e.weight"
+      }
+    },
+    {
+      "id": "sum_i",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_i",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_i",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_i",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_i.weight"
+      }
+    },
+    {
+      "id": "sum_o",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_o",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_o",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_o",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_o.weight"
+      }
+    },
+    {
+      "id": "sum_u",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "gain_u",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_u",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_u",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/poses/pose_u.weight"
+      }
+    },
+    {
+      "id": "clamp_blink",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_blink",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/lids/blink"
+      }
+    },
+    {
+      "id": "cm1",
+      "type": "constant",
+      "params": {
+        "value": -1.0
+      }
+    },
+    {
+      "id": "c0_5",
+      "type": "constant",
+      "params": {
+        "value": 0.5
+      }
+    },
+    {
+      "id": "cm0_5",
+      "type": "constant",
+      "params": {
+        "value": -0.5
+      }
+    },
+    {
+      "id": "c0_3",
+      "type": "constant",
+      "params": {
+        "value": 0.3
+      }
+    },
+    {
+      "id": "sum_brow_l_in",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_brow_inner_up",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/brow_inner_up",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_face_brow_down_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/brow_down_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_brow_l_in_brow_down_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_l_in",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_l_in",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/left_eye_brow/morph/in_up_down"
+      }
+    },
+    {
+      "id": "sum_brow_l_mid",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "scale_brow_l_mid_brow_inner_up",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_brow_outer_up_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/brow_outer_up_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_brow_l_mid_brow_outer_up_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "scale_brow_l_mid_brow_down_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_l_mid",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_l_mid",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/left_eye_brow/morph/mid_up_down"
+      }
+    },
+    {
+      "id": "sum_brow_l_out",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_l_out",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_l_out",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/left_eye_brow/morph/out_up_down"
+      }
+    },
+    {
+      "id": "sum_brow_l_inlr",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_l_inlr",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_l_inlr",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/left_eye_brow/morph/in_left_right"
+      }
+    },
+    {
+      "id": "sum_brow_r_in",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_brow_down_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/brow_down_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_brow_r_in_brow_down_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_r_in",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_r_in",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/right_eye_brow/morph/in_up_down"
+      }
+    },
+    {
+      "id": "sum_brow_r_mid",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "scale_brow_r_mid_brow_inner_up",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_brow_outer_up_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/brow_outer_up_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_brow_r_mid_brow_outer_up_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "scale_brow_r_mid_brow_down_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_r_mid",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_r_mid",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/right_eye_brow/morph/mid_up_down"
+      }
+    },
+    {
+      "id": "sum_brow_r_out",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_r_out",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_r_out",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/right_eye_brow/morph/out_up_down"
+      }
+    },
+    {
+      "id": "sum_brow_r_inlr",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_brow_r_inlr",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_brow_r_inlr",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/right_eye_brow/morph/in_left_right"
+      }
+    },
+    {
+      "id": "sum_lid_l_bottom",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_eye_squint_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/eye_squint_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_lid_l_bottom_eye_squint_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_cheek_raise_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/cheek_raise_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_lid_l_bottom_cheek_raise_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_lid_l_bottom",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_lid_l_bottom",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/left_eye_bottom_eyelid/pos/y"
+      }
+    },
+    {
+      "id": "sum_lid_l_curve",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_lid_l_curve",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_lid_l_curve",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/left_eye_bottom_eyelid/morph/curve"
+      }
+    },
+    {
+      "id": "sum_lid_r_bottom",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_eye_squint_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/eye_squint_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_lid_r_bottom_eye_squint_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_cheek_raise_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/cheek_raise_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_lid_r_bottom_cheek_raise_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_lid_r_bottom",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_lid_r_bottom",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/right_eye_bottom_eyelid/pos/y"
+      }
+    },
+    {
+      "id": "sum_lid_r_curve",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_lid_r_curve",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_lid_r_curve",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/right_eye_bottom_eyelid/morph/curve"
+      }
+    },
+    {
+      "id": "sum_mouth_corner",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_smile_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_smile_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_corner_mouth_smile_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_smile_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_smile_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_corner_mouth_smile_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_frown_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_frown_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_corner_mouth_frown_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_frown_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_frown_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_corner_mouth_frown_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_mouth_corner",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_mouth_corner",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/mouth/morph/corner_puller"
+      }
+    },
+    {
+      "id": "sum_mouth_stretch",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "scale_mouth_stretch_mouth_smile_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "scale_mouth_stretch_mouth_smile_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_stretch_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_stretch_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_stretch_mouth_stretch_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_stretch_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_stretch_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_stretch_mouth_stretch_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_pucker",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_pucker",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_stretch_mouth_pucker",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_funnel",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_funnel",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_stretch_mouth_funnel",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_mouth_stretch",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_mouth_stretch",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/mouth/morph/stretch"
+      }
+    },
+    {
+      "id": "sum_mouth_lt_sneer",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_upper_up_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_upper_up_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_face_nose_sneer_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/nose_sneer_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_lt_sneer_nose_sneer_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_mouth_lt_sneer",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_mouth_lt_sneer",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/mouth/morph/left_top_sneer"
+      }
+    },
+    {
+      "id": "sum_mouth_lb_sneer",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_lower_down_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_lower_down_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "clamp_mouth_lb_sneer",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_mouth_lb_sneer",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/mouth/morph/left_bottom_sneer"
+      }
+    },
+    {
+      "id": "sum_mouth_rt_sneer",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_upper_up_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_upper_up_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "in_face_nose_sneer_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/nose_sneer_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_mouth_rt_sneer_nose_sneer_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "clamp_mouth_rt_sneer",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_mouth_rt_sneer",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/mouth/morph/right_top_sneer"
+      }
+    },
+    {
+      "id": "sum_mouth_rb_sneer",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_mouth_lower_down_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/mouth_lower_down_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "clamp_mouth_rb_sneer",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_mouth_rb_sneer",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/mouth/morph/right_bottom_sneer"
+      }
+    },
+    {
+      "id": "sum_blink",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "in_face_eye_closed_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/eye_closed_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_blink_eye_closed_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "in_face_eye_closed_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/eye_closed_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_blink_eye_closed_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "c_top_lid_rest",
+      "type": "constant",
+      "params": {
+        "value": 2.2244815826416016
+      }
+    },
+    {
+      "id": "c0_75",
+      "type": "constant",
+      "params": {
+        "value": 0.75
+      }
+    },
+    {
+      "id": "cm0_4",
+      "type": "constant",
+      "params": {
+        "value": -0.4
+      }
+    },
+    {
+      "id": "c3",
+      "type": "constant",
+      "params": {
+        "value": 3.0
+      }
+    },
+    {
+      "id": "in_face_eye_wide_left",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/eye_wide_left",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_lid_l_top_eye_wide_left",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "sum_lid_l_top",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_lid_l_top",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_lid_l_top",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/propsrig/ltlid/translation/y"
+      }
+    },
+    {
+      "id": "in_face_eye_wide_right",
+      "type": "input",
+      "params": {
+        "path": "rig/quori_latest/standard/vizij/face/eye_wide_right",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "scale_lid_r_top_eye_wide_right",
+      "type": "multiply",
+      "params": {}
+    },
+    {
+      "id": "sum_lid_r_top",
+      "type": "add",
+      "params": {}
+    },
+    {
+      "id": "clamp_lid_r_top",
+      "type": "clamp",
+      "params": {}
+    },
+    {
+      "id": "out_lid_r_top",
+      "type": "output",
+      "params": {
+        "path": "rig/quori_latest/propsrig/rtlid/translation/y"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": {
+        "node_id": "in_expr_angry"
+      },
+      "to": {
+        "node_id": "sum_d_anger",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_furious"
+      },
+      "to": {
+        "node_id": "sum_d_anger",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_annoyed"
+      },
+      "to": {
+        "node_id": "sum_d_anger",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_disgusted"
+      },
+      "to": {
+        "node_id": "sum_d_anger",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_anger"
+      },
+      "to": {
+        "node_id": "clamp_d_anger",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_anger",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_anger",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_anger"
+      },
+      "to": {
+        "node_id": "out_d_anger",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_sad"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_despaired"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_disappointed"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_guilty"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_rejected"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_4"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_vulnerable"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_5"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_embarrassed"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_6"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_pleading"
+      },
+      "to": {
+        "node_id": "sum_d_sad",
+        "input": "operand_7"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_sad"
+      },
+      "to": {
+        "node_id": "clamp_d_sad",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_sad",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_sad",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_sad"
+      },
+      "to": {
+        "node_id": "out_d_sad",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_scared"
+      },
+      "to": {
+        "node_id": "sum_d_concerned",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_horrified"
+      },
+      "to": {
+        "node_id": "sum_d_concerned",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_suspicious"
+      },
+      "to": {
+        "node_id": "sum_d_concerned",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_skeptical"
+      },
+      "to": {
+        "node_id": "sum_d_concerned",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_confused"
+      },
+      "to": {
+        "node_id": "sum_d_concerned",
+        "input": "operand_4"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_concerned"
+      },
+      "to": {
+        "node_id": "sum_d_concerned",
+        "input": "operand_5"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_concerned"
+      },
+      "to": {
+        "node_id": "clamp_d_concerned",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_concerned",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_concerned",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_concerned"
+      },
+      "to": {
+        "node_id": "out_d_concerned",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_surprised"
+      },
+      "to": {
+        "node_id": "sum_d_surprise",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_amazed"
+      },
+      "to": {
+        "node_id": "sum_d_surprise",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_surprise"
+      },
+      "to": {
+        "node_id": "clamp_d_surprise",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_surprise",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_surprise",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_surprise"
+      },
+      "to": {
+        "node_id": "out_d_surprise",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_happy"
+      },
+      "to": {
+        "node_id": "sum_d_happy",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_excited"
+      },
+      "to": {
+        "node_id": "sum_d_happy",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_happy"
+      },
+      "to": {
+        "node_id": "clamp_d_happy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_happy",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_happy",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_happy"
+      },
+      "to": {
+        "node_id": "out_d_happy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_bored"
+      },
+      "to": {
+        "node_id": "sum_d_sleepy",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_tired"
+      },
+      "to": {
+        "node_id": "sum_d_sleepy",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_asleep"
+      },
+      "to": {
+        "node_id": "sum_d_sleepy",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_sleepy"
+      },
+      "to": {
+        "node_id": "sum_d_sleepy",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_sleepy"
+      },
+      "to": {
+        "node_id": "clamp_d_sleepy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_sleepy",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_sleepy",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_sleepy"
+      },
+      "to": {
+        "node_id": "out_d_sleepy",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_expr_neutral"
+      },
+      "to": {
+        "node_id": "sum_d_neutral",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_d_neutral"
+      },
+      "to": {
+        "node_id": "clamp_d_neutral",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_d_neutral",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_d_neutral",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_d_neutral"
+      },
+      "to": {
+        "node_id": "out_d_neutral",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_PP"
+      },
+      "to": {
+        "node_id": "sum_p",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_p"
+      },
+      "to": {
+        "node_id": "gain_p",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_p",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_p"
+      },
+      "to": {
+        "node_id": "clamp_p",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_p",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_p",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_p"
+      },
+      "to": {
+        "node_id": "out_p",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_FF"
+      },
+      "to": {
+        "node_id": "sum_f",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_f"
+      },
+      "to": {
+        "node_id": "gain_f",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_f",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_f"
+      },
+      "to": {
+        "node_id": "clamp_f",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_f",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_f",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_f"
+      },
+      "to": {
+        "node_id": "out_f",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_TH"
+      },
+      "to": {
+        "node_id": "sum_t_2",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_t_2"
+      },
+      "to": {
+        "node_id": "gain_t_2",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_t_2",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_t_2"
+      },
+      "to": {
+        "node_id": "clamp_t_2",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_t_2",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_t_2",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_t_2"
+      },
+      "to": {
+        "node_id": "out_t_2",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_DD"
+      },
+      "to": {
+        "node_id": "sum_t",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_nn"
+      },
+      "to": {
+        "node_id": "sum_t",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_t"
+      },
+      "to": {
+        "node_id": "gain_t",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_t",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_t"
+      },
+      "to": {
+        "node_id": "clamp_t",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_t",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_t",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_t"
+      },
+      "to": {
+        "node_id": "out_t",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_kk"
+      },
+      "to": {
+        "node_id": "sum_k",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_k"
+      },
+      "to": {
+        "node_id": "gain_k",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_k",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_k"
+      },
+      "to": {
+        "node_id": "clamp_k",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_k",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_k",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_k"
+      },
+      "to": {
+        "node_id": "out_k",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_CH"
+      },
+      "to": {
+        "node_id": "sum_s",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_SS"
+      },
+      "to": {
+        "node_id": "sum_s",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_s"
+      },
+      "to": {
+        "node_id": "gain_s",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_s",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_s"
+      },
+      "to": {
+        "node_id": "clamp_s",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_s",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_s",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_s"
+      },
+      "to": {
+        "node_id": "out_s",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_RR"
+      },
+      "to": {
+        "node_id": "sum_r",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_r"
+      },
+      "to": {
+        "node_id": "gain_r",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_r",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_r"
+      },
+      "to": {
+        "node_id": "clamp_r",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_r",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_r",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_r"
+      },
+      "to": {
+        "node_id": "out_r",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_aa"
+      },
+      "to": {
+        "node_id": "sum_a",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_a"
+      },
+      "to": {
+        "node_id": "gain_a",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_a",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_a"
+      },
+      "to": {
+        "node_id": "clamp_a",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_a",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_a",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_a"
+      },
+      "to": {
+        "node_id": "out_a",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_E"
+      },
+      "to": {
+        "node_id": "sum_e",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_e"
+      },
+      "to": {
+        "node_id": "gain_e",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_e",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_e"
+      },
+      "to": {
+        "node_id": "clamp_e",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_e",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_e",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_e"
+      },
+      "to": {
+        "node_id": "out_e",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_ih"
+      },
+      "to": {
+        "node_id": "sum_i",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_i"
+      },
+      "to": {
+        "node_id": "gain_i",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_i",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_i"
+      },
+      "to": {
+        "node_id": "clamp_i",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_i",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_i",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_i"
+      },
+      "to": {
+        "node_id": "out_i",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_oh"
+      },
+      "to": {
+        "node_id": "sum_o",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_o"
+      },
+      "to": {
+        "node_id": "gain_o",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_o",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_o"
+      },
+      "to": {
+        "node_id": "clamp_o",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_o",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_o",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_o"
+      },
+      "to": {
+        "node_id": "out_o",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_vis_ou"
+      },
+      "to": {
+        "node_id": "sum_u",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_u"
+      },
+      "to": {
+        "node_id": "gain_u",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_lipsync_gain"
+      },
+      "to": {
+        "node_id": "gain_u",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "gain_u"
+      },
+      "to": {
+        "node_id": "clamp_u",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_u",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_u",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_u"
+      },
+      "to": {
+        "node_id": "out_u",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_blink"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_blink",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_blink"
+      },
+      "to": {
+        "node_id": "out_blink",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_inner_up"
+      },
+      "to": {
+        "node_id": "sum_brow_l_in",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_down_left"
+      },
+      "to": {
+        "node_id": "scale_brow_l_in_brow_down_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "scale_brow_l_in_brow_down_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_l_in_brow_down_left"
+      },
+      "to": {
+        "node_id": "sum_brow_l_in",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_l_in"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_in",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_in",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_in",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_l_in"
+      },
+      "to": {
+        "node_id": "out_brow_l_in",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_inner_up"
+      },
+      "to": {
+        "node_id": "scale_brow_l_mid_brow_inner_up",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_brow_l_mid_brow_inner_up",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_l_mid_brow_inner_up"
+      },
+      "to": {
+        "node_id": "sum_brow_l_mid",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_outer_up_left"
+      },
+      "to": {
+        "node_id": "scale_brow_l_mid_brow_outer_up_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_brow_l_mid_brow_outer_up_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_l_mid_brow_outer_up_left"
+      },
+      "to": {
+        "node_id": "sum_brow_l_mid",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_down_left"
+      },
+      "to": {
+        "node_id": "scale_brow_l_mid_brow_down_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_5"
+      },
+      "to": {
+        "node_id": "scale_brow_l_mid_brow_down_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_l_mid_brow_down_left"
+      },
+      "to": {
+        "node_id": "sum_brow_l_mid",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_l_mid"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_mid",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_mid",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_mid",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_l_mid"
+      },
+      "to": {
+        "node_id": "out_brow_l_mid",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_outer_up_left"
+      },
+      "to": {
+        "node_id": "sum_brow_l_out",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_l_out"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_out",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_out",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_out",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_l_out"
+      },
+      "to": {
+        "node_id": "out_brow_l_out",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_down_left"
+      },
+      "to": {
+        "node_id": "sum_brow_l_inlr",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_l_inlr"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_inlr",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_inlr",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_l_inlr",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_l_inlr"
+      },
+      "to": {
+        "node_id": "out_brow_l_inlr",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_inner_up"
+      },
+      "to": {
+        "node_id": "sum_brow_r_in",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_down_right"
+      },
+      "to": {
+        "node_id": "scale_brow_r_in_brow_down_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "scale_brow_r_in_brow_down_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_r_in_brow_down_right"
+      },
+      "to": {
+        "node_id": "sum_brow_r_in",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_r_in"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_in",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_in",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_in",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_r_in"
+      },
+      "to": {
+        "node_id": "out_brow_r_in",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_inner_up"
+      },
+      "to": {
+        "node_id": "scale_brow_r_mid_brow_inner_up",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_brow_r_mid_brow_inner_up",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_r_mid_brow_inner_up"
+      },
+      "to": {
+        "node_id": "sum_brow_r_mid",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_outer_up_right"
+      },
+      "to": {
+        "node_id": "scale_brow_r_mid_brow_outer_up_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_brow_r_mid_brow_outer_up_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_r_mid_brow_outer_up_right"
+      },
+      "to": {
+        "node_id": "sum_brow_r_mid",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_down_right"
+      },
+      "to": {
+        "node_id": "scale_brow_r_mid_brow_down_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_5"
+      },
+      "to": {
+        "node_id": "scale_brow_r_mid_brow_down_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_brow_r_mid_brow_down_right"
+      },
+      "to": {
+        "node_id": "sum_brow_r_mid",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_r_mid"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_mid",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_mid",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_mid",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_r_mid"
+      },
+      "to": {
+        "node_id": "out_brow_r_mid",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_outer_up_right"
+      },
+      "to": {
+        "node_id": "sum_brow_r_out",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_r_out"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_out",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_out",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_out",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_r_out"
+      },
+      "to": {
+        "node_id": "out_brow_r_out",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_brow_down_right"
+      },
+      "to": {
+        "node_id": "sum_brow_r_inlr",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_brow_r_inlr"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_inlr",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_inlr",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_brow_r_inlr",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_brow_r_inlr"
+      },
+      "to": {
+        "node_id": "out_brow_r_inlr",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_eye_squint_left"
+      },
+      "to": {
+        "node_id": "scale_lid_l_bottom_eye_squint_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_lid_l_bottom_eye_squint_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_lid_l_bottom_eye_squint_left"
+      },
+      "to": {
+        "node_id": "sum_lid_l_bottom",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_cheek_raise_left"
+      },
+      "to": {
+        "node_id": "scale_lid_l_bottom_cheek_raise_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_3"
+      },
+      "to": {
+        "node_id": "scale_lid_l_bottom_cheek_raise_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_lid_l_bottom_cheek_raise_left"
+      },
+      "to": {
+        "node_id": "sum_lid_l_bottom",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_lid_l_bottom"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_bottom",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_bottom",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_bottom",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_lid_l_bottom"
+      },
+      "to": {
+        "node_id": "out_lid_l_bottom",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_cheek_raise_left"
+      },
+      "to": {
+        "node_id": "sum_lid_l_curve",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_lid_l_curve"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_curve",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_curve",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_curve",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_lid_l_curve"
+      },
+      "to": {
+        "node_id": "out_lid_l_curve",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_eye_squint_right"
+      },
+      "to": {
+        "node_id": "scale_lid_r_bottom_eye_squint_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_lid_r_bottom_eye_squint_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_lid_r_bottom_eye_squint_right"
+      },
+      "to": {
+        "node_id": "sum_lid_r_bottom",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_cheek_raise_right"
+      },
+      "to": {
+        "node_id": "scale_lid_r_bottom_cheek_raise_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_3"
+      },
+      "to": {
+        "node_id": "scale_lid_r_bottom_cheek_raise_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_lid_r_bottom_cheek_raise_right"
+      },
+      "to": {
+        "node_id": "sum_lid_r_bottom",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_lid_r_bottom"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_bottom",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_bottom",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_bottom",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_lid_r_bottom"
+      },
+      "to": {
+        "node_id": "out_lid_r_bottom",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_cheek_raise_right"
+      },
+      "to": {
+        "node_id": "sum_lid_r_curve",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_lid_r_curve"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_curve",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_curve",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_curve",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_lid_r_curve"
+      },
+      "to": {
+        "node_id": "out_lid_r_curve",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_smile_left"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_smile_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_smile_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_corner_mouth_smile_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_corner",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_smile_right"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_smile_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_smile_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_corner_mouth_smile_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_corner",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_frown_left"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_frown_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_frown_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_corner_mouth_frown_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_corner",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_frown_right"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_frown_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_corner_mouth_frown_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_corner_mouth_frown_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_corner",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_mouth_corner"
+      },
+      "to": {
+        "node_id": "clamp_mouth_corner",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_corner",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_corner",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_mouth_corner"
+      },
+      "to": {
+        "node_id": "out_mouth_corner",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_smile_left"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_smile_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_smile_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_stretch_mouth_smile_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_stretch",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_smile_right"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_smile_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_smile_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_stretch_mouth_smile_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_stretch",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_stretch_left"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_stretch_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_stretch_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_stretch_mouth_stretch_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_stretch",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_stretch_right"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_stretch_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_stretch_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_stretch_mouth_stretch_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_stretch",
+        "input": "operand_3"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_pucker"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_pucker",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_pucker",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_stretch_mouth_pucker"
+      },
+      "to": {
+        "node_id": "sum_mouth_stretch",
+        "input": "operand_4"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_funnel"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_funnel",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_stretch_mouth_funnel",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_stretch_mouth_funnel"
+      },
+      "to": {
+        "node_id": "sum_mouth_stretch",
+        "input": "operand_5"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_mouth_stretch"
+      },
+      "to": {
+        "node_id": "clamp_mouth_stretch",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_stretch",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_stretch",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_mouth_stretch"
+      },
+      "to": {
+        "node_id": "out_mouth_stretch",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_upper_up_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_lt_sneer",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_nose_sneer_left"
+      },
+      "to": {
+        "node_id": "scale_mouth_lt_sneer_nose_sneer_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_lt_sneer_nose_sneer_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_lt_sneer_nose_sneer_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_lt_sneer",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_mouth_lt_sneer"
+      },
+      "to": {
+        "node_id": "clamp_mouth_lt_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_lt_sneer",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_lt_sneer",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_mouth_lt_sneer"
+      },
+      "to": {
+        "node_id": "out_mouth_lt_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_lower_down_left"
+      },
+      "to": {
+        "node_id": "sum_mouth_lb_sneer",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_mouth_lb_sneer"
+      },
+      "to": {
+        "node_id": "clamp_mouth_lb_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_lb_sneer",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_lb_sneer",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_mouth_lb_sneer"
+      },
+      "to": {
+        "node_id": "out_mouth_lb_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_upper_up_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_rt_sneer",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_nose_sneer_right"
+      },
+      "to": {
+        "node_id": "scale_mouth_rt_sneer_nose_sneer_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_mouth_rt_sneer_nose_sneer_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_mouth_rt_sneer_nose_sneer_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_rt_sneer",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_mouth_rt_sneer"
+      },
+      "to": {
+        "node_id": "clamp_mouth_rt_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_rt_sneer",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_rt_sneer",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_mouth_rt_sneer"
+      },
+      "to": {
+        "node_id": "out_mouth_rt_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_mouth_lower_down_right"
+      },
+      "to": {
+        "node_id": "sum_mouth_rb_sneer",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_mouth_rb_sneer"
+      },
+      "to": {
+        "node_id": "clamp_mouth_rb_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_rb_sneer",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c1"
+      },
+      "to": {
+        "node_id": "clamp_mouth_rb_sneer",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_mouth_rb_sneer"
+      },
+      "to": {
+        "node_id": "out_mouth_rb_sneer",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_blink"
+      },
+      "to": {
+        "node_id": "sum_blink",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_eye_closed_left"
+      },
+      "to": {
+        "node_id": "scale_blink_eye_closed_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_blink_eye_closed_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_blink_eye_closed_left"
+      },
+      "to": {
+        "node_id": "sum_blink",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_eye_closed_right"
+      },
+      "to": {
+        "node_id": "scale_blink_eye_closed_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_5"
+      },
+      "to": {
+        "node_id": "scale_blink_eye_closed_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_blink_eye_closed_right"
+      },
+      "to": {
+        "node_id": "sum_blink",
+        "input": "operand_2"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_eye_wide_left"
+      },
+      "to": {
+        "node_id": "scale_lid_l_top_eye_wide_left",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_75"
+      },
+      "to": {
+        "node_id": "scale_lid_l_top_eye_wide_left",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c_top_lid_rest"
+      },
+      "to": {
+        "node_id": "sum_lid_l_top",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_lid_l_top_eye_wide_left"
+      },
+      "to": {
+        "node_id": "sum_lid_l_top",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_lid_l_top"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_top",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_4"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_top",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c3"
+      },
+      "to": {
+        "node_id": "clamp_lid_l_top",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_lid_l_top"
+      },
+      "to": {
+        "node_id": "out_lid_l_top",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "in_face_eye_wide_right"
+      },
+      "to": {
+        "node_id": "scale_lid_r_top_eye_wide_right",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c0_75"
+      },
+      "to": {
+        "node_id": "scale_lid_r_top_eye_wide_right",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c_top_lid_rest"
+      },
+      "to": {
+        "node_id": "sum_lid_r_top",
+        "input": "operand_0"
+      }
+    },
+    {
+      "from": {
+        "node_id": "scale_lid_r_top_eye_wide_right"
+      },
+      "to": {
+        "node_id": "sum_lid_r_top",
+        "input": "operand_1"
+      }
+    },
+    {
+      "from": {
+        "node_id": "sum_lid_r_top"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_top",
+        "input": "in"
+      }
+    },
+    {
+      "from": {
+        "node_id": "cm0_4"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_top",
+        "input": "min"
+      }
+    },
+    {
+      "from": {
+        "node_id": "c3"
+      },
+      "to": {
+        "node_id": "clamp_lid_r_top",
+        "input": "max"
+      }
+    },
+    {
+      "from": {
+        "node_id": "clamp_lid_r_top"
+      },
+      "to": {
+        "node_id": "out_lid_r_top",
+        "input": "in"
+      }
+    }
+  ]
+}

@@ -91,14 +91,16 @@ Rebuild a package after changing it (`pnpm run build:packages`, or
 
 ## Checks
 
-| Command                            | What it runs                                                                                                                                                       |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm run validate`                | markdownlint over every Markdown file, then lint, typecheck and test of the workspaces changed since the base and of their dependents (`scripts/run-affected.sh`). |
-| `pnpm run validate:all`            | the same over every workspace                                                                                                                                      |
-| `pnpm run format` / `format:check` | markdownlint and Prettier, fixing or checking                                                                                                                      |
-| `pnpm run prep` / `prep:push`      | format then `validate`; or format, clean, build and `validate:all`                                                                                                 |
-| `pnpm run typecheck:all`           | every workspace's typecheck, without stopping at the first failure                                                                                                 |
-| `pnpm exec markdownlint <files>`   | the Markdown check on the files given                                                                                                                              |
+| Command                             | What it runs                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm run validate`                 | markdownlint over every Markdown file, then lint, typecheck and test of the workspaces changed since the base and of their dependents (`scripts/run-affected.sh`). |
+| `pnpm run validate:all`             | the same over every workspace                                                                                                                                      |
+| `pnpm run format` / `format:check`  | markdownlint and Prettier, fixing or checking                                                                                                                      |
+| `pnpm run prep` / `prep:push`       | format then `validate`; or format, clean, build and `validate:all`                                                                                                 |
+| `pnpm run typecheck:all`            | every workspace's typecheck, without stopping at the first failure                                                                                                 |
+| `pnpm exec markdownlint <files>`    | the Markdown check on the files given                                                                                                                              |
+| `pnpm run adaptations:check`        | every face GLB's standard adaptation against the sidecar beside it; part of `lint` and `lint:all`                                                                  |
+| `pnpm run adaptations:pack [<glb>]` | each face's adaptation sidecar grafted into its GLB                                                                                                                |
 
 The base of `validate` is the branch's upstream, else `origin/main`. On a
 branch whose pull request targets the staging branch, set
