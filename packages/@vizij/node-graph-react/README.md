@@ -216,7 +216,7 @@ Tests run under Vitest with the wasm layer mocked to keep CI fast. To exercise t
 The package follows `@vizij/node-graph`: when that package's API or ABI
 changes, raise the dependency range and update `src/compat.tsx` with it, and
 update the apps that use this package (`vizij-authoring`, `demo-graph-studio`,
-`minimal-demo-graph`, `minimal-demo-animation-graph`) in the same change.
+`minimal-demo-graph`) in the same change.
 
 ---
 

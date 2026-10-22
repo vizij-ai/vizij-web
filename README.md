@@ -8,19 +8,16 @@ same runtime a deployed Vizij runs.
 
 ## Apps
 
-| App                                                                 | What it is                                                                                                  | Start it                                    |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| [`vizij-authoring`](apps/vizij-authoring)                           | Author a face: load a GLB, bind its rig to the face standard, author poses and animations, export the face. | `pnpm run dev:vizij-authoring`              |
-| [`vizij-standalone`](apps/vizij-standalone)                         | The face page: one face with a voice agent, in a Tauri shell.                                               | `pnpm run dev:vizij-standalone:web`         |
-| [`vizij-showcase`](apps/vizij-showcase)                             | Several face experiences on one page: expressions, gaze, voice, rig controls.                               | `pnpm run dev:vizij-showcase`               |
-| [`demo-vizij-player`](apps/demo-vizij-player)                       | Load a face export and drive its rig, poses, animations and programs.                                       | `pnpm run dev:demo-vizij-player`            |
-| [`tutorial-fullscreen-face`](apps/tutorial-fullscreen-face)         | The smallest React app driving a face, with its walkthrough.                                                | `pnpm run dev:tutorial-fullscreen-face`     |
-| [`tutorial-agent-face`](apps/tutorial-agent-face)                   | A face wired to a live Gemini agent, with its walkthrough.                                                  | `pnpm run dev:tutorial-agent-face`          |
-| [`demo-animation-studio`](apps/demo-animation-studio)               | A playground for the animation engine: presets, players and their outputs.                                  | `pnpm run dev:demo-animation-studio`        |
-| [`demo-graph-studio`](apps/demo-graph-studio)                       | An editor for node graphs.                                                                                  | `pnpm run dev:demo-graph-studio`            |
-| [`minimal-demo-animation`](apps/minimal-demo-animation)             | The smallest page on the animation engine.                                                                  | `pnpm run dev:minimal-demo-animation`       |
-| [`minimal-demo-graph`](apps/minimal-demo-graph)                     | The smallest page on the node-graph engine.                                                                 | `pnpm run dev:minimal-demo-graph`           |
-| [`minimal-demo-animation-graph`](apps/minimal-demo-animation-graph) | Animation tracks feeding a node graph (URDF IK, filtering).                                                 | `pnpm run dev:minimal-demo-animation-graph` |
+| App                                                         | What it is                                                                                                  | Start it                                |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| [`vizij-authoring`](apps/vizij-authoring)                   | Author a face: load a GLB, bind its rig to the face standard, author poses and animations, export the face. | `pnpm run dev:vizij-authoring`          |
+| [`vizij-standalone`](apps/vizij-standalone)                 | The face page: one face with a voice agent, in a Tauri shell.                                               | `pnpm run dev:vizij-standalone:web`     |
+| [`vizij-showcase`](apps/vizij-showcase)                     | Several face experiences on one page: expressions, gaze, voice, rig controls.                               | `pnpm run dev:vizij-showcase`           |
+| [`demo-vizij-player`](apps/demo-vizij-player)               | Load a face export and drive its rig, poses, animations and programs.                                       | `pnpm run dev:demo-vizij-player`        |
+| [`tutorial-fullscreen-face`](apps/tutorial-fullscreen-face) | The smallest React app driving a face, with its walkthrough.                                                | `pnpm run dev:tutorial-fullscreen-face` |
+| [`tutorial-agent-face`](apps/tutorial-agent-face)           | A face wired to a live Gemini agent, with its walkthrough.                                                  | `pnpm run dev:tutorial-agent-face`      |
+| [`demo-graph-studio`](apps/demo-graph-studio)               | An editor for node graphs.                                                                                  | `pnpm run dev:demo-graph-studio`        |
+| [`minimal-demo-graph`](apps/minimal-demo-graph)             | The smallest page on the node-graph engine.                                                                 | `pnpm run dev:minimal-demo-graph`       |
 
 Each app's README says what it needs, such as an API key.
 
@@ -34,9 +31,8 @@ Published on npm, for apps of your own:
   tree, and hooks over its values.
 - [`@vizij/utils`](packages/@vizij/utils),
   [`@vizij/node-graph-authoring`](packages/@vizij/node-graph-authoring),
-  [`@vizij/node-graph-react`](packages/@vizij/node-graph-react),
-  [`@vizij/animation-react`](packages/@vizij/animation-react): shared helpers,
-  the binding compiler, and React bindings for the engines.
+  [`@vizij/node-graph-react`](packages/@vizij/node-graph-react): shared
+  helpers, the binding compiler, and React bindings for the node-graph engine.
 
 ## Run it
 

@@ -100,7 +100,6 @@ See [`CONTRIBUTING.md` › Releasing](../../../CONTRIBUTING.md#releasing).
 
 ## Related Packages
 
-- [`@vizij/animation-react`](../animation-react/README.md) – Re-exports value helpers for React consumers.
 - [`@vizij/render`](../render/README.md) – Uses the namespace helpers to manage store ids.
 
 Have ideas for additional shared helpers? Open a PR and document the changes here to keep the ecosystem aligned. 🧰

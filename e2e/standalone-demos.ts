@@ -6,7 +6,7 @@ import { offsetPort } from "./ports";
 // both the web servers and the specs are generated from it.
 //
 // These are the "run it on its own" demos that exercise the wasm + render stack
-// end to end (animation / node-graph). Booting each and asserting
+// end to end (the runtime, the node graph). Booting each and asserting
 // it renders without page errors is the canary for that stack regressing.
 export interface StandaloneDemo {
   /** pnpm workspace filter / package name. */
@@ -20,7 +20,6 @@ export interface StandaloneDemo {
 
 export const STANDALONE_DEMOS: StandaloneDemo[] = [
   { filter: "demo-vizij-player", port: offsetPort(5200) },
-  { filter: "demo-animation-studio", port: offsetPort(5201) },
   { filter: "demo-graph-studio", port: offsetPort(5202) },
   // The face page on the Bevy view (its own spec checks the face shows).
   { filter: "vizij-standalone", port: offsetPort(5203) },

@@ -39,9 +39,8 @@ build or a stale wasm link (below), and that state is what to fix.
 
 ### A local vizij-rs checkout
 
-The wasm packages (`@vizij/runtime`, `@vizij/node-graph`, `@vizij/animation`,
-`@vizij/value-json`) come from npm. To run vizij-web against a vizij-rs
-checkout instead:
+The wasm packages (`@vizij/runtime`, `@vizij/node-graph`, `@vizij/value-json`)
+come from npm. To run vizij-web against a vizij-rs checkout instead:
 
 ```bash
 pnpm run wasm:status                          # each package: local, registry or missing
