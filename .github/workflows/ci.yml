@@ -28,7 +28,9 @@ jobs:
       - run: pnpm run test:all
       - run: pnpm run build
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` is Ubuntu 26.04, for which Playwright installs
+    # no browser (`playwright install --with-deps` refuses the OS).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,7 +51,9 @@ jobs:
           path: e2e/test-results/
 
   authoring-smoke:
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` is Ubuntu 26.04, for which Playwright installs
+    # no browser (`playwright install --with-deps` refuses the OS).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

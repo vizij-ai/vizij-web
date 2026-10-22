@@ -41,7 +41,9 @@ An app drives a face through its Arora API: the methods it declares
 (`invoke`) and its data store, on the keys of the **vizij face standard**
 (`standard/vizij/…` under the face's rig prefix, `runtime.path(…)`), each an
 `f32`. The shipped faces carry a standard adaptation that maps those keys onto
-their own rig. The vocabulary is vizij-rs's
+their own rig, reviewed as the sidecar beside the GLB,
+`<face>.standard-adaptation.json`, which the GLB is packed from (see
+[Face adaptations](docs/face-adaptations.md)). The vocabulary is vizij-rs's
 [`docs/face-standard.md`](https://github.com/vizij-ai/vizij-rs/blob/main/docs/face-standard.md);
 the full intent-to-call table is section 4 of `DESIGN-1.0.md`.
 
@@ -143,7 +145,8 @@ The face apps load their sample face, Quori, from
 - [`scripts/`](scripts): the hook installer and doctor, the wasm linker,
   `run-affected.sh` behind `validate`, the publish scripts, and the scripts
   that edit a face GLB's `VIZIJ_bundle` in place (`glb-bundle.mjs` and its
-  users).
+  users), and `face-adaptations.mjs` behind `adaptations:check` and
+  `adaptations:pack`.
 - [`.changeset/`](.changeset) and [`.github/workflows/`](.github/workflows):
   releases and CI, described in `CONTRIBUTING.md`.
 

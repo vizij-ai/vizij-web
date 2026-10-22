@@ -1,6 +1,7 @@
 {
   "name": "demo-vizij-player",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,7 +19,7 @@
   },
   "dependencies": {
     "@vizij/render": "workspace:*",
-    "@vizij/runtime": "^7.1.0",
+    "@vizij/runtime": "^7.2.0",
     "@vizij/runtime-react": "workspace:*",
     "@vizij/utils": "workspace:*",
     "react": "^19.2.3",

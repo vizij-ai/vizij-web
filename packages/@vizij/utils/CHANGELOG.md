@@ -1,5 +1,11 @@
 # @vizij/utils
 
+## 0.2.1
+
+### Patch Changes
+
+- c6db7b4: Licensed under Apache-2.0, where the package said MIT or declared no licence. Releases already published keep the licence they were published under.
+
 ## 0.2.0
 
 ### Minor Changes

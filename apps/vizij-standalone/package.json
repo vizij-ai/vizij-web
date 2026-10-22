@@ -1,7 +1,8 @@
 {
   "name": "vizij-standalone",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "vite": "vite",
@@ -16,7 +17,7 @@
   "dependencies": {
     "@deepgram/sdk": "^5.0.0",
     "@tauri-apps/api": "2.10.1",
-    "@vizij/runtime": "^7.1.0",
+    "@vizij/runtime": "^7.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

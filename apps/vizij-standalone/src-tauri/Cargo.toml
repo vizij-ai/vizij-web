@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A Tauri App with WebSocket control"
 authors = ["you"]
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "vizij_standalone_lib"
@@ -13,39 +14,48 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
-# The device host on plain stable: one `SimpleDataStore` blackboard, ONE
-# `arora` run (its portable slice) owning the interpreter, the modules, and
-# the WS/ROS 2 bridge pumps, plus the opt-in Studio bridge on its own thread
-# (it re-registers live as owners change). The published arora carries no
-# artifact bindeps, so stable is enough.
-arora-bridge = "4.1"
-arora-bridge-ws = "4"
+# The device the shell runs beside the page, on plain stable: one
+# `SimpleDataStore`, ONE `arora` run (its portable slice) owning the
+# interpreter, the `say` module and every bridge. The published crates carry
+# no artifact bindeps, so stable is enough.
+arora-bridge-ws = "7.2"
 # The dual-backend ROS 2 bridge: DDS (default) or the rmw_zenoh-compatible Zenoh
-# backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features. 5 adds
-# the skill plane the ROS4HRI exposure profile binds `/skill/look_at` through.
-arora-bridge-ros2 = { version = "5", optional = true, default-features = false }
-arora-simple-data-store = "2"
-arora-types = "2"
+# backend, selected by this crate's `ros2-dds` / `ros2-zenoh` features. 11's
+# ROS4HRI preset lands `/skill/set_expression` on the expression keys on request.
+# 11.1 speaks ros2-client 0.14 (RustDDS 0.14): a reliable writer's send window
+# is `ResourceLimits::max_samples` (8192) rather than its history depth.
+arora-bridge-ros2 = { version = "11.1", optional = true, default-features = false }
+# 3.1: the store keeps key meta, which opens the device's inputs.
+arora-simple-data-store = "3.1"
+arora-types = "3.1"
 # The device engine, in its portable slice (no `native` feature: no wasmtime,
 # no TUI — the same wasmtime-free core the browser runtime builds on, so the
-# Android targets stay buildable). ONE arora run owns the interpreter, the
-# modules, the built-in keys, and every bridge pump.
-arora = { version = "9.11.1", default-features = false }
-# The behavior-interpreter seam (trait, interpreter-module ABI, built-in keys).
-arora-behavior = "8"
+# Android targets stay buildable). The run refuses a remote write to a key the
+# store does not open, or of another type than the key states. 13.2: the
+# device's methods read without a step (`describe_methods`).
+arora = { version = "13.2", default-features = false }
 # Vizij's graph interpreter and the gaze skill's contract + shipped fragment.
-vizij-arora-behavior = "1"
-vizij-arora-host = "1"
+vizij-arora-behavior = "7"
+# 7.3: the ROS4HRI profile declares the caption inputs.
+vizij-arora-host = "7.3"
 # The say module (contract + cloud provider) — the same host module the
-# native vizij app registers; the bridge serves it on the action plane.
-vizij-arora-tts = "1"
-# Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client — the
-# same `ZenohDeviceClient` arora uses for its Studio connection, which implements
-# arora's `Bridge`. A plain crates.io crate (no artifact bindeps).
-arora-studio-bridge-client = { version = "6", optional = true }
+# native vizij app registers; the bridges serve it on the action plane.
+vizij-arora-tts = "7"
+# Opt-in (`studio-bridge` feature): the studio-bridge Zenoh device client, which
+# implements arora's `Bridge`. A plain crates.io crate (no artifact bindeps).
+arora-studio-bridge-client = { version = "10", optional = true }
+# The `Bridge` the Studio endpoint implements and the client is relayed
+# through, the streams it relays, and the persisted owner list. Only needed
+# with studio-bridge.
+arora-bridge = { version = "6", optional = true }
+futures-util = { version = "0.3", optional = true }
+serde_json = { version = "1", optional = true }
 # Install the process-wide rustls crypto provider (ring) the Zenoh/Firebase TLS
 # stacks need — matches the provider arora-studio-bridge-client is built against.
 rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
+# The run's end of the Studio connection implements arora's `#[async_trait]`
+# `Bridge`. Only needed with studio-bridge.
+async-trait = { version = "0.1", optional = true }
 # Encrypt the persisted anonymous refresh token at rest (XSalsa20Poly1305), the
 # same mechanism arora uses for its saved token. Only needed with studio-bridge.
 crypto_secretbox = { version = "0.1.1", optional = true }
@@ -53,11 +63,8 @@ tauri = { version = "2.10.3", features = [] }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-log = "2.8.0"
-tokio = { version = "1", features = ["sync", "net", "io-util", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync"] }
 tokio-util = "0.7"
-futures-util = { version = "0.3", features = ["sink"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 log = "0.4"
 clap = { version = "4", features = ["derive"] }
 dotenvy = "0.15"
@@ -76,35 +83,49 @@ default = []
 # ROS 2 bridge (`arora-bridge-ros2`). Opt-in — build with `--features ros2`
 # (or `pnpm tauri ... -- --features ros2`) for robot/ROS deployments; the
 # default standalone build has no ROS 2 stack. Attached with the ROS4HRI
-# exposure preset: the typed face topics, the /skill/look_at action (and the
-# described task-run methods as actions), and every key as a data topic under
-# `/{ns}/keys/{path}`. The reset/speak/mute/transport app methods stay on the
-# WebSocket + Studio bridges (WS-registry methods, not device methods).
+# exposure preset: the typed face topics, the /skill/look_at and /skill/say
+# actions (and the described task-run methods as actions), and every key
+# published as a data topic under `/{ns}/keys/{path}`.
 # `ros2` defaults to the DDS backend (`ros2-dds`); `ros2-zenoh` selects the
 # rmw_zenoh-compatible Zenoh backend instead. Exactly one backend is active
 # (arora-bridge-ros2 forwards to ros2-client's mutually-exclusive `dds`/`zenoh`).
 ros2 = ["ros2-dds"]
 ros2-dds = ["dep:arora-bridge-ros2", "arora-bridge-ros2/dds"]
 ros2-zenoh = ["dep:arora-bridge-ros2", "arora-bridge-ros2/zenoh"]
-# Opt-in Studio Bridge (VIZ-67 producer side): build the app so a Semio Studio
-# can connect *to* this running standalone and view/drive its live data. Off by
-# default — the normal standalone build is unchanged. When on, the Tauri host
-# attaches the studio-bridge Zenoh device client (`ZenohDeviceClient`, an
-# `arora_bridge::Bridge`) as a third bridge sharing the SAME `SimpleDataStore` as
-# the WS/ROS2 bridges, so the store's live values feed Studio too. The device
-# reaches the bridge outbound over Zenoh (VIZ-13: no inbound WS server / UDP
-# discovery needed).
+# Opt-in Studio Bridge: the device registers with Semio Studio, which sees its
+# keys and methods and drives it. Off by default. When on, the device run holds
+# a Studio endpoint, and the studio-bridge Zenoh device client
+# (`ZenohDeviceClient`, an `arora_bridge::Bridge`) connects on a task of its own
+# and relays Studio's commands to the run and the run's changes to Studio. The
+# device reaches the bridge outbound over Zenoh (no inbound server, no
+# discovery).
 #
 # Build with it on (plain stable toolchain — no nightly/bindeps needed):
 #   cargo build --features studio-bridge
-# Zero-config: the client crate (v3.1+) bakes in the Firebase config + bridge
-# endpoint. Runtime env overrides: STUDIO_BRIDGE_ENDPOINT (non-production bridge),
-# DEVICE_OWNERS (ownership). vizij always talks to real Firebase — no emulator.
-studio-bridge = ["dep:arora-studio-bridge-client", "dep:rustls", "dep:crypto_secretbox"]
+# Zero-config: the client crate bakes in the Firebase config + bridge
+# endpoint. Runtime env overrides: STUDIO_BRIDGE_ENDPOINT (another bridge),
+# DEVICE_OWNERS (ownership), FIREBASE_*_EMULATOR_HOST (the Firebase emulators).
+studio-bridge = [
+    "dep:arora-studio-bridge-client",
+    "dep:arora-bridge",
+    "dep:async-trait",
+    "dep:futures-util",
+    "dep:serde_json",
+    "dep:rustls",
+    "dep:crypto_secretbox",
+]
 
 [dev-dependencies]
+# The skill and Studio tests spawn runs through the interpreter module and read
+# the device's built-in keys.
+arora-behavior = "9"
+# The ROS 2 examples (`publish_slot`, `subscribe_slot`, `list_topics`).
 ros2-client = "0.8"
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
 rand = "0.9"
 tokio = { version = "1", features = ["full"] }
 # The mock `Bridge` in the studio-bridge tests implements an `#[async_trait]` trait.
 async-trait = "0.1"
+# The reply channel of an `arora_bridge::BridgeCommand` the Studio tests send.
+futures-channel = "0.3"

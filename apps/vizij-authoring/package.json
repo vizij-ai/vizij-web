@@ -1,7 +1,8 @@
 {
   "name": "vizij-authoring",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -36,7 +37,7 @@
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/render": "workspace:*",
-    "@vizij/runtime": "^7.1.0",
+    "@vizij/runtime": "^7.2.0",
     "@vizij/runtime-react": "workspace:*",
     "@vizij/utils": "workspace:*",
     "@vizij/value-json": "^0.2.0",

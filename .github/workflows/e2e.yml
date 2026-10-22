@@ -36,7 +36,9 @@ concurrency:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` is Ubuntu 26.04, for which Playwright installs
+    # no browser (`playwright install --with-deps` refuses the OS).
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
