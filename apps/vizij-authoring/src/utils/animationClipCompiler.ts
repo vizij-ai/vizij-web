@@ -249,8 +249,9 @@ export function clipIrToBundleAnimationEntry(
  * `clip` as the face's animation module plays it: what `Runtime.moduleAnimation`
  * takes, each track on its channel (the rig-relative path the compiled clip
  * resolves it to). Detached and keyframe-less tracks are left out, as from the
- * bundle entry; keyframe tangents are not carried, so a cubic segment plays
- * with the engine's ease.
+ * bundle entry. Each keyframe carries its tangents, in value units per second:
+ * the module plays a `cubic` segment as glTF's `CUBICSPLINE` Hermite on them,
+ * on the chord slope where one is absent, as `sampleTrackAt` samples it.
  */
 export function clipIrToAnimation(
   clip: AnimationClipIR,
@@ -273,6 +274,8 @@ export function clipIrToAnimation(
           time: keyframe.time,
           value: keyframe.value,
           interpolation: keyframe.interpolation ?? null,
+          inTangent: keyframe.inTangent ?? null,
+          outTangent: keyframe.outTangent ?? null,
         })),
       })),
   };

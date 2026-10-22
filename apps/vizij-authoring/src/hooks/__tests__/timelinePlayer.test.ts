@@ -17,7 +17,11 @@ function report(state: string, time: number): PlayerState {
     duration: 5,
     speed: 1,
     loopMode: "loop",
-    instances: [{ instance: 1, anim: 3, weight: 1 }],
+    ended: false,
+    window: { start: 0, end: null },
+    reversed: false,
+    waiting: false,
+    instances: [{ instance: 1, anim: 3, weight: 1, startOffset: 0, rate: 1 }],
   };
 }
 
