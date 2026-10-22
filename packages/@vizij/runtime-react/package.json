@@ -39,7 +39,7 @@
   },
   "peerDependencies": {
     "@vizij/render": "workspace:^",
-    "@vizij/runtime": "^7.0.0",
+    "@vizij/runtime": "^8.0.0",
     "react": ">=18"
   },
   "devDependencies": {

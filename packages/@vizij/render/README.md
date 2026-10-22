@@ -36,7 +36,7 @@ binds one to a React tree.
 pnpm add @vizij/render @vizij/runtime three zustand @vizij/utils
 ```
 
-Peer requirements: `@vizij/runtime ^6.2` (its `onInitProgress` feeds the
+Peer requirements: `@vizij/runtime ^8` (its `onInitProgress` feeds the
 loading view), `react >= 18`, `three ^0.170` (the
 loader and the exporter), `zustand ^5` (the store). `@vizij/runtime` is a peer
 so that a page resolves one copy of it, and therefore one wasm module.
