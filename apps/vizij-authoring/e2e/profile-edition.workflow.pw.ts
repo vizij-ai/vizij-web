@@ -12,6 +12,11 @@ import {
   toggleRos4hriProfile,
 } from "./profile-helpers";
 
+// Loading the face and the menu steps that follow take one to two minutes
+// under a software GPU, which draws about a frame a second and so answers
+// each click in seconds: as long as the shared 120 s budget.
+test.describe.configure({ timeout: 360_000 });
+
 // The full VIZ-93 loop, autonomously: import the profile, export it as
 // canonical JSON, edit that JSON (as a human contributor would), replace the
 // embedded copy from it, export the GLB — and deploy that GLB on the wasm
