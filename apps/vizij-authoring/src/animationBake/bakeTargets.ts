@@ -22,10 +22,10 @@ export interface BakeTargetElement {
    * Morph target *feature keys* in target order, empty when the element has
    * none.
    *
-   * These are the sanitized keys `importGeometry` produced, which is what the
-   * renderer uses to build `morphTargetDictionary`
-   * (`renderables/shape.tsx`) — so a baked morph track must be named with the
-   * key, not the original morph name, or `GLTFExporter`'s
+   * These are the sanitized keys `importGeometry` produced, which is what
+   * `@vizij/render`'s `buildSceneGraph` keys the exported mesh's
+   * `morphTargetDictionary` with — so a baked morph track must be named with
+   * the key, not the original morph name, or `GLTFExporter`'s
    * `mergeMorphTargetTracks` throws "Morph target name not found".
    */
   morphFeatureKeys: string[];

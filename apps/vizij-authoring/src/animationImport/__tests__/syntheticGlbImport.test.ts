@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { Euler, Quaternion } from "three";
 import { createPropsRigTargetCatalog, importGltfAnimations } from "..";
+import { eulerZYXQuaternion as quatZYX } from "../../test/rotationOracle";
 import { makeSingleChannelGlb } from "./makeGlb";
 
-type Quat = InstanceType<typeof Quaternion>;
-
 const D = Math.PI / 180;
-
-function quatZYX(x: number, y: number, z: number): Quat {
-  return new Quaternion().setFromEuler(new Euler(x, y, z, "ZYX"));
-}
 
 /**
  * Cases the Blender corpus cannot cover: it is entirely `LINEAR`, has no

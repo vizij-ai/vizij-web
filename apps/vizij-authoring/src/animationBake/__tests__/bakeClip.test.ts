@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { Euler, Quaternion } from "three";
 import {
   bakeClipToTrackSpecs,
   createBakeTargetIndex,
@@ -9,8 +8,7 @@ import type {
   AnimationClipIR,
   AnimationTrackIR,
 } from "../../types/animationClipIr";
-
-type Quat = InstanceType<typeof Quaternion>;
+import { axisQuaternion, eulerZYXQuaternion } from "../../test/rotationOracle";
 
 function element(
   overrides: Partial<BakeTargetElement> = {},
@@ -131,14 +129,36 @@ describe("bakeClipToTrackSpecs", () => {
     expect(spec.stride).toBe(4);
     expect(result.report.lossy).toContain("euler-to-quaternion");
 
-    const expected: Quat = new Quaternion().setFromEuler(
-      new Euler(0, 0, angle, "ZYX"),
-    );
+    const expected = axisQuaternion("z", angle);
     expect(spec.values.slice(4)).toEqual([
       expect.closeTo(expected.x, 10),
       expect.closeTo(expected.y, 10),
       expect.closeTo(expected.z, 10),
       expect.closeTo(expected.w, 10),
+    ]);
+  });
+
+  it("composes the rotation as Rz·Ry·Rx, holding un-animated axes at rest", () => {
+    const angle = 1.1;
+    const rested = createBakeTargetIndex([
+      element({ rotationEuler: [0.3, -0.5, 0] }),
+    ]);
+    const result = bakeClipToTrackSpecs({
+      clip: clipOf([
+        track("propsrig/l_eye/rotation/z", [
+          [0, 0],
+          [1, angle],
+        ]),
+      ]),
+      targets: rested,
+    });
+
+    const expected = eulerZYXQuaternion(0.3, -0.5, angle);
+    expect(result.tracks[0]!.values.slice(4)).toEqual([
+      expect.closeTo(expected.x, 12),
+      expect.closeTo(expected.y, 12),
+      expect.closeTo(expected.z, 12),
+      expect.closeTo(expected.w, 12),
     ]);
   });
 

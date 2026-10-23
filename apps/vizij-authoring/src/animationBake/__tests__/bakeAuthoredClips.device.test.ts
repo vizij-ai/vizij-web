@@ -1,9 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph";
+import type { ExportAnimationRoot } from "@vizij/render";
 import { bakeAuthoredClips, summarizeBakeReport } from "../bakeAuthoredClips";
 import { createBakeTargetIndex } from "../bakeTargets";
-import type { ThreeObject3DLike } from "../toThreeAnimationClip";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   type AnimationClipIR,
@@ -11,7 +11,7 @@ import {
 
 /**
  * The whole phase-3 chain on a real device: an authored clip on a *semantic*
- * input becomes a `THREE.AnimationClip` on node channels the clip never
+ * input becomes an exported animation on node channels the clip never
  * mentions.
  *
  * This is the property that the earlier draft of the plan got wrong by
@@ -49,12 +49,12 @@ function rigSpec(): GraphSpec {
   } as unknown as GraphSpec;
 }
 
-function fakeRoot(): ThreeObject3DLike {
-  const child: ThreeObject3DLike = {
+function fakeRoot(): ExportAnimationRoot {
+  const child: ExportAnimationRoot = {
     name: ELEMENT,
     traverse: (callback) => callback(child),
   };
-  const root: ThreeObject3DLike = {
+  const root: ExportAnimationRoot = {
     name: "Scene",
     traverse: (callback) => {
       callback(root);

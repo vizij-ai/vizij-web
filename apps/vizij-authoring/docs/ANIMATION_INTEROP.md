@@ -164,9 +164,10 @@ reported with the path that was attempted — never dropped silently.
 ### Step 4 — convert values
 
 Rotation is the only channel needing real conversion. glTF stores quaternions;
-Vizij's rotation animatable is an **euler in `ZYX` order** (every renderable
-calls `rotation.set(x, y, z, "ZYX")`). `quaternionToEuler.ts` handles it, and
-two corrections matter:
+Vizij's rotation animatable is an **euler in `ZYX` order**: R = Rz·Ry·Rx, the
+order the Bevy view composes and the exporter writes
+(`src/utils/transformMath.ts`). `quaternionToEuler.ts` handles it, and two
+corrections matter:
 
 1. **Sign continuity** — `q` and `-q` are the same rotation and exporters emit
    either. Converting a sign-flipped pair independently puts the euler values on
@@ -261,8 +262,9 @@ baker: it supports only `position` / `quaternion` / `scale` /
 `morphTargetInfluences`; it has no per-component channels; morph tracks must be
 named by morph name or it throws; cubic morph tracks throw; and a single
 unresolvable track binding makes it discard the **entire clip** after only a
-console warning. Every track must therefore be pre-validated, and bound by
-name — the export root is cloned, so uuid bindings break.
+console warning. Every track is therefore checked before export, by
+`@vizij/render`'s `createExportAnimation`, and bound by name — the export root
+is cloned, so uuid bindings break.
 
 ## Fitting imported curves to input ranges
 
@@ -379,23 +381,24 @@ keyframing.
 
 ## Where the code lives
 
-| Concern                                                | File                                                  |
-| ------------------------------------------------------ | ----------------------------------------------------- |
-| GLB chunk + accessor decoding                          | `src/animationImport/gltfAccessors.ts`                |
-| Decoded document (the conversion's input type)         | `src/animationImport/gltfAnimationDocument.ts`        |
-| **Document -> clips, pure**                            | `src/animationImport/convertGltfAnimations.ts`        |
-| Bake: clips -> glTF-shaped tracks                      | `src/animationBake/bakeClip.ts`                       |
-| Bake: track specs -> `THREE.AnimationClip` (validated) | `src/animationBake/toThreeAnimationClip.ts`           |
-| Channel enumeration and scalar expansion               | `src/animationImport/gltfAnimationChannels.ts`        |
-| Name/identity resolution                               | `src/animationImport/resolveGltfAnimationChannels.ts` |
-| Target catalog (live inputs or `RobotData`)            | `src/animationImport/propsRigTargetCatalog.ts`        |
-| Quaternion → euler (`ZYX`)                             | `src/animationImport/quaternionToEuler.ts`            |
-| Grouping, clip synthesis, diagnostics                  | `src/animationImport/importGltfAnimations.ts`         |
-| Manifest + provenance contract                         | `src/animationImport/channelManifest.ts`              |
-| Canonical propsrig path rule                           | `src/rig/autoInputs.ts` (`buildPropsRigInputPath`)    |
-| Canonical morph key rule                               | `@vizij/render` (`sanitizeMorphKey`)                  |
-| Clip normalization / bundle conversion                 | `src/utils/animationClipCompiler.ts`                  |
-| GLB export (incl. the unused `animations` option)      | `@vizij/render` (`exportScene`)                       |
+| Concern                                          | File                                                  |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| GLB chunk + accessor decoding                    | `src/animationImport/gltfAccessors.ts`                |
+| Decoded document (the conversion's input type)   | `src/animationImport/gltfAnimationDocument.ts`        |
+| **Document -> clips, pure**                      | `src/animationImport/convertGltfAnimations.ts`        |
+| Bake: clips -> glTF-shaped tracks                | `src/animationBake/bakeClip.ts`                       |
+| Bake: tracks -> exported animation (validated)   | `@vizij/render` (`createExportAnimation`)             |
+| Channel enumeration and scalar expansion         | `src/animationImport/gltfAnimationChannels.ts`        |
+| Name/identity resolution                         | `src/animationImport/resolveGltfAnimationChannels.ts` |
+| Target catalog (live inputs or `RobotData`)      | `src/animationImport/propsRigTargetCatalog.ts`        |
+| Quaternion → euler curves (`ZYX`)                | `src/animationImport/quaternionToEuler.ts`            |
+| Euler, quaternion and matrix math (`ZYX`, T·R·S) | `src/utils/transformMath.ts`                          |
+| Grouping, clip synthesis, diagnostics            | `src/animationImport/importGltfAnimations.ts`         |
+| Manifest + provenance contract                   | `src/animationImport/channelManifest.ts`              |
+| Canonical propsrig path rule                     | `src/rig/autoInputs.ts` (`buildPropsRigInputPath`)    |
+| Canonical morph key rule                         | `@vizij/render` (`sanitizeMorphKey`)                  |
+| Clip normalization / bundle conversion           | `src/utils/animationClipCompiler.ts`                  |
+| GLB export, with the baked animations            | `@vizij/render` (`exportScene`)                       |
 
 Corpus regression tests live in `src/animationImport/__tests__/`; the golden
 resolution results in `blenderCorpusGolden.ts` are literal expected values, so a

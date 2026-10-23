@@ -1,6 +1,6 @@
-import { Euler, Quaternion } from "three";
 import { deriveMorphFeatureKeys } from "@vizij/render";
 import { buildPropsRigInputPath } from "../../rig/autoInputs";
+import { eulerZYXQuaternion } from "../../test/rotationOracle";
 import type { AnimationClipIR } from "../../types/animationClipIr";
 import type { GltfJsonLike } from "../gltfAnimationChannels";
 import { makeGlb } from "./makeGlb";
@@ -216,13 +216,10 @@ export function reencodeClipToGlb(
       // Euler (ZYX radians) back to the quaternion glTF stores.
       outputValues = [];
       for (let k = 0; k < pending.times.length; k += 1) {
-        const q = new Quaternion().setFromEuler(
-          new Euler(
-            pending.columns[0]![k]!,
-            pending.columns[1]![k]!,
-            pending.columns[2]![k]!,
-            "ZYX",
-          ),
+        const q = eulerZYXQuaternion(
+          pending.columns[0]![k]!,
+          pending.columns[1]![k]!,
+          pending.columns[2]![k]!,
         );
         outputValues.push(q.x, q.y, q.z, q.w);
       }

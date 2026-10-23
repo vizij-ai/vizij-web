@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { BufferGeometry } from "three";
 import type { AnimatableValue } from "@vizij/utils";
-import { ShapeMaterial, type Feature, type World } from "@vizij/render";
+import {
+  ShapeMaterial,
+  type Feature,
+  type Shape,
+  type World,
+} from "@vizij/render";
 import { changedValues, splitWorld } from "./worldStructure";
 
-const geometry = new BufferGeometry();
+/** A geometry stands in the structure by its `uuid`. */
+function fakeGeometry(uuid: string): Shape["geometry"] {
+  return { uuid } as unknown as Shape["geometry"];
+}
+
+const geometry = fakeGeometry("plate-geometry");
 
 function face(): {
   world: World;
@@ -181,7 +190,7 @@ describe("splitWorld", () => {
       (next: Face) => {
         next.world.plate = {
           ...next.world.plate,
-          geometry: new BufferGeometry(),
+          geometry: fakeGeometry("replacement-geometry"),
         } as World[string];
       },
     ],

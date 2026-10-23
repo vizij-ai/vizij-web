@@ -1,27 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { Euler, Quaternion } from "three";
+import {
+  eulerZYXQuaternion as quatFromEulerZYX,
+  quaternionDot,
+} from "../../test/rotationOracle";
 import {
   quaternionCurveToEulerZYX,
   quaternionToEulerZYX,
   unwrapAngles,
 } from "../quaternionToEuler";
 
-type Quat = InstanceType<typeof Quaternion>;
-
 /**
- * The conversion is implemented without Three so the import path stays
- * dependency-free, so these tests pin it against Three's own implementation —
- * the thing the renderer actually uses.
+ * Source rotations are composed axis by axis (`test/rotationOracle`), so the
+ * conversion is checked against the ZYX order itself rather than against
+ * another implementation of it.
  */
-
-function threeEulerZYX(q: Quat): [number, number, number] {
-  const euler = new Euler().setFromQuaternion(q, "ZYX");
-  return [euler.x, euler.y, euler.z];
-}
-
-function quatFromEulerZYX(x: number, y: number, z: number): Quat {
-  return new Quaternion().setFromEuler(new Euler(x, y, z, "ZYX"));
-}
 
 const D = Math.PI / 180;
 
@@ -38,13 +30,14 @@ describe("quaternionToEulerZYX", () => {
     ["near gimbal -", -25 * D, -89.5 * D, -40 * D],
   ];
 
-  it.each(cases)("matches THREE for %s", (_label, x, y, z) => {
+  it.each(cases)("recovers the angles of %s", (_label, x, y, z) => {
+    // Every case lies in the principal ranges (x, z in (-π, π], |y| < π/2),
+    // where the ZYX angles of a rotation are unique.
     const q = quatFromEulerZYX(x, y, z);
     const mine = quaternionToEulerZYX(q.x, q.y, q.z, q.w);
-    const [tx, ty, tz] = threeEulerZYX(q);
-    expect(mine.x).toBeCloseTo(tx, 10);
-    expect(mine.y).toBeCloseTo(ty, 10);
-    expect(mine.z).toBeCloseTo(tz, 10);
+    expect(mine.x).toBeCloseTo(x, 10);
+    expect(mine.y).toBeCloseTo(y, 10);
+    expect(mine.z).toBeCloseTo(z, 10);
   });
 
   it("round-trips back to the same rotation", () => {
@@ -53,7 +46,7 @@ describe("quaternionToEulerZYX", () => {
       const mine = quaternionToEulerZYX(source.x, source.y, source.z, source.w);
       const rebuilt = quatFromEulerZYX(mine.x, mine.y, mine.z);
       // q and -q are the same rotation, so compare |dot|.
-      expect(Math.abs(rebuilt.dot(source))).toBeCloseTo(1, 9);
+      expect(Math.abs(quaternionDot(rebuilt, source))).toBeCloseTo(1, 9);
     }
   });
 
@@ -72,10 +65,9 @@ describe("quaternionToEulerZYX", () => {
       q.z * 1.02,
       q.w * 1.02,
     );
-    const [tx, ty, tz] = threeEulerZYX(q);
-    expect(scaled.x).toBeCloseTo(tx, 8);
-    expect(scaled.y).toBeCloseTo(ty, 8);
-    expect(scaled.z).toBeCloseTo(tz, 8);
+    expect(scaled.x).toBeCloseTo(20 * D, 8);
+    expect(scaled.y).toBeCloseTo(30 * D, 8);
+    expect(scaled.z).toBeCloseTo(40 * D, 8);
   });
 
   it("returns identity for a degenerate zero quaternion", () => {
@@ -146,10 +138,10 @@ describe("quaternionCurveToEulerZYX", () => {
     expect(curves.z[keyCount - 1]!).toBeCloseTo(2 * Math.PI, 6);
   });
 
-  it("matches THREE key by key on a mixed-axis sweep", () => {
+  it("keeps every key's rotation on a mixed-axis sweep", () => {
     const keyCount = 24;
     const values: number[] = [];
-    const expected: Array<[number, number, number]> = [];
+    const sources: Array<ReturnType<typeof quatFromEulerZYX>> = [];
     for (let i = 0; i < keyCount; i += 1) {
       const q = quatFromEulerZYX(
         i * 7 * D,
@@ -157,7 +149,7 @@ describe("quaternionCurveToEulerZYX", () => {
         i * 11 * D,
       );
       values.push(q.x, q.y, q.z, q.w);
-      expected.push(threeEulerZYX(q));
+      sources.push(q);
     }
     const curves = quaternionCurveToEulerZYX(values, keyCount);
     for (let i = 0; i < keyCount; i += 1) {
@@ -167,8 +159,7 @@ describe("quaternionCurveToEulerZYX", () => {
         curves.y[i]!,
         curves.z[i]!,
       );
-      const source = quatFromEulerZYX(...expected[i]!);
-      expect(Math.abs(rebuilt.dot(source))).toBeCloseTo(1, 8);
+      expect(Math.abs(quaternionDot(rebuilt, sources[i]!))).toBeCloseTo(1, 8);
     }
   });
 
