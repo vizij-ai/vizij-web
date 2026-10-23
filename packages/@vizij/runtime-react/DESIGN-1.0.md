@@ -1,15 +1,16 @@
-# `@vizij/runtime-react` 1.0 and `@vizij/render` 1.0: design
+# `@vizij/runtime-react` 1.0 and `@vizij/render` 2.0: design
 
-**Status: decided** (decisions in section 10). `@vizij/render` 1.0 and
+**Status: decided** (decisions in section 10). `@vizij/render` 2.0 and
 `@vizij/runtime-react` 1.0 implement sections 3 and 5. Tickets:
 [VIZ-147](https://linear.app/semio-ai/issue/VIZ-147) (the packages and every app
 except authoring) and [VIZ-148](https://linear.app/semio-ai/issue/VIZ-148) (the
 authoring app). Umbrella: [VIZ-158](https://linear.app/semio-ai/issue/VIZ-158).
 The apps' line references are to vizij-web `8f9ea296`; the runtime's are to
-`@vizij/runtime` 6.0.0 and vizij-rs `origin/main` at `4c6e0fe`. `@vizij/runtime-react`
-requires `@vizij/runtime` `^6.1.1`: 6.1.0 is the release whose device step costs a
-tenth of 6.0.0's, and 6.1.1 holds what a page has not drained as the latest
-value per key.
+`@vizij/runtime` 6.0.0 and vizij-rs `origin/main` at `4c6e0fe`. `@vizij/render` and
+`@vizij/runtime-react` take `@vizij/runtime` `^8.0.0` as a peer: 8 is the runtime
+they are built and tested against, and it keeps what the provider relies on
+(section 7), such as a device step costing a tenth of 6.0.0's and what a page has
+not drained held as the latest value per key.
 
 Every Vizij face in the browser is drawn by the Bevy view of the vizij-rs
 `vizij` crate, shipped as [`@vizij/runtime`](https://github.com/vizij-ai/vizij-rs/blob/main/npm/@vizij/runtime/README.md).
@@ -38,8 +39,8 @@ behaviors that duplicate what the device already does.
 
 | Package                     | Version  | Role                                                                                                                |
 | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `@vizij/runtime` (vizij-rs) | `^6.0.0` | The view and the device: everything an app calls on a face.                                                         |
-| `@vizij/render`             | 1.0      | The page's canvas and the face slot (`<VizijCanvas>`, `<Vizij>`); the GLB loader, the exporter and the world types. |
+| `@vizij/runtime` (vizij-rs) | `^8.0.0` | The view and the device: everything an app calls on a face.                                                         |
+| `@vizij/render`             | 2.0      | The page's canvas and the face slot (`<VizijCanvas>`, `<Vizij>`); the GLB loader, the exporter and the world types. |
 | `@vizij/runtime-react`      | 1.0      | One face's lifecycle in React and the fan-out of its store changes.                                                 |
 | `@vizij/speech-react`       | deleted  | No app uses it: `apps/vizij-standalone`, its only code consumer, dropped it.                                        |
 
@@ -51,7 +52,7 @@ the page's canvas is module state of `@vizij/render`, and the provider awaits
 the copy the page renders `<VizijCanvas>` from. `runtime-react` has no other
 dependency (`ValueJSON` and `ValueInput` come from `@vizij/runtime`).
 
-## 3. `@vizij/render` 1.0
+## 3. `@vizij/render` 2.0
 
 ### 3.1 The page's canvas: `<VizijCanvas>`
 
@@ -111,7 +112,7 @@ placed on an empty rectangle, where it draws nothing. A slot partly off the
 canvas shows its face cropped at the canvas's edge, at the position and scale
 the whole slot gives it. One slot shows a face at a time.
 
-| 0.x prop              | 1.0                                        | Why                                                                                                  |
+| 1.x prop              | 2.0                                        | Why                                                                                                  |
 | --------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | `style`, `className`  | kept                                       | they now size and place the slot                                                                     |
 | `rootId`, `namespace` | `vizijId`                                  | a slot is named by its face; the render-store namespace has no role in the view                      |
@@ -486,7 +487,7 @@ players own their envelope and smoothing.
 | `world[rootId].rootBounds` push, `measureFaceGeometryBounds` with `deriveRootBounds` over mounted refs, `Viewer.tsx:255-321`                                                                | `bounds` → `setView`; Fit to Geometry runs `deriveRootBounds` over the exporter's scene                                                                   |
 | `getExportableBodies` snapshot of mounted groups, `Viewer.tsx:334-400`, `ExportDialog.tsx:137-167`, `useVizijExport.ts:751-842`                                                             | deleted: export is headless from the world (VIZ-140), section 3.5                                                                                         |
 | render store as the document model (`main.tsx:21-26`, `useRigController.ts`, `scene/*`, `useVizijAssetLoader.ts`, `FaceBoundsSection.tsx`, …)                                               | stays                                                                                                                                                     |
-| `@vizij/runtime` direct (`profile`, `profiles`, `standardProfile*`, `skills`, `skillSource`, `startRuntime`, `composeVizij`)                                                                | stays; `^6.0.0`; `standardProfile*` → `mapping*`                                                                                                          |
+| `@vizij/runtime` direct (`profile`, `profiles`, `standardProfile*`, `skills`, `skillSource`, `startRuntime`, `composeVizij`)                                                                | stays; `^8.0.0`; `standardProfile*` → `mapping*`                                                                                                          |
 | `three` in `scene/sceneEditing.ts`, `animationBake/*`                                                                                                                                       | stays (maths and clip building, not rendering)                                                                                                            |
 
 Noted for VIZ-148: `useVizijExport.ts:627,736` and `utils/rigRoundtripAudit.ts:118`
@@ -494,17 +495,17 @@ look values up under `getLookup(faceId, id)`, while scene editing writes them
 under `getLookup(DEFAULT_NAMESPACE, id)`; the headless export reads one of
 them.
 
-## 7. What the apps rely on from `@vizij/runtime` 6
+## 7. What the apps rely on from `@vizij/runtime`
 
 Each is a capability an app depends on; none is worked around in an app.
 
-| Capability                                                                                                                                                                                | Needed by                                                                                 |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Any slot rectangle.** `placeVizij` frames the face on the whole rectangle and draws the part on the canvas; an empty rectangle, or one wholly off the canvas, draws nothing.            | vizij-showcase (five slots on a scrolling page); any slot that scrolls; a slot unmounting |
-| **A program's output keys.** `outputKeys(graph)` lists the keys a run of `graph` writes and leaves holding when halted: what `reset_keys` takes to return them to rest.                   | demo-vizij-player `ProgramsPanel.tsx:139`; authoring `Viewer.tsx:543-569`                 |
-| **Graph ids.** `describe(glb).graphs` is `[{ id, kind }]`.                                                                                                                                | demo-vizij-player `lib/bundleSummary.ts:65-68`                                            |
-| **Typed standard controls.** `listKeys` reports each `standard/vizij/*` input as an `f32` resting at the profile's rest.                                                                  | `useAnimateValue` on a key nothing has written yet                                        |
-| **A bounded change backlog.** What `drainChanges` has not handed over is held as the latest value per key (6.1.1), so a drain is the net change since the previous one, however long ago. | The provider, which drains only while a subscriber listens                                |
+| Capability                                                                                                                                                                                      | Needed by                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Any slot rectangle.** `placeVizij` frames the face on the whole rectangle and draws the part on the canvas; an empty rectangle, or one wholly off the canvas, draws nothing.                  | vizij-showcase (five slots on a scrolling page); any slot that scrolls; a slot unmounting |
+| **A program's output keys.** `outputKeys(graph)` lists the keys a run of `graph` writes and leaves holding when halted: what `reset_keys` takes to return them to rest.                         | demo-vizij-player `ProgramsPanel.tsx:139`; authoring `Viewer.tsx:543-569`                 |
+| **Graph ids.** `describe(glb).graphs` is `[{ id, kind }]`.                                                                                                                                      | demo-vizij-player `lib/bundleSummary.ts:65-68`                                            |
+| **Typed standard controls.** `listKeys` reports each `standard/vizij/*` input as an `f32` resting at the profile's rest.                                                                        | `useAnimateValue` on a key nothing has written yet                                        |
+| **A bounded change backlog.** What `drainChanges` has not handed over is held as the latest value per key (since 6.1.1), so a drain is the net change since the previous one, however long ago. | The provider, which drains only while a subscriber listens                                |
 
 Also checked: placing a face before it loads works (the placement is stored by
 id); `setView` before load is documented; the animation transport the apps
@@ -515,7 +516,7 @@ use exists (`play`, `pause`, `stop`, `seek`, `set_loop`, `set_speed`,
 
 ## 8. The standalone and the shipped faces
 
-- `apps/vizij-standalone` is on `@vizij/runtime` 5 directly
+- `apps/vizij-standalone` is on `@vizij/runtime` 8 directly
   ([#141](https://github.com/vizij-ai/vizij-web/pull/141)), with no
   `runtime-react` dependency. It writes expressions as the vizij standard's
   weights ([#142](https://github.com/vizij-ai/vizij-web/pull/142)).
@@ -541,7 +542,7 @@ use exists (`play`, `pause`, `stop`, `seek`, `set_loop`, `set_speed`,
 exporter, the faces' adaptations and the standalone on runtime 5 are in). One
 pull request per package or app goes into it, in this order:
 
-1. **`@vizij/render` 1.0** (section 3): changeset `major`.
+1. **`@vizij/render` 2.0** (section 3): changeset `major`.
 2. **`@vizij/runtime-react` 1.0** (section 5), with this document: changeset
    `major`.
 3. **`@vizij/speech-react` deleted**: the package directory, its
@@ -606,17 +607,16 @@ links); the website's guidebook sync (`vizij-ai.github.io`,
 
 ### 9.4 npm
 
-- `@vizij/render` 1.0.0 and `@vizij/runtime-react` 1.0.0: from their
+- `@vizij/render` 2.0.0 and `@vizij/runtime-react` 1.0.0: from their
   changesets, published by `publish-npm.yml` when the Version Packages PR
   merges.
 - `@vizij/speech-react`: `npm deprecate @vizij/speech-react "<message>"` (a
   manual step for Victor); no further version.
-- `@vizij/runtime`: `@vizij/runtime-react` requires `^6.1.1`; the other packages
-  and the apps require `^6.0.0`.
-- `@vizij/render` has a pending `major` changeset on `main` already (the
-  headless exporter, [#134](https://github.com/vizij-ai/vizij-web/pull/134)).
-  Released before the integration branch merges, it publishes as 1.0.0 and the
-  faces-as-slots release becomes 2.0.0; released together, both are 1.0.0.
+- `@vizij/runtime`: `@vizij/render` and `@vizij/runtime-react` take `^8.0.0` as a
+  peer, and the apps require `^8.0.0`.
+- `@vizij/render` 1.0.0 is the headless exporter's release from `main`
+  ([#134](https://github.com/vizij-ai/vizij-web/pull/134)), so the faces-as-slots
+  release is 2.0.0.
 
 ## 10. Decisions
 
