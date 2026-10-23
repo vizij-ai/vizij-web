@@ -1,5 +1,11 @@
 # vizij-standalone
 
+## 0.3.1
+
+### Patch Changes
+
+- 5c8df57: The page runs on `@vizij/runtime` 8.
+
 ## 0.3.0
 
 ### Minor Changes
