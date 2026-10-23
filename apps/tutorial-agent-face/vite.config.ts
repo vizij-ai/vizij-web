@@ -26,7 +26,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/runtime", "@vizij/animation-module"],
+    exclude: ["@vizij/runtime"],
     include: ["@vizij/render"],
   },
 });

@@ -84,7 +84,7 @@ async function showTimeline(
   previous: LoadedTimeline | null,
   animation: Animation,
 ): Promise<LoadedTimeline> {
-  // `load_animation`'s `clip`: the module's `AnimationClip` as an Arora value.
+  // `load_clip`'s `clip`: the module's `Clip` (format 2.0) as an Arora value.
   const moduleAnimation = runtime.moduleAnimation(animation)
     .moduleAnimation as ValueInput;
   const keys = animation.tracks.map((track) => runtime.path(track.channel));
@@ -93,7 +93,7 @@ async function showTimeline(
   if (existing) {
     // Issued together: the device applies them in order.
     await Promise.all([
-      runtime.invoke("reload_animation", {
+      runtime.invoke("reload_clip", {
         anim: existing.anim,
         clip: moduleAnimation,
       }),
@@ -116,10 +116,10 @@ async function showTimeline(
     };
   }
   const [loadedAnim, createdPlayer] = await Promise.all([
-    runtime.invoke("load_animation", { clip: moduleAnimation }),
+    runtime.invoke("load_clip", { clip: moduleAnimation }),
     runtime.invoke("create_player", { name: AUTHORED_TIMELINE_CLIP_ID }),
   ]);
-  const anim = asU32(loadedAnim, "load_animation");
+  const anim = asU32(loadedAnim, "load_clip");
   const player = asU32(createdPlayer, "create_player");
   const instance = asU32(
     await runtime.invoke("add_instance_with_weight", {

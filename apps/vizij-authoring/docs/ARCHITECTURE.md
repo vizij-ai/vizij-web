@@ -37,13 +37,16 @@ there is no second evaluator to drift from the device. What that takes:
    `src/components/app/Viewer.tsx`). The device keeps its runs, its animation
    players and its store.
 3. **No separate preview stepper.** The timeline's clip compiles to clip IR,
-   then to the animation module's `Animation`
-   (`src/utils/animationClipCompiler.ts`), and loads into the device's
-   animation module on the timeline's player: `load_animation` once,
-   `reload_animation` on each edit, so the playhead and the playback state stay
-   (`src/hooks/useAnimationTransport.ts`). Play, pause, stop, seek, loop and
-   speed are the module's transport, the interpolation is the module's, and
-   the panel shows the player state the device reports (`decodePlayerStates`).
+   then to `@vizij/runtime`'s `Animation`, keyframe tangents included
+   (`src/utils/animationClipCompiler.ts`). `runtime.moduleAnimation` turns
+   that into Arora's animation module's `Clip`, which loads on the timeline's
+   player: `load_clip` once, `reload_clip` on each edit, so the playhead and
+   the playback state stay (`src/hooks/useAnimationTransport.ts`). Play,
+   pause, stop, seek, loop and speed are the module's transport. The module
+   interpolates as the timeline draws (`sampleTrackAt`): a `cubic` segment is
+   glTF's `CUBICSPLINE` Hermite on the keyframes' tangents, the chord slope
+   where one is absent. The panel shows the player state the device reports
+   (`decodePlayerStates`).
    With no face loaded the transport plays nothing. The bridge is mounted with
    the viewport, not with the timeline panel, so showing or hiding the panel
    leaves the device and its player as they are.

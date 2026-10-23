@@ -39,7 +39,7 @@
   },
   "peerDependencies": {
     "@vizij/render": "workspace:^",
-    "@vizij/runtime": "^7.0.0",
+    "@vizij/runtime": "^8.0.0",
     "react": ">=18"
   },
   "devDependencies": {
@@ -48,7 +48,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vizij/render": "workspace:^",
-    "@vizij/runtime": "^7.2.0",
+    "@vizij/runtime": "^8.0.0",
     "jsdom": "^24.1.3",
     "prettier": "^3.4.2",
     "react": "^19.2.3",

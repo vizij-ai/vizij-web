@@ -100,13 +100,9 @@ the full intent-to-call table is section 4 of `DESIGN-1.0.md`.
   `vizij-authoring` and `demo-graph-studio`.
 - **`@vizij/node-graph-react`**: React provider and hooks over
   `@vizij/node-graph`; `compat.tsx` follows that package's ABI. Used by
-  `vizij-authoring`, `demo-graph-studio`, `minimal-demo-graph` and
-  `minimal-demo-animation-graph`.
-- **`@vizij/animation-react`**: React provider over `@vizij/animation`. Used
-  by `demo-animation-studio`, `minimal-demo-animation` and
-  `minimal-demo-animation-graph`.
-- **`@vizij/minimal-demo-ui`** (private): shared chrome for the minimal
-  demos.
+  `vizij-authoring`, `demo-graph-studio` and `minimal-demo-graph`.
+- **`@vizij/minimal-demo-ui`** (private): shared chrome for
+  `minimal-demo-graph`.
 
 Each package exports from its `src/index.ts` (or `index.tsx`) only and builds
 with `tsup` into `dist/`. A change to a package's API updates the apps that
@@ -125,10 +121,9 @@ The face apps run on `@vizij/runtime`:
 | `tutorial-fullscreen-face` (`fullscreen-face`) | The smallest React app driving a face.                                                                |
 | `tutorial-agent-face`                          | A face wired to a live Gemini agent.                                                                  |
 
-The engine demos run the `@vizij/animation` and `@vizij/node-graph` engines,
-with no face: `demo-animation-studio`, `demo-graph-studio`,
-`minimal-demo-animation`, `minimal-demo-graph` and
-`minimal-demo-animation-graph`.
+The engine demos run the `@vizij/node-graph` engine, with no face:
+`demo-graph-studio` and `minimal-demo-graph`. A face's animations play in
+`@vizij/runtime`, through Arora's animation module.
 
 The face apps load their sample face, Quori, from
 [`apps/vizij-authoring/public/assets`](apps/vizij-authoring/public/assets)
@@ -159,7 +154,6 @@ takes them from npm by version range:
 | ------------------- | ----------------------------------------------------------------------------- |
 | `@vizij/runtime`    | The Bevy view and the face's Arora device: everything an app calls on a face. |
 | `@vizij/node-graph` | The node-graph engine: the authoring app's graph tooling and the graph demos. |
-| `@vizij/animation`  | The animation engine of the animation demos.                                  |
 | `@vizij/value-json` | The value codecs the engines and their React bindings share.                  |
 
 A capability vizij-web needs from a face lands in vizij-rs first; once

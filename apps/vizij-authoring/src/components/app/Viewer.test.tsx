@@ -27,7 +27,7 @@ const device = vi.hoisted(() => ({
   path: (relative: string) => `rig/face/${relative}`,
   loadGraph: vi.fn(async (_spec: unknown) => undefined),
   invoke: vi.fn(async (method: string, _args?: unknown) =>
-    method === "load_animation"
+    method === "load_clip"
       ? { u32: 3 }
       : method === "create_player"
         ? { u32: 7 }
@@ -266,7 +266,7 @@ describe("Viewer", () => {
     await settle();
 
     expect(device.invoke.mock.calls).toEqual([
-      ["load_animation", { clip: expect.anything() }],
+      ["load_clip", { clip: expect.anything() }],
       ["create_player", { name: AUTHORED_TIMELINE_CLIP_ID }],
       [
         "add_instance_with_weight",
@@ -280,7 +280,7 @@ describe("Viewer", () => {
     await settle();
 
     expect(device.invoke.mock.calls).toEqual([
-      ["reload_animation", { anim: { u32: 3 }, clip: expect.anything() }],
+      ["reload_clip", { anim: { u32: 3 }, clip: expect.anything() }],
     ]);
   });
 
@@ -294,10 +294,10 @@ describe("Viewer", () => {
     await settle();
 
     expect(methodsInvoked()).toEqual([
-      "load_animation",
+      "load_clip",
       "create_player",
       "add_instance_with_weight",
-      "reload_animation",
+      "reload_clip",
     ]);
     const reloaded = device.invoke.mock.calls.at(-1)?.[1] as {
       clip: {
