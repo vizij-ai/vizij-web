@@ -1,5 +1,23 @@
 # @vizij/runtime-react
 
+## 1.0.0
+
+### Major Changes
+
+- 904af72: The provider binds one `@vizij/runtime` face to a React tree and hands out its `Runtime` unwrapped; the package adds only React plumbing. The peer dependencies are `@vizij/runtime` `^8.0.0`, the version the package is built and tested against, `@vizij/render` 2 and `react` `>=18`, and it has no other dependency. `@vizij/runtime` and `@vizij/render` are peers so that a page resolves one copy of each: one wasm module, one page canvas.
+  - `<VizijRuntimeProvider glb vizijId? options? run?>` fetches the GLB (a URL, a `Blob` or bytes), reads it with `describe`, waits for the page's `<VizijCanvas>`, loads the face with `loadVizij` and steps its device: once per animation frame while the page is visible, and on a timer while it is hidden, which the timer keeps doing until the first frame after the page returns (`run={false}` leaves stepping to the page). A new `glb` reloads the face in place, its previous scene drawing until the new one is ready; unmounting stops, unloads and disposes it. `glb={null}` takes the face down and keeps the children mounted, which see no face (`useOptionalVizijRuntime()` is `null`), so a page whose face comes and goes keeps its tree, and its state, across loads. These props replace `assetBundle`, `namespace`, `faceId`, `updateTier`, `autoCreate`, `autostart`, `driveRuntime`, `mergeStrategy`, `onRegisterControllers`, `onStatusChange` and `transformOutputWrite`.
+  - `useVizijRuntime()` returns `{ vizijId, status, error, behaviorError, runtime, description }`. `status` is `loading` until the face is drawn, however long that takes — a software GPU compiles a face's pipelines for a minute or more — then `ready`, and `loading` again while a new `glb` loads; `error` when loading failed. A face unmounted or replaced before it is drawn is taken down at once. `runtime` is `@vizij/runtime`'s `Runtime`, and every device operation — `setValue`, `writeValues`, `readValues`, `invoke` (skills, programs, animations, `reset`), `halt`, `listKeys` — is called on it. `description` is `describe(glb)`.
+  - The provider reports its face's stages for the loading view of the face's slot (`@vizij/render`'s `setVizijProgress`): the GLB's bytes as they arrive, `loadVizij`, then the first frame.
+  - `useVizijValues(paths)` and `useVizijChanges(listener)` read the store's changes, which the provider drains as the one caller of `drainChanges`: once per animation frame while one of them listens, and not at all otherwise. The runtime holds what is not drained as the latest value per key, so a batch is the net change since the previous drain.
+  - `useAnimateValue()` returns `{ animateValue(path, target, options), cancelAnimation(path) }`: a JS tween towards a number, written in the numeric kind the key holds, or rests at before anything writes it.
+  - `<VizijRuntimeFace>` is `@vizij/render`'s `<Vizij>` slot bound to the provider's face, and takes `<Vizij>`'s props but `vizijId`; `namespaceOverride` is removed.
+  - The device composes, plays and paces the face itself, so the JS layers that did it in the page are removed: the value mirror into the render store, the JS graph composer (`composeGraphSpecs`, `collectInputPathMap`, `resolveAnimationBridgeOutputPaths`, `resolveRuntimeUpdatePlan`), the bundle extraction and merge, neutral staging, the `namespace/` prefix, the guest-module loader, the JS clip pipeline, the context's calls (`setInput`, `getValueSnapshot`, `subscribeToStep`, `registerInputDriver`, the animation and program calls), `useVizijOutputs`, `useRigInput`, the face-control and pose-path helpers (`resolveFaceControls`, `buildRigInputPath`, `buildPoseWeightPathMap`, …) and the `VizijAssetBundle` types. `DESIGN-1.0.md` maps each to its replacement.
+
+### Patch Changes
+
+- Updated dependencies [8eb2bfd]
+  - @vizij/render@2.0.0
+
 ## 0.4.2
 
 ### Patch Changes
