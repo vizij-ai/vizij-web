@@ -1,126 +1,159 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { VizijAnimationAsset } from "@vizij/runtime-react";
-import { useOptionalVizijRuntime, useVizijRuntime } from "@vizij/runtime-react";
-import { useBindingAuthoring } from "../state/RigControllerProvider";
 import {
-  useAnimationStore,
-  type AnimationRuntimeTransportAdapter,
-} from "../state/animationStore";
+  ANIMATION_PLAYERS_PATH,
+  decodePlayerStates,
+  type Animation,
+  type Runtime,
+  type ValueInput,
+} from "@vizij/runtime";
+import {
+  useOptionalVizijRuntime,
+  useVizijChanges,
+  useVizijRuntime,
+} from "@vizij/runtime-react";
+import { useBindingAuthoring } from "../state/RigControllerProvider";
+import { useAnimationStore } from "../state/animationStore";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_CLIP_NAME,
-  LEGACY_AUTHORED_TIMELINE_CLIP_ID,
   type AnimationClipIR,
 } from "../types/animationClipIr";
-import { clipIrToBundleAnimationEntry } from "../utils/animationClipCompiler";
+import { clipIrToAnimation } from "../utils/animationClipCompiler";
 import { ANIMATION_STEP_SECONDS, nextStepTime } from "./animationStepMath";
+import {
+  pauseTimeline,
+  playTimeline,
+  seekTimeline,
+  setTimelineLoop,
+  setTimelineSpeed,
+  shownTimeline,
+  stopTimeline,
+  timelinePlayer,
+} from "./timelinePlayer";
 
-/**
- * Millisecond precision, which is what a clip's timings survive.
- *
- * The runtime stores a clip's duration as integer milliseconds
- * (`toStoredAnimationClip`), so a duration like `21.958334` comes back as
- * `21.958`. Comparing signatures by exact equality then never converges:
- * `transportRuntimeReady` never latches, the bridge re-applies the bundle on
- * every change, and playback restarts in a loop. Rounding both sides to the
- * precision the wire format actually preserves is what makes the comparison
- * mean "has the runtime caught up", rather than "are these bit-identical".
- */
-const SIGNATURE_DECIMALS = 3;
+/** The timeline's clip on one device: the animation, the player and the
+ * instance the module gave it, and whether the instance has a weight. */
+interface LoadedTimeline {
+  runtime: Runtime;
+  /** The clip the player holds. */
+  animation: Animation;
+  anim: { u32: number };
+  player: { u32: number };
+  instance: { u32: number };
+  /** The keys the clip's tracks name, which go back to rest when the
+   * timeline is silenced. */
+  keys: string[];
+  audible: boolean;
+}
 
-function roundForSignature(value: number): number {
-  if (!Number.isFinite(value)) {
-    return value;
+function asU32(value: unknown, what: string): { u32: number } {
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { u32?: unknown }).u32 === "number"
+  ) {
+    return { u32: (value as { u32: number }).u32 };
   }
-  const factor = 10 ** SIGNATURE_DECIMALS;
-  return Math.round(value * factor) / factor;
+  throw new Error(`${what} returned ${JSON.stringify(value)}, not a u32`);
 }
 
-export function toDeterministicSignature(value: unknown): string {
-  const seen = new WeakSet<object>();
-  return JSON.stringify(value, (_key, currentValue) => {
-    if (typeof currentValue === "number") {
-      return roundForSignature(currentValue);
-    }
-    if (!currentValue || typeof currentValue !== "object") {
-      return currentValue;
-    }
-    if (seen.has(currentValue as object)) {
-      return "[Circular]";
-    }
-    seen.add(currentValue as object);
-    if (Array.isArray(currentValue)) {
-      return currentValue;
-    }
-    const record = currentValue as Record<string, unknown>;
-    const sorted: Record<string, unknown> = {};
-    Object.keys(record)
-      .sort((left, right) => left.localeCompare(right))
-      .forEach((key) => {
-        sorted[key] = record[key];
-      });
-    return sorted;
-  });
-}
-
-function isAuthoredTimelineAnimation(animation: VizijAnimationAsset): boolean {
-  return (
-    animation.id === AUTHORED_TIMELINE_CLIP_ID ||
-    animation.id === LEGACY_AUTHORED_TIMELINE_CLIP_ID
-  );
-}
-
-function normalizeAnimationInputPath(path: string | undefined): string {
-  return (path ?? "").trim().replace(/^\/+/, "");
-}
-
-function hasAnimationTracks(animation: VizijAnimationAsset): boolean {
-  const tracks = (animation.clip as { tracks?: unknown[] } | undefined)?.tracks;
-  return Array.isArray(tracks) && tracks.length > 0;
+/** The timeline's player the device already has — the face's own copy of the
+ * timeline, loaded with the face — or `null`. */
+function existingTimeline(
+  runtime: Runtime,
+): Pick<LoadedTimeline, "anim" | "player" | "instance"> | null {
+  const player = timelinePlayer(runtime);
+  const instance = player?.instances[0];
+  return player && instance
+    ? {
+        anim: { u32: instance.anim },
+        player: { u32: player.player },
+        instance: { u32: instance.instance },
+      }
+    : null;
 }
 
 /**
- * Project what the runtime holds into the same shape `mergedAnimations` is
- * built in, so the two signatures can actually be compared.
- *
- * Exported for its own test: comparing the raw runtime list against the merged
- * one could never succeed, and the failure was silent — the transport simply
- * never reported ready and every Play did nothing.
+ * Put `animation` on the timeline's player, at weight 1: in place when the
+ * device already has the player — the face's own copy of the timeline, or
+ * this bridge's — else on a new animation, player and instance.
  */
-export function selectComparableRuntimeAnimations(
-  animations: ReadonlyArray<VizijAnimationAsset>,
-  hasAuthoredAnimation: boolean,
-): VizijAnimationAsset[] {
-  const kept = animations.filter((animation) =>
-    isAuthoredTimelineAnimation(animation)
-      ? hasAuthoredAnimation
-      : hasAnimationTracks(animation),
+async function showTimeline(
+  runtime: Runtime,
+  previous: LoadedTimeline | null,
+  animation: Animation,
+): Promise<LoadedTimeline> {
+  // `load_clip`'s `clip`: the module's `Clip` (format 2.0) as an Arora value.
+  const moduleAnimation = runtime.moduleAnimation(animation)
+    .moduleAnimation as ValueInput;
+  const keys = animation.tracks.map((track) => runtime.path(track.channel));
+  const mine = previous?.runtime === runtime ? previous : null;
+  const existing = mine ?? existingTimeline(runtime);
+  if (existing) {
+    // Issued together: the device applies them in order.
+    await Promise.all([
+      runtime.invoke("reload_clip", {
+        anim: existing.anim,
+        clip: moduleAnimation,
+      }),
+      mine?.audible
+        ? undefined
+        : runtime.invoke("set_weight", {
+            player: existing.player,
+            instance: existing.instance,
+            weight: { f32: 1 },
+          }),
+    ]);
+    return {
+      runtime,
+      animation,
+      anim: existing.anim,
+      player: existing.player,
+      instance: existing.instance,
+      keys,
+      audible: true,
+    };
+  }
+  const [loadedAnim, createdPlayer] = await Promise.all([
+    runtime.invoke("load_clip", { clip: moduleAnimation }),
+    runtime.invoke("create_player", { name: AUTHORED_TIMELINE_CLIP_ID }),
+  ]);
+  const anim = asU32(loadedAnim, "load_clip");
+  const player = asU32(createdPlayer, "create_player");
+  const instance = asU32(
+    await runtime.invoke("add_instance_with_weight", {
+      player,
+      anim,
+      weight: { f32: 1 },
+    }),
+    "add_instance_with_weight",
   );
-  return [...kept].sort((left, right) => left.id.localeCompare(right.id));
+  return { runtime, animation, anim, player, instance, keys, audible: true };
 }
 
-function muteAnimationClip(
-  animation: VizijAnimationAsset,
-): VizijAnimationAsset {
-  const sourceClip =
-    animation.clip && typeof animation.clip === "object"
-      ? (animation.clip as Record<string, unknown>)
-      : {};
-  const clipId =
-    typeof sourceClip.id === "string" && sourceClip.id.trim().length > 0
-      ? sourceClip.id
-      : animation.id;
-  return {
-    id: animation.id,
-    clip: {
-      ...sourceClip,
-      id: clipId,
-      tracks: [],
-    } as VizijAnimationAsset["clip"],
-  };
+/** Stop the timeline, take its weight away and return its keys to rest. */
+async function silenceTimeline(loaded: LoadedTimeline): Promise<void> {
+  const { runtime, player, instance, keys } = loaded;
+  await Promise.all([
+    runtime.invoke("stop", { player }),
+    runtime.invoke("set_weight", { player, instance, weight: { f32: 0 } }),
+    runtime.invoke("reset_keys", { keys: { strs: keys } }),
+  ]);
 }
 
+/**
+ * The timeline on the main face's device. The clip — `clip`, or the editor's
+ * own when none is given — plays on the timeline's player (`timelinePlayer`),
+ * reloaded in place on every edit so the playhead and the playback state
+ * stay; a new device (the face reloaded) gets it again where the transport
+ * stands. Inactive, the timeline is stopped, silent, and its keys are at
+ * rest.
+ *
+ * The transport store follows the player as the device reports it, once per
+ * frame, and `transportRuntimeReady` says whether the device holds the
+ * current clip.
+ */
 export function AnimationRuntimeBridge({
   active = true,
   clip = null,
@@ -130,26 +163,7 @@ export function AnimationRuntimeBridge({
   clip?: AnimationClipIR | null;
   transportSessionKey?: number;
 }) {
-  const runtime = useVizijRuntime();
-  const runtimeRootId = runtime.rootId ?? null;
-  // `?? []` mints a new array on every render whenever the bundle carries no
-  // animations, which defeats every memo downstream of it — the same
-  // "new identity each render" shape behind three render loops in this area.
-  const bundleAnimations = runtime.assetBundle?.animations;
-  const assetBundleAnimations = useMemo(
-    () => bundleAnimations ?? [],
-    [bundleAnimations],
-  );
-  const setGraphBundle =
-    typeof runtime.setGraphBundle === "function"
-      ? runtime.setGraphBundle
-      : null;
-  const getAnimationState =
-    typeof runtime.getAnimationState === "function"
-      ? runtime.getAnimationState
-      : null;
-  const seekAnimation =
-    typeof runtime.seekAnimation === "function" ? runtime.seekAnimation : null;
+  const { runtime } = useVizijRuntime();
   const standardInputsById = useBindingAuthoring(
     (state) => state.standardInputsById,
   );
@@ -161,14 +175,9 @@ export function AnimationRuntimeBridge({
   const setTransportRuntimeReady = useAnimationStore(
     (state) => state.setTransportRuntimeReady,
   );
-  const setRuntimeTransportAdapter = useAnimationStore(
-    (state) => state.setRuntimeTransportAdapter,
-  );
   const setTransportEnabled = useAnimationStore(
     (state) => state.setTransportEnabled,
   );
-  const currentTime = useAnimationStore((state) => state.currentTime);
-  const transportActive = useAnimationStore((state) => state.transportActive);
   const editorClip = useMemo(
     () =>
       tracks.length > 0
@@ -180,339 +189,115 @@ export function AnimationRuntimeBridge({
     [exportClipIr, tracks],
   );
   const authoredClip = clip ?? editorClip;
-
-  const authoredAnimation = useMemo<VizijAnimationAsset | null>(() => {
-    if (!active || !authoredClip) {
-      return null;
-    }
-    const bundleEntry = clipIrToBundleAnimationEntry(authoredClip, {
-      standardInputsById,
-    });
-    return {
-      id: bundleEntry.id,
-      clip: bundleEntry.clip,
-    };
-  }, [active, authoredClip, standardInputsById]);
-  const authoredOutputPaths = useMemo(() => {
-    if (!authoredClip) {
-      return [];
-    }
-    const paths = new Set<string>();
-    authoredClip.tracks.forEach((track) => {
-      const resolvedPath =
-        normalizeAnimationInputPath(track.channel) ||
-        normalizeAnimationInputPath(track.variableId);
-      if (resolvedPath.length > 0) {
-        paths.add(resolvedPath);
-      }
-    });
-    return Array.from(paths);
-  }, [authoredClip]);
-
-  const inheritedAssetAnimations = useMemo(
+  const animation = useMemo<Animation | null>(
     () =>
-      assetBundleAnimations.filter(
-        (animation: VizijAnimationAsset) =>
-          !isAuthoredTimelineAnimation(animation),
-      ),
-    [assetBundleAnimations],
+      active && authoredClip
+        ? clipIrToAnimation(authoredClip, { standardInputsById })
+        : null,
+    [active, authoredClip, standardInputsById],
   );
-  const playableInheritedAssetAnimations = useMemo(
-    () =>
-      inheritedAssetAnimations.filter((animation) =>
-        hasAnimationTracks(animation),
-      ),
-    [inheritedAssetAnimations],
-  );
-  const inheritedAssetAnimationSignature = useMemo(
-    () => toDeterministicSignature(playableInheritedAssetAnimations),
-    [playableInheritedAssetAnimations],
-  );
-  const cachedInheritedAnimationsRef = useRef<VizijAnimationAsset[]>([]);
-  const cachedInheritedRootIdRef = useRef<string | null>(runtimeRootId);
 
-  useEffect(() => {
-    if (cachedInheritedRootIdRef.current !== runtimeRootId) {
-      cachedInheritedRootIdRef.current = runtimeRootId;
-      cachedInheritedAnimationsRef.current = [];
-    }
-  }, [runtimeRootId]);
+  const loaded = useRef<LoadedTimeline | null>(null);
+  /** What the device should hold: the latest clip, device and session. */
+  const wanted = useRef<{
+    runtime: Runtime | null;
+    animation: Animation | null;
+    sessionKey: number | undefined;
+  }>({ runtime: null, animation: null, sessionKey: transportSessionKey });
+  const syncing = useRef(false);
+  /**
+   * Whether the transport follows what the device reports: from when the
+   * device first holds the session's clip. Before that, a report shows the
+   * player as the face loaded it, and would undo a seek made before Play.
+   */
+  const following = useRef(false);
 
-  useEffect(() => {
-    if (playableInheritedAssetAnimations.length === 0) {
+  /**
+   * Bring the device to what `wanted` says, one operation at a time — a
+   * reload lands after the load that made the animation it names — and to
+   * the latest wish only: clips that change while an operation runs are
+   * skipped over, not loaded in turn.
+   */
+  const sync = useCallback(async () => {
+    if (syncing.current) {
       return;
     }
-    cachedInheritedAnimationsRef.current = playableInheritedAssetAnimations;
-  }, [inheritedAssetAnimationSignature, playableInheritedAssetAnimations]);
-
-  const currentAnimations = useMemo(
-    () =>
-      [...assetBundleAnimations].sort((left, right) =>
-        left.id.localeCompare(right.id),
-      ),
-    [assetBundleAnimations],
-  );
-
-  const mergedAnimations = useMemo(() => {
-    if (!active) {
-      const toMute =
-        currentAnimations.length > 0
-          ? currentAnimations
-          : cachedInheritedAnimationsRef.current;
-      const muted = toMute.map((animation) => muteAnimationClip(animation));
-      return [...muted].sort((left, right) => left.id.localeCompare(right.id));
+    syncing.current = true;
+    try {
+      for (;;) {
+        const { runtime, animation } = wanted.current;
+        const previous = loaded.current;
+        if (!runtime) {
+          return;
+        }
+        if (animation) {
+          if (
+            previous?.runtime !== runtime ||
+            previous.animation !== animation ||
+            !previous.audible
+          ) {
+            const next = await showTimeline(runtime, previous, animation);
+            loaded.current = next;
+            if (previous?.runtime !== runtime) {
+              // The face's device is new: put the playhead back where the
+              // transport stands, playing if it was.
+              const {
+                currentTime,
+                isPlaying,
+                loop,
+                playSpeed,
+                transportActive,
+              } = useAnimationStore.getState();
+              if (isPlaying) {
+                await playTimeline(runtime, {
+                  time: currentTime,
+                  loop,
+                  speed: playSpeed,
+                });
+              } else if (transportActive) {
+                await seekTimeline(runtime, currentTime);
+              }
+            }
+          }
+        } else if (previous?.runtime === runtime && previous.audible) {
+          loaded.current = { ...previous, audible: false };
+          await silenceTimeline(previous);
+        }
+        const now = wanted.current;
+        if (now.runtime === runtime && now.animation === animation) {
+          if (animation) {
+            following.current = true;
+            setTransportRuntimeReady(true, now.sessionKey);
+          }
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("[vizij-authoring] the timeline's clip failed", error);
+    } finally {
+      syncing.current = false;
     }
-    const inherited =
-      playableInheritedAssetAnimations.length > 0
-        ? playableInheritedAssetAnimations
-        : cachedInheritedAnimationsRef.current;
-    const next = authoredAnimation
-      ? [...inherited, authoredAnimation]
-      : inherited;
-    return [...next].sort((left, right) => left.id.localeCompare(right.id));
-  }, [
-    active,
-    authoredAnimation,
-    currentAnimations,
-    playableInheritedAssetAnimations,
-  ]);
-
-  /**
-   * What the runtime holds, projected the way `mergedAnimations` is built.
-   *
-   * The two signatures are compared to decide whether the runtime has caught
-   * up, and comparing the raw list against the merged one could never succeed:
-   * `mergedAnimations` drops inherited clips with no tracks, so any track-less
-   * clip in the runtime — an authored clip whose tracks were removed, an
-   * import that resolved to nothing — sat on one side of the comparison
-   * forever. `transportRuntimeReady` then stayed false for the rest of the
-   * session and every Play silently did nothing, because App's play effect
-   * bails on exactly that flag.
-   *
-   * The authored clip is kept or dropped to match whether `mergedAnimations`
-   * will contribute one, since it is added there regardless of its track
-   * count.
-   */
-  const comparableCurrentAnimations = useMemo(
-    () =>
-      selectComparableRuntimeAnimations(
-        currentAnimations,
-        Boolean(authoredAnimation),
-      ),
-    [authoredAnimation, currentAnimations],
-  );
-
-  const currentAnimationSignature = useMemo(
-    () => toDeterministicSignature(comparableCurrentAnimations),
-    [comparableCurrentAnimations],
-  );
-  const mergedAnimationSignature = useMemo(
-    () => toDeterministicSignature(mergedAnimations),
-    [mergedAnimations],
-  );
-  /**
-   * Built from the individual transport methods, not from the runtime object.
-   *
-   * `runtime` is the provider's context value and gets a new identity on every
-   * provider render — which, while a program is playing, is every frame. The
-   * effect below listed `runtime` as a dependency and wrote a fresh adapter
-   * object into the store each time it ran, and the store's guard compares by
-   * identity, so every frame produced a state change, another render, and
-   * another run: "Maximum update depth exceeded", the React tree unmounted,
-   * and the app went blank the moment a program started playing. The methods
-   * themselves are `useCallback`s in the provider and stable across those
-   * renders.
-   */
-  /**
-   * A stable façade over the runtime's transport, delegating through a ref.
-   *
-   * `runtime` is the provider's context value and its methods are rebuilt on
-   * every provider render — which, while a program is playing, is every frame.
-   * Passing those methods straight into the store meant the stored adapter
-   * changed every frame, and the effect that stores it re-ran on every change:
-   * "Maximum update depth exceeded", React unmounted the tree, and the app
-   * went blank the moment a program started playing. Nothing recovered from
-   * that, so the whole document was empty and every Playwright locator in
-   * `runtime-sessions` failed as "element(s) not found" or hung.
-   *
-   * Delegating keeps one object with one set of methods for the lifetime of
-   * the hook, so the store is written once however often the provider
-   * re-renders.
-   */
-  const runtimeRef = useRef(runtime);
-  runtimeRef.current = runtime;
-
-  const hasRuntimeTransport =
-    typeof runtime.playAnimation === "function" &&
-    typeof runtime.pauseAnimation === "function" &&
-    typeof runtime.stopAnimation === "function" &&
-    typeof runtime.seekAnimation === "function" &&
-    typeof runtime.setAnimationLoop === "function" &&
-    typeof runtime.getAnimationState === "function";
-
-  const transportFacade = useMemo<AnimationRuntimeTransportAdapter>(
-    () => ({
-      playAnimation: (...args) => runtimeRef.current.playAnimation!(...args),
-      pauseAnimation: (...args) => runtimeRef.current.pauseAnimation!(...args),
-      stopAnimation: (...args) => runtimeRef.current.stopAnimation!(...args),
-      seekAnimation: (...args) => runtimeRef.current.seekAnimation!(...args),
-      setAnimationLoop: (...args) =>
-        runtimeRef.current.setAnimationLoop!(...args),
-      getAnimationState: (...args) =>
-        runtimeRef.current.getAnimationState!(...args),
-    }),
-    [],
-  );
-
-  const transportAdapter = hasRuntimeTransport ? transportFacade : null;
-
-  const currentTimeRef = useRef(currentTime);
-  const wasActiveRef = useRef(active);
-  const appliedAnimationSignatureRef = useRef<string | null>(null);
-  const lastCurrentAnimationSignatureRef = useRef<string | null>(null);
+  }, [setTransportRuntimeReady]);
 
   useEffect(() => {
-    currentTimeRef.current = currentTime;
-  }, [currentTime]);
-
-  useEffect(() => {
-    // Read from the ref rather than depending on `runtime`. The provider's
-    // context value is a new object on every one of its renders — every frame
-    // while a program plays — and this effect's cleanup sets the stored
-    // adapter to null before the body sets it back, so re-running it per
-    // render is two real state changes per render: an unbreakable loop that
-    // ended in "Maximum update depth exceeded" and an unmounted app.
-    const current = runtimeRef.current;
-    const wasActive = wasActiveRef.current;
-    wasActiveRef.current = active;
     setTransportEnabled(active);
-    if (!active) {
-      setRuntimeTransportAdapter(null);
-      if (wasActive) {
-        if (typeof current.stopAnimation === "function") {
-          current.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-            clearOutputs: true,
-          });
-        } else if (typeof current.pauseAnimation === "function") {
-          current.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
-        }
-        if (typeof current.setInput === "function") {
-          authoredOutputPaths.forEach((path) => {
-            current.setInput(path, { float: 0 });
-          });
-        }
-      }
-      if (typeof current.setAnimationActive === "function") {
-        current.setAnimationActive(false);
-      }
-      syncTransportState(
-        {
-          isPlaying: false,
-          transportActive: false,
-          transportPlaybackState: "stopped",
-        },
-        transportSessionKey,
-      );
-      setTransportRuntimeReady(false, transportSessionKey);
-      return () => {
-        if (typeof current.setAnimationActive === "function") {
-          current.setAnimationActive(true);
-        }
-        setTransportEnabled(true);
-      };
-    }
-    if (typeof current.setAnimationActive === "function") {
-      current.setAnimationActive(true);
-    }
-    if (!transportAdapter) {
-      setRuntimeTransportAdapter(null);
-      setTransportRuntimeReady(false, transportSessionKey);
-      return;
-    }
-    setRuntimeTransportAdapter(transportAdapter);
-    setTransportRuntimeReady(
-      currentAnimationSignature === mergedAnimationSignature,
-      transportSessionKey,
-    );
-    return () => {
-      setRuntimeTransportAdapter(null);
-      if (typeof current.setAnimationActive === "function") {
-        current.setAnimationActive(true);
-      }
-      setTransportEnabled(true);
-    };
-  }, [
-    active,
-    authoredOutputPaths,
-    currentAnimationSignature,
-    mergedAnimationSignature,
-    transportAdapter,
-    setRuntimeTransportAdapter,
-    setTransportEnabled,
-    setTransportRuntimeReady,
-    syncTransportState,
-    transportSessionKey,
-  ]);
+    return () => setTransportEnabled(true);
+  }, [active, setTransportEnabled]);
 
   useEffect(() => {
     if (
-      lastCurrentAnimationSignatureRef.current !== currentAnimationSignature
+      wanted.current.runtime !== runtime ||
+      wanted.current.sessionKey !== transportSessionKey
     ) {
-      lastCurrentAnimationSignatureRef.current = currentAnimationSignature;
-      if (currentAnimationSignature !== mergedAnimationSignature) {
-        // Runtime drifted from the authored signature; allow one controlled
-        // retry for the current merged signature.
-        appliedAnimationSignatureRef.current = null;
-      }
+      following.current = false;
     }
-
-    if (currentAnimationSignature === mergedAnimationSignature) {
-      appliedAnimationSignatureRef.current = mergedAnimationSignature;
-      return;
-    }
-
+    wanted.current = {
+      runtime,
+      animation,
+      sessionKey: transportSessionKey,
+    };
     setTransportRuntimeReady(false, transportSessionKey);
-    if (appliedAnimationSignatureRef.current === mergedAnimationSignature) {
-      return;
-    }
-
-    // Retry bundle application until runtime state converges to the merged
-    // signature. Another bridge update can race and temporarily drop
-    // animations from the runtime bundle.
-    appliedAnimationSignatureRef.current = mergedAnimationSignature;
-    if (setGraphBundle) {
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[timeline][animation-bridge] apply animations", {
-          currentAnimationSignature,
-          mergedAnimationSignature,
-          mergedAnimationIds: mergedAnimations.map((animation) => animation.id),
-          authoredTrackCount: authoredAnimation?.clip?.tracks?.length ?? 0,
-        });
-      }
-      setGraphBundle(
-        {
-          animations: mergedAnimations,
-        },
-        { tier: "graphs" },
-      );
-    }
-    if (transportActive && authoredAnimation && seekAnimation) {
-      seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTimeRef.current);
-    }
-  }, [
-    authoredAnimation,
-    currentAnimationSignature,
-    mergedAnimationSignature,
-    mergedAnimations,
-    seekAnimation,
-    setGraphBundle,
-    setTransportRuntimeReady,
-    transportActive,
-    transportSessionKey,
-  ]);
-
-  useEffect(() => {
-    if (!active) {
+    if (runtime && !animation) {
       syncTransportState(
         {
           isPlaying: false,
@@ -521,75 +306,74 @@ export function AnimationRuntimeBridge({
         },
         transportSessionKey,
       );
-      setTransportRuntimeReady(false, transportSessionKey);
-      return;
     }
-    let frameHandle = 0;
-    const tick = () => {
-      const playbackState = getAnimationState?.(AUTHORED_TIMELINE_CLIP_ID);
-      if (!playbackState) {
-        syncTransportState(
-          {
-            isPlaying: false,
-            transportActive: false,
-            transportPlaybackState: "stopped",
-            // Not while dragging: rewinding to zero under the author's pointer
-            // is the same overwrite in its most abrupt form.
-            ...(useAnimationStore.getState().isScrubbing
-              ? {}
-              : { currentTime: 0 }),
-          },
-          transportSessionKey,
-        );
-      } else {
-        // While the author is dragging, the host owns the clock. Read the flag
-        // imperatively rather than depending on it: this effect must not tear
-        // down and restart its rAF loop when a drag begins.
-        const scrubbing = useAnimationStore.getState().isScrubbing;
-        syncTransportState(
-          {
-            // `currentTime` is deliberately omitted mid-drag. Writing the
-            // engine's time back every frame undid the scrub a frame after it
-            // landed, so the playhead snapped back and the readout never
-            // moved.
-            ...(scrubbing ? {} : { currentTime: playbackState.time }),
-            duration: playbackState.duration,
-            isPlaying: playbackState.playing,
-            loop: playbackState.loop,
-            playSpeed: playbackState.speed,
-            transportActive: true,
-            transportPlaybackState: playbackState.playing
-              ? "playing"
-              : "paused",
-          },
-          transportSessionKey,
-        );
-      }
-      frameHandle = requestAnimationFrame(tick);
-    };
-
-    frameHandle = requestAnimationFrame(tick);
-    return () => {
-      if (frameHandle !== 0) {
-        cancelAnimationFrame(frameHandle);
-      }
-    };
+    void sync();
   }, [
-    active,
-    getAnimationState,
+    animation,
+    runtime,
     setTransportRuntimeReady,
+    sync,
     syncTransportState,
     transportSessionKey,
   ]);
+
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const sessionKeyRef = useRef(transportSessionKey);
+  sessionKeyRef.current = transportSessionKey;
+  useVizijChanges((changes) => {
+    if (
+      !runtime ||
+      !activeRef.current ||
+      !following.current ||
+      !(ANIMATION_PLAYERS_PATH in changes)
+    ) {
+      return;
+    }
+    const player = decodePlayerStates(changes[ANIMATION_PLAYERS_PATH]).find(
+      (state) => state.name === AUTHORED_TIMELINE_CLIP_ID,
+    );
+    // While the author drags the playhead, the drag owns the clock: the
+    // device's time written back each frame would undo the scrub.
+    const scrubbing = useAnimationStore.getState().isScrubbing;
+    if (!player) {
+      syncTransportState(
+        {
+          isPlaying: false,
+          transportActive: false,
+          transportPlaybackState: "stopped",
+          ...(scrubbing ? {} : { currentTime: 0 }),
+        },
+        sessionKeyRef.current,
+      );
+      return;
+    }
+    const { state, time } = shownTimeline(runtime, player);
+    syncTransportState(
+      {
+        ...(scrubbing ? {} : { currentTime: time }),
+        duration: player.duration,
+        isPlaying: state === "playing",
+        loop: player.loopMode !== "once",
+        playSpeed: player.speed,
+        transportActive: true,
+        transportPlaybackState: state,
+      },
+      sessionKeyRef.current,
+    );
+  });
 
   return null;
 }
 
+/**
+ * The animation panel's transport: the timeline's player on the main face's
+ * device when it can drive one — a face is shown, the bridge is active and
+ * the clip has tracks — and the store's own clock otherwise.
+ */
 export function useAnimationTransport() {
-  const runtime = useOptionalVizijRuntime();
-  const runtimeTransportAdapter = useAnimationStore(
-    (state) => state.runtimeTransportAdapter,
-  );
+  const face = useOptionalVizijRuntime();
+  const runtime = face?.runtime ?? null;
   const transportEnabled = useAnimationStore((state) => state.transportEnabled);
   // Selected rather than the whole store: every consumer of this hook would
   // otherwise re-render on any store change, including clip edits it does not
@@ -598,7 +382,6 @@ export function useAnimationTransport() {
     tracks,
     currentTime,
     isPlaying,
-    transportPlaybackState,
     playSpeed,
     loop,
     play,
@@ -612,7 +395,6 @@ export function useAnimationTransport() {
       tracks: state.tracks,
       currentTime: state.currentTime,
       isPlaying: state.isPlaying,
-      transportPlaybackState: state.transportPlaybackState,
       playSpeed: state.playSpeed,
       loop: state.loop,
       play: state.play,
@@ -624,25 +406,18 @@ export function useAnimationTransport() {
     })),
   );
 
-  const runtimeTransport = runtime ?? runtimeTransportAdapter;
-  const hasTracks = tracks.length > 0;
-  const canDrive = transportEnabled && Boolean(runtimeTransport) && hasTracks;
+  const device = transportEnabled && tracks.length > 0 ? runtime : null;
 
   const playTransport = useCallback(() => {
-    if (!canDrive || !runtimeTransport) {
+    if (!device) {
       return;
     }
-    runtimeTransport.setAnimationLoop(AUTHORED_TIMELINE_CLIP_ID, loop);
-    runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, currentTime);
+    void playTimeline(device, { time: currentTime, loop, speed: playSpeed });
     play();
-    void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-      reset: false,
-      speed: playSpeed,
-    });
-  }, [canDrive, currentTime, loop, play, playSpeed, runtimeTransport]);
+  }, [currentTime, device, loop, play, playSpeed]);
 
   const pauseTransport = useCallback(() => {
-    if (!canDrive || !runtimeTransport) {
+    if (!device) {
       syncTransportState({
         isPlaying: false,
         transportActive: false,
@@ -650,24 +425,20 @@ export function useAnimationTransport() {
       });
       return;
     }
-    runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
+    void pauseTimeline(device);
     pause();
-  }, [canDrive, pause, runtimeTransport, syncTransportState]);
+  }, [device, pause, syncTransportState]);
 
   const stopTransport = useCallback(() => {
-    if (!canDrive || !runtimeTransport) {
-      stop();
-      return;
+    if (device) {
+      void stopTimeline(device);
     }
-    runtimeTransport.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-      clearOutputs: true,
-    });
     stop();
-  }, [canDrive, runtimeTransport, stop]);
+  }, [device, stop]);
 
   const seekTransport = useCallback(
     (timeSeconds: number) => {
-      if (!canDrive || !runtimeTransport) {
+      if (!device) {
         syncTransportState({
           currentTime: timeSeconds,
           isPlaying: false,
@@ -676,67 +447,40 @@ export function useAnimationTransport() {
         });
         return;
       }
-      const resumePlaying = isPlaying;
-      if (!resumePlaying) {
-        if (transportPlaybackState === "stopped") {
-          void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-            reset: false,
-            speed: playSpeed,
-          });
-        }
-        runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
-      }
-      runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, timeSeconds);
+      void seekTimeline(device, timeSeconds);
       syncTransportState({
         currentTime: timeSeconds,
-        isPlaying: resumePlaying,
+        isPlaying,
         transportActive: true,
-        transportPlaybackState: resumePlaying ? "playing" : "paused",
+        transportPlaybackState: isPlaying ? "playing" : "paused",
       });
     },
-    [
-      canDrive,
-      isPlaying,
-      playSpeed,
-      runtimeTransport,
-      syncTransportState,
-      transportPlaybackState,
-    ],
+    [device, isPlaying, syncTransportState],
   );
 
   const setLoopTransport = useCallback(
     (enabled: boolean) => {
       setLoop(enabled);
-      if (!canDrive || !runtimeTransport) {
-        return;
+      if (device) {
+        void setTimelineLoop(device, enabled);
       }
-      runtimeTransport.setAnimationLoop(AUTHORED_TIMELINE_CLIP_ID, enabled);
     },
-    [canDrive, runtimeTransport, setLoop],
+    [device, setLoop],
   );
 
   const setSpeedTransport = useCallback(
     (multiplier: number) => {
       setPlaySpeed(multiplier);
-      if (!canDrive || !runtimeTransport) {
-        return;
-      }
-      const playbackState = runtimeTransport.getAnimationState(
-        AUTHORED_TIMELINE_CLIP_ID,
-      );
-      if (playbackState?.playing) {
-        void runtimeTransport.playAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-          reset: false,
-          speed: multiplier,
-        });
+      if (device) {
+        void setTimelineSpeed(device, multiplier);
       }
     },
-    [canDrive, runtimeTransport, setPlaySpeed],
+    [device, setPlaySpeed],
   );
 
   const stepTransport = useCallback(
     (deltaSeconds = ANIMATION_STEP_SECONDS) => {
-      if (!canDrive || !runtimeTransport) {
+      if (!device) {
         syncTransportState({
           currentTime: nextStepTime({
             baseTime: currentTime,
@@ -749,18 +493,14 @@ export function useAnimationTransport() {
         });
         return;
       }
-      runtimeTransport.pauseAnimation(AUTHORED_TIMELINE_CLIP_ID);
-      const playbackState = runtimeTransport.getAnimationState(
-        AUTHORED_TIMELINE_CLIP_ID,
-      );
-      const baseTime = playbackState?.time ?? currentTime;
-      const durationSeconds = playbackState?.duration ?? 0;
+      const player = timelinePlayer(device);
       const nextTime = nextStepTime({
-        baseTime,
+        baseTime: player?.time ?? currentTime,
         deltaSeconds,
-        durationSeconds,
+        durationSeconds: player?.duration ?? 0,
       });
-      runtimeTransport.seekAnimation(AUTHORED_TIMELINE_CLIP_ID, nextTime);
+      void pauseTimeline(device);
+      void seekTimeline(device, nextTime);
       syncTransportState({
         currentTime: nextTime,
         isPlaying: false,
@@ -768,11 +508,11 @@ export function useAnimationTransport() {
         transportPlaybackState: "paused",
       });
     },
-    [canDrive, currentTime, runtimeTransport, syncTransportState],
+    [currentTime, device, syncTransportState],
   );
 
   return {
-    active: canDrive,
+    active: device !== null,
     play: playTransport,
     pause: pauseTransport,
     stop: stopTransport,

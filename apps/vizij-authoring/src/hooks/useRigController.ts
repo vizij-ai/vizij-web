@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { SetStateAction } from "react";
+import { useOptionalVizijRuntime } from "@vizij/runtime-react";
 import {
   addBindingSlot,
   bindingFromDefinition,
@@ -99,6 +100,7 @@ import {
   deriveAliasFromInputDescriptor,
   syncBindingParentAliasReferences,
 } from "../utils/rigPipelineAliases";
+import { useEditHolds } from "./useEditHolds";
 import { useBindingManager } from "./useBindingManager";
 import { useDiscrepancyReview } from "./useDiscrepancyReview";
 import { FEATURE_FLAG_DEFAULTS, useFeatureLabels } from "./useFeatureLabels";
@@ -111,7 +113,6 @@ import {
   updateStandardInputEntry,
 } from "./standardInputMutations";
 import { linkChildInput, unlinkChildInput } from "./standardInputLinks";
-import { subscribeRuntimeInputBridgeAvailable } from "./graphRuntime";
 import type { RuntimeGraphSpec } from "./runtimeGraphSpec";
 import { useRigGraphImport } from "./useRigGraphImport";
 import type { FaceLoadPhaseUpdate } from "./useVizijAssetLoader";
@@ -1324,10 +1325,24 @@ export function useRigController(
     graphRuntimeStore.setState({ setStoreState });
   }, [graphRuntimeStore, setStoreState]);
 
-  const getStageRuntimeInput = useCallback(
-    () => graphRuntimeStore.getState().stageRuntimeInput,
-    [graphRuntimeStore],
-  );
+  // The main face's device: rig inputs are written to its store, and held
+  // there against the face's own behavior while an edit writes them.
+  const mainFace = useOptionalVizijRuntime();
+  const mainFaceRuntime = mainFace?.runtime ?? null;
+  const mainFaceRuntimeRef = useRef(mainFaceRuntime);
+  mainFaceRuntimeRef.current = mainFaceRuntime;
+  const holdWhileEditing = useEditHolds(mainFaceRuntime);
+  const holdWhileEditingRef = useRef(holdWhileEditing);
+  holdWhileEditingRef.current = holdWhileEditing;
+  const getStageRuntimeInput = useCallback(() => {
+    const runtime = mainFaceRuntimeRef.current;
+    return runtime
+      ? (graphPath: string, value: number) => {
+          runtime.setValue(graphPath, value);
+          holdWhileEditingRef.current(graphPath);
+        }
+      : undefined;
+  }, []);
 
   const [graphStatus, setGraphStatus] = useState<
     "idle" | "loading" | "ready" | "error"
@@ -1343,8 +1358,7 @@ export function useRigController(
     useState(0);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [graphWarning, setGraphWarning] = useState<string | null>(null);
-  const [runtimeViewReadyForPlayback, setRuntimeViewReadyForPlayback] =
-    useState(() => graphRuntimeStore.getState().runtimeViewReady);
+  const runtimeViewReadyForPlayback = mainFace?.status === "ready";
   const pendingFaceRenameRef = useRef<string | null>(null);
   const faceRenameTokenRef = useRef<string | null>(null);
   const graphPlaybackStateRef = useRef<"playing" | "paused">(
@@ -1369,24 +1383,12 @@ export function useRigController(
   useEffect(() => {
     graphPlaybackStateRef.current = graphPlaybackState;
   }, [graphPlaybackState]);
-  useEffect(
-    () =>
-      graphRuntimeStore.subscribe(() => {
-        const nextReady = graphRuntimeStore.getState().runtimeViewReady;
-        setRuntimeViewReadyForPlayback((previous) =>
-          previous === nextReady ? previous : nextReady,
-        );
-      }),
-    [graphRuntimeStore],
-  );
-
-  useEffect(
-    () =>
-      subscribeRuntimeInputBridgeAvailable(graphRuntimeStore, () => {
-        setRuntimeInputBridgeEpoch((prev) => prev + 1);
-      }),
-    [graphRuntimeStore],
-  );
+  // A new device starts from its own store: restage every input on it.
+  useEffect(() => {
+    if (mainFaceRuntime) {
+      setRuntimeInputBridgeEpoch((prev) => prev + 1);
+    }
+  }, [mainFaceRuntime]);
 
   const [faceId, setFaceIdState] = useState<string>("robot");
   const clearFaceRenameToken = useCallback(

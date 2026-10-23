@@ -31,6 +31,28 @@ export type MountedRefs = Record<
   Record<string, RefObject<SceneObject | null>>
 >;
 
+/**
+ * The objects of `scene` that carry RobotData, by their element id, under
+ * `namespace`: a scene as the audit reads it.
+ */
+export function refsOfScene(
+  scene: { traverse(visit: (object: SceneObject) => void): void },
+  namespace: string,
+): MountedRefs {
+  const refs: MountedRefs = {};
+  scene.traverse((object) => {
+    const robotData = (
+      object.userData as
+        | { gltfExtensions?: { RobotData?: { id?: unknown } } }
+        | undefined
+    )?.gltfExtensions?.RobotData;
+    if (typeof robotData?.id === "string") {
+      refs[robotData.id] = { [namespace]: { current: object } };
+    }
+  });
+  return refs;
+}
+
 interface ValueSummary {
   type: "number" | "vector" | "color" | "unknown";
   value: Record<string, number> | number | null;

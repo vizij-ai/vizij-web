@@ -1,37 +1,10 @@
 # vizij-authoring
 
-`vizij-authoring` is the runtime-truthful authoring surface for Vizij assets. It lets you load a face, author bindings/poses/graphs, validate them against the same runtime stack used by downstream apps, and export the resulting bundled GLB.
-
-## Why `runtime-truthful`
-
-The app is built around `@vizij/runtime-react`, not a separate preview-only renderer path.
-
-That matters because the main viewer is exercising the same runtime contracts that downstream consumers rely on:
-
-- bundle-first face loading
-- canonical rig input paths
-- pose-driver and animation registration
-- renderer output bridging
-- transport behavior for authored clips/programs
-
-In practice, authoring uses runtime-react in more advanced ways than the simpler demos:
-
-- `setGraphBundle()` hot-swaps rig/pose/animation/program payloads without always reloading the underlying GLB
-- `transformOutputWrite()` filters/remaps runtime outputs before they hit the renderer store
-- reference-face surfaces run on their own runtime, stepped only while visible
-
-See [`src/components/app/Viewer.tsx`](./src/components/app/Viewer.tsx) and [`src/components/app/ReferenceFaceRuntime.tsx`](./src/components/app/ReferenceFaceRuntime.tsx).
-
-### Animation authoring is runtime-truthful too
-
-The same principle governs the timeline: authoring stages intent, the runtime is the single playback authority. There is no separate preview stepper.
-
-- **UI stages intent only.** Transport actions (`play`/`pause`/`seek`/`stop`/`loop`/`speed`/`step`) drive the device's clip transport; the panel never runs its own RAF evaluation or writes render state directly. The face you preview is the merged runtime output the device produces — the same output a downstream player sees.
-- **Clips are compiled sources, not a side channel.** Authored clips compile to a deterministic clip IR (stable ids/order, deduped keyframes) and load into the device's animation module as data, so they are sampled _inside_ the device alongside the rig/pose/program graphs — see [`@vizij/runtime-react` › Animations and the device](../../packages/@vizij/runtime-react/README.md#animations-and-the-device). Interpolation (`linear`/`step`/`cubic`) is the runtime's, not a UI approximation.
-- **Export/import round-trips.** Authored clips serialize into the bundle's `animations[]` and re-import into the same authoring state, so what you author, preview, and export cannot drift.
-- **Runtime lifecycle is decoupled from panels.** The timeline runtime is always-mounted; showing or hiding the timeline panel does not mount/unmount the device or reset its state.
-
-Speech-driven playback (viseme channels fed from a synthesis provider such as Amazon Polly) is a planned extension along the same seam — a provider stages viseme events onto standard rig/pose channels; it does not add a second playback authority.
+`vizij-authoring` authors Vizij faces: load a face, bind its rig to the face
+standard, author poses, graphs and animations, and export the face as a
+bundled GLB. The app runs faces on the same runtime as a deployed Vizij, so
+what you author is what ships. Why that holds, and what it takes, is in
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md#the-face-runs-on-the-deployed-runtime).
 
 ## Core Workflows
 
@@ -64,14 +37,18 @@ High-level flow:
 Path shape:
 
 ```text
-/standard/{namespace}/{channel}/{track}/{attribute}
+/standard/{namespace}/{group…}/{attribute}
 ```
 
-Example:
+Examples, in the `vizij` namespace of the
+[Vizij face standard](https://github.com/vizij-ai/vizij-rs/blob/main/docs/face-standard.md):
 
 ```text
-/standard/semio/left_eye/pos/x
+/standard/vizij/left_eye/pos/x
+/standard/vizij/expression/happy
 ```
+
+A face's declared profiles (`bundle.profiles`) say which namespaces it uses.
 
 ## Export Model
 
@@ -100,26 +77,29 @@ pnpm --filter vizij-authoring lint
 pnpm --filter vizij-authoring test
 pnpm --filter vizij-authoring validate
 pnpm --filter vizij-authoring test:e2e:smoke
+pnpm --filter vizij-authoring storybook
 ```
 
-The e2e ports, and running e2e from several worktrees at once, are covered in the root README's [End-to-end Tests](../../README.md#end-to-end-tests).
+Run `pnpm run build:packages` from the repository root first, and again after
+changing `@vizij/render` or `@vizij/runtime-react`. A blank page with
+`_jsxDEV is not a function` means the shell exports `NODE_ENV=production`:
+start the dev server with `NODE_ENV=development`
+([Troubleshooting](../../CONTRIBUTING.md#troubleshooting)). The e2e ports, and
+running e2e from several worktrees at once, are in
+[End-to-end tests](../../CONTRIBUTING.md#end-to-end-tests).
 
-The checked-in sample assets currently live under [`public/assets`](./public/assets).
+The checked-in sample faces live under [`public/assets`](./public/assets). The
+other face apps load Quori from there too, so a moved or renamed asset updates
+their URLs ([`ARCHITECTURE.md`](../../ARCHITECTURE.md#apps-apps)).
+
+Firebase Hosting serves the app (site `vizij-workspace`): production deploys
+from `main`, and each pull request gets a preview channel
+([Deployments](../../CONTRIBUTING.md#deployments)).
 
 ## Docs
 
 - Docs index: [`docs/README.md`](./docs/README.md)
-- Runtime/truth contracts: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- Architecture, and the contracts the runtime and the compiler keep:
+  [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
 - UI behavior contract: [`docs/UI_DESIGN.md`](./docs/UI_DESIGN.md)
 - Program planning/status: [`docs/plans/ROADMAP.md`](./docs/plans/ROADMAP.md), [`docs/plans/TRACKER.md`](./docs/plans/TRACKER.md)
-
-## Deployment
-
-Firebase hosting commands:
-
-```bash
-pnpm --dir apps/vizij-authoring exec firebase hosting:channel:deploy staging --only hosting:vizij-workspace
-pnpm --dir apps/vizij-authoring exec firebase deploy --only hosting:vizij-workspace
-```
-
-The app’s Firebase config points Hosting at `dist/`, keeps the wasm-related headers in place, and rewrites routes to `index.html`.

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useVizijStore, type VizijBundleExtension } from "@vizij/render";
+import type { VizijBundleExtension } from "@vizij/render";
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { compileIrGraph, type IrGraph } from "@vizij/node-graph-authoring";
 import type { GraphSpec } from "@vizij/node-graph";
@@ -96,7 +96,6 @@ export function DebugPanel({
   const stepGraph = useGraphRuntime((state) => state.stepGraph);
   const world = useGraphRuntime((state) => state.world);
   const animatables = useGraphRuntime((state) => state.animatables);
-  const mountedRefs = useVizijStore((state) => state.refs);
 
   // Binding Authoring Hook
   const validOutputTargets = useBindingAuthoring(
@@ -177,7 +176,7 @@ export function DebugPanel({
   const robotAudit = useRobotDataAuditRunner({
     namespace: DEFAULT_NAMESPACE,
     world,
-    refs: mountedRefs,
+    rootId,
     animatables,
     enabled: Boolean(rootId),
   });

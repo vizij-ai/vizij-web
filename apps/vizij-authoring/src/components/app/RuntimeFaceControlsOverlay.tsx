@@ -43,17 +43,14 @@ export function RuntimeFaceControlsOverlay({
   resetButtonTestId,
   readyFlagTestId,
 }: RuntimeFaceControlsOverlayProps) {
-  const { ready, loading, stepHz } = useVizijRuntime();
+  const { status } = useVizijRuntime();
 
-  if (!ready || loading) {
+  if (status !== "ready") {
     return null;
   }
 
-  const formattedFps =
-    stepHz !== undefined ? `${Math.round(stepHz)} fps` : "— fps";
-
   return (
-    <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
+    <div className="absolute top-2 left-2 z-10 flex items-center gap-2 pointer-events-auto">
       {showReadyFlag && (
         <div className="flex items-center gap-1 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
           <div data-testid={readyFlagTestId} className="contents">
@@ -62,9 +59,6 @@ export function RuntimeFaceControlsOverlay({
           </div>
         </div>
       )}
-      <div className="rounded bg-black/60 px-2 py-1 text-[10px] text-white">
-        FPS: {formattedFps}
-      </div>
       {runtimeStatusLabel ? (
         <div
           data-testid={runtimeStatusTestId}

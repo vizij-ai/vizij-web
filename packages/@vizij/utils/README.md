@@ -82,36 +82,24 @@ pnpm --filter "@vizij/utils" typecheck
 
 `tsup` bundles both ESM and CJS outputs and emits `.d.ts`. Vitest currently includes smoke tests; add coverage close to new helpers.
 
+The package holds the value types the others share, and stays
+framework-agnostic: no React code here. Renaming or reshaping one of its
+types updates its users (`@vizij/render`, `@vizij/node-graph-authoring` and
+the apps) in the same change.
+
 ---
 
 ## Publishing
 
-Releases flow through [`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
-
-1. Record a changeset and apply the version bump:
-
-   ```bash
-   pnpm changeset
-   pnpm version:packages
-   ```
-
-2. Validate locally:
-
-   ```bash
-   pnpm install
-   pnpm --filter "@vizij/utils" build
-   pnpm --filter "@vizij/utils" test
-   pnpm --filter "@vizij/utils" typecheck
-   pnpm --filter "@vizij/utils" exec npm pack --dry-run
-   ```
-
-3. Merge the version bump to `main`. CI publishes any `@vizij/*` version not yet on npm (with provenance) — no release tag. See the root [README → Publishing & Versioning](../../../README.md#publishing--versioning).
+A change carries a changeset (`pnpm changeset`). Merging to `main` updates the
+Version Packages PR, and merging that publishes through
+[`.github/workflows/publish-npm.yml`](../../../.github/workflows/publish-npm.yml).
+See [`CONTRIBUTING.md` › Releasing](../../../CONTRIBUTING.md#releasing).
 
 ---
 
 ## Related Packages
 
-- [`@vizij/animation-react`](../animation-react/README.md) – Re-exports value helpers for React consumers.
 - [`@vizij/render`](../render/README.md) – Uses the namespace helpers to manage store ids.
 
 Have ideas for additional shared helpers? Open a PR and document the changes here to keep the ecosystem aligned. 🧰

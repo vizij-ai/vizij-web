@@ -1,11 +1,14 @@
 import { useEffect, useMemo } from "react";
+import type { CSSProperties } from "react";
+import { VizijCanvas } from "@vizij/render";
 import {
   VizijRuntimeFace,
   VizijRuntimeProvider,
   useVizijRuntime,
 } from "@vizij/runtime-react";
-import { buildAssetBundleForSource, getSampleDefinition } from "./data/samples";
-import { summarizeAssetBundle } from "./lib/bundleSummary";
+import type { VizijOptions } from "@vizij/runtime";
+import { getSampleDefinition, glbOfSource } from "./data/samples";
+import { summarizeDescription } from "./lib/bundleSummary";
 import { useAppState } from "./state/AppStateContext";
 import { SourceLibrary } from "./components/SourceLibrary";
 import { AssetOverviewPanel } from "./components/AssetOverviewPanel";
@@ -16,8 +19,24 @@ import { ProgramsPanel } from "./components/ProgramsPanel";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { IconButton } from "./components/IconButton";
 
+/** The face's own rig, without its standard adaptation: the panels drive
+ * its rig inputs and pose weights directly, and its programs start from the
+ * Programs panel. */
+const FACE_OPTIONS: VizijOptions = {
+  graphs: ["rig", "pose-driver", "pose"],
+  program: "none",
+};
+
+/** The page's canvas, fixed over the page under its overlays. */
+const CANVAS_STYLE: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  pointerEvents: "none",
+  zIndex: 1,
+};
+
 function ViewerPanel() {
-  const { loading, ready, error } = useVizijRuntime();
+  const { status, error } = useVizijRuntime();
 
   return (
     <section
@@ -32,12 +51,9 @@ function ViewerPanel() {
       </header>
       <div className="panel-body viewer-body">
         <div className="viewer-frame">
-          <VizijRuntimeFace className="viewer-canvas" showSafeArea={false} />
-          {loading ? (
+          <VizijRuntimeFace className="viewer-canvas" />
+          {status === "loading" ? (
             <div className="viewer-overlay">Loading bundle…</div>
-          ) : null}
-          {!loading && !ready && !error ? (
-            <div className="viewer-overlay">Preparing runtime…</div>
           ) : null}
           {error ? (
             <div className="viewer-overlay is-error">{error.message}</div>
@@ -55,7 +71,7 @@ function WorkspaceSurface({
   sourceLabel: string;
   sourceMeta: string;
 }) {
-  const { assetBundle, loading, ready, error, controllers } = useVizijRuntime();
+  const { description, status, error } = useVizijRuntime();
   const {
     state: { panels, playbackSelection },
     setSelectedAnimation,
@@ -63,15 +79,17 @@ function WorkspaceSurface({
     setSelectedPoseGroup,
   } = useAppState();
   const summary = useMemo(
-    () => summarizeAssetBundle(assetBundle),
-    [assetBundle],
+    () => summarizeDescription(description),
+    [description],
   );
+  const animations = description?.animations;
+  const programs = description?.programs;
 
   useEffect(() => {
-    const firstAnimation = assetBundle.animations?.[0]?.id ?? null;
+    const firstAnimation = animations?.[0]?.id ?? null;
     if (
       firstAnimation &&
-      !assetBundle.animations?.some(
+      !animations?.some(
         (animation) => animation.id === playbackSelection.animationId,
       )
     ) {
@@ -80,26 +98,20 @@ function WorkspaceSurface({
     if (!firstAnimation && playbackSelection.animationId) {
       setSelectedAnimation(null);
     }
-  }, [
-    assetBundle.animations,
-    playbackSelection.animationId,
-    setSelectedAnimation,
-  ]);
+  }, [animations, playbackSelection.animationId, setSelectedAnimation]);
 
   useEffect(() => {
-    const firstProgram = assetBundle.programs?.[0]?.id ?? null;
+    const firstProgram = programs?.[0]?.id ?? null;
     if (
       firstProgram &&
-      !assetBundle.programs?.some(
-        (program) => program.id === playbackSelection.programId,
-      )
+      !programs?.some((program) => program.id === playbackSelection.programId)
     ) {
       setSelectedProgram(firstProgram);
     }
     if (!firstProgram && playbackSelection.programId) {
       setSelectedProgram(null);
     }
-  }, [assetBundle.programs, playbackSelection.programId, setSelectedProgram]);
+  }, [programs, playbackSelection.programId, setSelectedProgram]);
 
   useEffect(() => {
     const firstGroup =
@@ -141,7 +153,8 @@ function WorkspaceSurface({
             sourceLabel={sourceLabel}
             sourceMeta={sourceMeta}
             summary={summary}
-            status={{ loading, ready, error, controllers }}
+            status={status}
+            error={error}
           />
         ) : null}
         {panels.diagnostics ? <DiagnosticsPanel summary={summary} /> : null}
@@ -161,7 +174,7 @@ function LandingPanel() {
       </header>
       <div className="panel-body landing-body">
         <p>
-          `demo-vizij-player` now orients around one GLB at a time. Each curated
+          `demo-vizij-player` orients around one GLB at a time. Each curated
           sample or uploaded export is treated as a self-describing bundle with
           embedded rigs, pose data, clips, and procedural programs when present.
         </p>
@@ -210,10 +223,7 @@ export default function App() {
   const sourceMeta =
     selectedSample?.description ??
     (source?.kind === "upload" ? source.fileName : "Local GLB upload");
-  const assetBundle = useMemo(
-    () => (source ? buildAssetBundleForSource(source) : null),
-    [source],
-  );
+  const glb = useMemo(() => (source ? glbOfSource(source) : null), [source]);
 
   return (
     <div className="app-shell">
@@ -239,18 +249,20 @@ export default function App() {
         </div>
       </header>
 
-      <main className={`app-main ${assetBundle ? "app-main--workspace" : ""}`}>
+      <VizijCanvas style={CANVAS_STYLE} />
+      <main className={`app-main ${glb ? "app-main--workspace" : ""}`}>
         <SourceLibrary
           selectedSource={source}
           onSelectSample={selectSample}
           onUpload={selectUpload}
           onClearSource={clearSource}
         />
-        {assetBundle ? (
+        {glb ? (
           <VizijRuntimeProvider
             key={source!.id}
-            assetBundle={assetBundle}
-            autostart
+            glb={glb}
+            vizijId="player"
+            options={FACE_OPTIONS}
           >
             <WorkspaceSurface
               sourceLabel={sourceLabel}

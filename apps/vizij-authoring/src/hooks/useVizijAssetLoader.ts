@@ -363,6 +363,8 @@ export function useVizijAssetLoader() {
   const setStoreState = useVizijStoreSetter();
 
   const [rootId, setRootId] = useState<string | null>(null);
+  /** Counts the scene's resets (File > New): each one starts a new scene. */
+  const [sceneGeneration, setSceneGeneration] = useState(0);
   const [sourceName, setSourceName] = useState<string | null>(null);
   const [assetUrl, setAssetUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -1154,6 +1156,7 @@ export function useVizijAssetLoader() {
     clearFaceLoadOperations("session-reset");
     resetFaceLoadMilestones();
     setRootId(null);
+    setSceneGeneration((generation) => generation + 1);
     setSourceName(null);
     setAssetUrl("");
     setError(null);
@@ -1213,6 +1216,7 @@ export function useVizijAssetLoader() {
 
   return {
     rootId,
+    sceneGeneration,
     sourceName,
     assetUrl,
     setAssetUrl,

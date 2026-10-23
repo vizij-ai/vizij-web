@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import {
+  buildSceneGraph,
   exportScene,
   type VizijBundleAnimationEntry,
   type VizijBundleExtension,
@@ -16,7 +17,6 @@ import {
   type InputBindingMap,
 } from "@vizij/node-graph-authoring";
 import { normalizeGraphSpec, type GraphSpec } from "@vizij/node-graph";
-import { collectInputPathMap, composeGraphSpecs } from "@vizij/runtime-react";
 import type {
   AnimatableComponent,
   AnimatableValue,
@@ -35,14 +35,16 @@ import { readGltfAnimationDocument } from "../animationImport/gltfAnimationDocum
 import { gltfAnimationFingerprint } from "../animationImport/bakedAnimationProvenance";
 import {
   bakeAuthoredClips,
+  bakeChannelKeys,
   buildBakeChannelIndex,
   buildBakeTargetIndexFromWorld,
-  collectBakeGraphSources,
+  composeBakeGraph,
+  hasBakeGraph,
   outputPathsOfSpec,
   summarizeBakeReport,
 } from "../animationBake";
 import { faceSlug } from "../utils/faceId";
-import { waitForNextFrame } from "../utils/frame";
+import { DEFAULT_NAMESPACE } from "../utils/constants";
 import { type VizijPipelineMetadataV1 } from "../utils/graphImport";
 import { applyDefaultsToRobotData } from "../utils/robotData";
 import { cloneSerializable } from "../utils/serialization";
@@ -96,38 +98,6 @@ interface PoseRigExportState {
   crossGroupBlendMode?: "average" | "additive";
 }
 
-type TraversableBody = {
-  traverse: (callback: (object: Record<string, any>) => void) => void;
-};
-
-type ExportBodySource = "mounted-root" | "mounted-any" | "fallback" | "none";
-
-function isTraversableBody(value: unknown): value is TraversableBody {
-  return (
-    Boolean(value) && typeof (value as TraversableBody).traverse === "function"
-  );
-}
-
-function asExportableBody(
-  value: unknown,
-): (Parameters<typeof exportScene>[0] & TraversableBody) | null {
-  if (!isTraversableBody(value)) {
-    return null;
-  }
-  return value as Parameters<typeof exportScene>[0] & TraversableBody;
-}
-
-function countRobotDataNodes(body: TraversableBody): number {
-  let count = 0;
-  body.traverse((object) => {
-    const robotData = object?.userData?.gltfExtensions?.RobotData;
-    if (robotData && typeof robotData === "object") {
-      count += 1;
-    }
-  });
-  return count;
-}
-
 interface UseVizijExportOptions {
   faceId: string | null;
   graphFileName: string;
@@ -156,8 +126,6 @@ interface UseVizijExportOptions {
   featureLabelOverrides: Record<string, string>;
   collectAnimatableExportState: () => CollectAnimatableExportStateResult;
   setStoreState: (updater: (state: VizijData) => VizijData) => void;
-  getExportableBodies: (rootIds?: string[]) => unknown[];
-  fallbackExportBody?: unknown;
   alertDialog: (message: string) => Promise<void> | void;
   poseRig: PoseRigExportState;
   authoredMotionGraphs?: MotionGraphExportEntry[];
@@ -610,8 +578,6 @@ export function useVizijExport(
     featureLabelOverrides,
     collectAnimatableExportState,
     setStoreState,
-    getExportableBodies,
-    fallbackExportBody,
     alertDialog,
     poseRig,
     authoredMotionGraphs,
@@ -625,8 +591,8 @@ export function useVizijExport(
     const slug = faceSlug(exportFaceId);
     const animatablesForExport = Object.fromEntries(
       Object.entries(animatables).map(([id, anim]) => {
-        const lookup = getLookup(exportFaceId, id);
-        const override = values.get(lookup);
+        // Under the key scene editing writes the document's values.
+        const override = values.get(getLookup(DEFAULT_NAMESPACE, id));
         if (override === undefined) {
           return [id, anim];
         }
@@ -734,8 +700,7 @@ export function useVizijExport(
       const { effectiveAnimatables } = collectAnimatableExportState();
       const animatablesForExport = Object.fromEntries(
         Object.entries(effectiveAnimatables).map(([id, anim]) => {
-          const lookup = getLookup(exportFaceId, id);
-          const override = values.get(lookup);
+          const override = values.get(getLookup(DEFAULT_NAMESPACE, id));
           if (override === undefined) {
             return [id, anim];
           }
@@ -749,103 +714,13 @@ export function useVizijExport(
         }),
       );
 
-      await waitForNextFrame();
-
-      const resolveExportableBodies = (filterIds?: string[]) =>
-        getExportableBodies(filterIds).flatMap((body) => {
-          const candidate = asExportableBody(body);
-          return candidate ? [candidate] : [];
-        });
-
-      let maxRootCandidateCount = 0;
-      let maxAnyCandidateCount = 0;
-      let selectionAttempts = 0;
-      let exportBodySource: ExportBodySource = "none";
-      const resolveMountedCandidates = () => {
-        const rootCandidates = resolveExportableBodies(
-          rootId ? [rootId] : undefined,
-        );
-        const anyCandidates = rootId
-          ? resolveExportableBodies()
-          : rootCandidates;
-        if (rootCandidates.length > maxRootCandidateCount) {
-          maxRootCandidateCount = rootCandidates.length;
-        }
-        if (anyCandidates.length > maxAnyCandidateCount) {
-          maxAnyCandidateCount = anyCandidates.length;
-        }
-        return { rootCandidates, anyCandidates };
-      };
-
-      const resolveExportBody = (): Array<
-        Parameters<typeof exportScene>[0] & TraversableBody
-      > => {
-        const { rootCandidates, anyCandidates } = resolveMountedCandidates();
-        if (rootCandidates.length > 0) {
-          exportBodySource = "mounted-root";
-          return rootCandidates;
-        }
-        if (anyCandidates.length > 0) {
-          exportBodySource = "mounted-any";
-          return anyCandidates;
-        }
-        exportBodySource = "none";
-        return [];
-      };
-
-      let exportableBodies = resolveExportBody();
-      for (
-        let attempt = 0;
-        attempt < 12 && !exportableBodies.length;
-        attempt += 1
-      ) {
-        await waitForNextFrame();
-        selectionAttempts = attempt + 1;
-        exportableBodies = resolveExportBody();
-      }
-      let usingFallbackExportBody = false;
-      const fallbackCandidate = asExportableBody(fallbackExportBody);
-      if (!exportableBodies.length && fallbackCandidate) {
-        exportableBodies = [fallbackCandidate];
-        usingFallbackExportBody = true;
-        exportBodySource = "fallback";
-      }
-
-      const selectedRobotDataNodeCount =
-        exportableBodies.length > 0
-          ? countRobotDataNodes(exportableBodies[0] as TraversableBody)
-          : null;
-      logVizijExportDebug("export-glb:body-selection", {
-        rootId,
-        source: exportBodySource,
-        attempts: selectionAttempts,
-        maxRootCandidateCount,
-        maxAnyCandidateCount,
-        selectedRobotDataNodeCount,
-      });
-
-      if (
-        includeVizijBundle &&
-        usingFallbackExportBody &&
-        exportableBodies.length > 0 &&
-        selectedRobotDataNodeCount === 0
-      ) {
-        const rootHint = rootId?.trim()
-          ? ` for rootId=${rootId}`
-          : " for the active face root";
-        await alertDialog(
-          `Bundled export is using fallback scene${rootHint} because no mounted runtime refs were found (max mounted-root candidates=${maxRootCandidateCount.toString(
-            10,
-          )}, mounted-any candidates=${maxAnyCandidateCount.toString(
-            10,
-          )}). Fallback scene has no RobotData nodes, so bundled export is blocked.`,
-        );
-        return;
-      }
-      if (!exportableBodies.length) {
+      // The scene is built from the document, headless: each element with
+      // its authored values, whatever the view shows.
+      if (!rootId || !world?.[rootId]) {
         await alertDialog("Load a Vizij asset before exporting.");
         return;
       }
+      const exportRoot = buildSceneGraph(world, animatablesForExport, rootId);
 
       const poseConfigDraftCount = Array.isArray(poseRig.poseConfigDraft?.poses)
         ? poseRig.poseConfigDraft?.poses.length
@@ -871,7 +746,7 @@ export function useVizijExport(
       });
 
       applyDefaultsToRobotData(
-        exportableBodies,
+        [exportRoot],
         animatablesForExport,
         featureLabelOverrides,
       );
@@ -1106,7 +981,6 @@ export function useVizijExport(
       // written now and amended in the finished file rather than exporting
       // twice to learn them.
       let bakedClipOrder: Array<{ clipId: string; clipName: string }> = [];
-      const bakeSources = collectBakeGraphSources(bundle);
       // Every animation the user can see, not just the authored ones.
       //
       // `authoredAnimationClips` carries authored clips plus imported clips
@@ -1127,33 +1001,29 @@ export function useVizijExport(
         importedForBake.push(clip);
       }
       const clipsToBake = [...authoredForBake, ...importedForBake];
-      if (bakeSources.length > 0 && clipsToBake.length > 0) {
+      if (bundle && hasBakeGraph(bundle) && clipsToBake.length > 0) {
         try {
-          const composed = composeGraphSpecs(bakeSources);
+          const composed = await composeBakeGraph(bundle);
           // The rig graph writes animatable ids, not propsrig paths, so the
           // recorded set is the world's animated features restricted to what
           // the exported graph actually declares as an output.
           const declaredOutputs = new Set(outputPathsOfSpec(composed));
           const bakeResult = await bakeAuthoredClips({
             clips: clipsToBake,
-            spec: composed as unknown as GraphSpec,
+            spec: composed,
             outputs: buildBakeChannelIndex({
               world: (world ?? {}) as never,
               animatables: animatables as never,
               restrictToPaths: declaredOutputs,
             }),
-            // Built per source, NOT from the composed spec: composition
-            // prefixes node ids ("rig::input_foo"), which defeats the
-            // `input_` strip that produces the lookup key a clip's
-            // variableId matches.
-            inputPathMap: Object.assign(
-              {},
-              ...bakeSources.map((source) =>
-                collectInputPathMap(source.spec as never),
+            channelKeys: await bakeChannelKeys(
+              bundle,
+              clipsToBake.flatMap((clip) =>
+                clip.tracks.map((track) => track.channel),
               ),
             ),
             targets: buildBakeTargetIndexFromWorld(world ?? {}, animatables),
-            root: exportableBodies[0] as never,
+            root: exportRoot as never,
           });
           bakedAnimations = bakeResult.animations;
 
@@ -1218,7 +1088,7 @@ export function useVizijExport(
           );
           bakedAnimations = [];
         }
-      } else if (clipsToBake.length > 0 && bakeSources.length === 0) {
+      } else if (clipsToBake.length > 0) {
         // Baking needs the rig graph, which travels in the bundle. Without it
         // there is nothing to evaluate the clips through.
         logVizijExportDebug("export-glb:bake-skipped", {
@@ -1238,7 +1108,7 @@ export function useVizijExport(
       // second time to learn them froze the UI thread for seconds on real
       // assets. Instead the finished GLB is read back and its JSON chunk
       // patched, which is bytes of work rather than a full re-serialization.
-      const glb = await exportScene(exportableBodies[0], {
+      const glb = await exportScene(exportRoot, {
         bundle,
         animations: bakedAnimations as never,
       });
@@ -1299,8 +1169,6 @@ export function useVizijExport(
     exportFileName,
     faceId,
     featureLabelOverrides,
-    fallbackExportBody,
-    getExportableBodies,
     getMotionGraphSpec,
     includeImportedAnimations,
     includeVizijBundle,
@@ -1617,10 +1485,6 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       "vizij_speech_thinking_path",
     );
     const agentName = localStorage.getItem("vizij_agent_name");
-    const emotionGroupId = localStorage.getItem(
-      "vizij_speech_emotion_group_id",
-    );
-    const visemeGroupId = localStorage.getItem("vizij_speech_viseme_group_id");
     const voice = localStorage.getItem("vizij_speech_voice");
     const mode = localStorage.getItem("vizij_speech_mode") as
       | "echo"
@@ -1636,8 +1500,6 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       userSpeakingInputPath ||
       thinkingInputPath ||
       agentName ||
-      emotionGroupId ||
-      visemeGroupId ||
       voice ||
       mode ||
       systemPrompt ||
@@ -1651,8 +1513,6 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
       config.userSpeakingInputPath = userSpeakingInputPath;
     if (thinkingInputPath) config.thinkingInputPath = thinkingInputPath;
     if (agentName) config.agentName = agentName;
-    if (emotionGroupId) config.emotionGroupId = emotionGroupId;
-    if (visemeGroupId) config.visemeGroupId = visemeGroupId;
     if (voice) config.voice = voice;
     if (mode) config.mode = mode;
     if (systemPrompt) config.systemPrompt = systemPrompt;

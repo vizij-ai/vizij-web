@@ -4,13 +4,9 @@ import { useEditorStore, type EditorNode } from "../store/useEditorStore";
 import { INPUT_SOURCE_TYPE, type InputSourceNodeData } from "./InputSourceNode";
 
 /**
- * Headless component that bridges input source node values from the editor
- * store to the runtime.  Must be rendered inside VizijRuntimeProvider.
- *
- * It watches the editor store for input source nodes and pushes their
- * `appliedValue` through the runtime's `setInput()`, which stages the value
- * and flushes it into the arora device store on the next engine step. The
- * runtime namespaces paths itself, so raw editor paths are passed as-is.
+ * Headless component that writes the editor's input source values to the
+ * face's store (`runtime.setValue`), under the paths the nodes name — the
+ * face's own keys. Must be rendered inside VizijRuntimeProvider.
  *
  * The inspector sets `appliedValue` according to the control mode:
  *  - Instant: `appliedValue` is set on every slider change
@@ -30,12 +26,12 @@ export function InputValueBridge({
 }
 
 function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
-  const { setInput, ready } = useVizijRuntime();
+  const { runtime } = useVizijRuntime();
   // Track last pushed values to avoid redundant setInput calls.
   const pushedRef = useRef(new Map<string, number>());
 
   useEffect(() => {
-    if (!ready) return;
+    if (!runtime) return;
 
     const syncNodes = nodes ?? useEditorStore.getState().nodes;
 
@@ -59,7 +55,7 @@ function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
       pushedRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, ready, setInput]);
+  }, [nodes, runtime]);
 
   function syncAll(nodes: EditorNode[]) {
     for (const node of nodes) {
@@ -75,11 +71,12 @@ function InputValueBridgeInner({ nodes }: { nodes?: EditorNode[] }) {
 
       try {
         if (valueType === "bool") {
-          setInput(d.inputPath, { bool: value !== 0 });
+          runtime!.setValue(d.inputPath, { bool: value !== 0 });
         } else {
-          setInput(d.inputPath, {
-            float: valueType === "i32" ? Math.round(value) : value,
-          });
+          runtime!.setValue(
+            d.inputPath,
+            valueType === "i32" ? Math.round(value) : value,
+          );
         }
         pushedRef.current.set(d.inputPath, value);
       } catch (err) {

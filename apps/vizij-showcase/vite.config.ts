@@ -1,6 +1,6 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import { resolve } from "node:path";
 
 const workspaceRoot = resolve(__dirname, "../..");
 
@@ -39,7 +39,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vizij/node-graph", "@vizij/runtime", "@vizij/animation-module"],
+    exclude: ["@vizij/node-graph", "@vizij/runtime"],
     include: ["@vizij/render"],
   },
 });

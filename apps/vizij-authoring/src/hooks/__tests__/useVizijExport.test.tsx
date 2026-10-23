@@ -10,13 +10,18 @@ import {
   beforeEach,
   afterEach,
 } from "vitest";
-import type {
-  AnimatableComponent,
-  AnimatableValue,
-  StandardRigInput,
+import {
+  getLookup,
+  type AnimatableComponent,
+  type AnimatableValue,
+  type StandardRigInput,
 } from "@vizij/utils";
 import type { GraphSpec } from "@vizij/node-graph";
-import { exportScene, patchVizijBundleMetadata } from "@vizij/render";
+import {
+  buildSceneGraph,
+  exportScene,
+  patchVizijBundleMetadata,
+} from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
@@ -33,9 +38,12 @@ import {
 } from "../../poseRig/types";
 import { auditBundleGraphs } from "../../utils/bundleAudit";
 import { useAnimationStore } from "../../state/animationStore";
+import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { makeSingleChannelGlb } from "../../animationImport/__tests__/makeGlb";
 
 vi.mock("@vizij/render", () => ({
+  // The scene the export writes, built from the document.
+  buildSceneGraph: vi.fn(() => ({ traverse: () => {} })),
   exportScene: vi.fn(),
   // The hook takes the GLB `exportScene` returns, amends its JSON chunk and
   // downloads it itself.
@@ -104,6 +112,22 @@ const BAKE_ANIMATABLE_ID = "anim-l-lid-translation";
 /** The graph input path the clip's channel resolves to. */
 const BAKE_INPUT_PATH = "rig/face/propsrig/l_lid/translation/y";
 vi.mock("@vizij/runtime", () => ({
+  // The face's composition, reduced to its rig graph.
+  composeVizij: vi.fn(
+    async (document: {
+      extensions: {
+        VIZIJ_bundle: { graphs?: Array<{ kind: string; spec: unknown }> };
+      };
+    }) =>
+      document.extensions.VIZIJ_bundle.graphs?.find(
+        (graph) => graph.kind === "rig",
+      )?.spec,
+  ),
+  // A channel's key under the face's rig prefix, as `ChannelKeys` keys a
+  // rig-relative path.
+  channelKeys: vi.fn(async (_document: unknown, channels: string[]) =>
+    channels.map((channel) => `rig/face/${channel}`),
+  ),
   startRuntime: vi.fn(async () => {
     let staged = 0;
     let output = 0;
@@ -137,6 +161,7 @@ vi.mock("../../utils/bundleAudit", () => ({
 }));
 
 const mockedExportScene = vi.mocked(exportScene);
+const mockedBuildSceneGraph = vi.mocked(buildSceneGraph);
 const mockedPatchBundleMetadata = vi.mocked(patchVizijBundleMetadata);
 const mockedDownloadGlb = vi.mocked(downloadBlob);
 const mockedNormalizeGraphSpec = vi.mocked(normalizeGraphSpec);
@@ -218,6 +243,17 @@ const INPUT: StandardRigInput = {
   range: { min: -1, max: 1 },
 };
 
+/** A document holding the face's root, `root`. */
+const ROOT_WORLD = {
+  root: {
+    id: "root",
+    name: "Root",
+    type: "group",
+    features: {},
+    children: [],
+  },
+} as never;
+
 function createOptions(
   overrides: Partial<Parameters<typeof useVizijExport>[0]> = {},
 ): Parameters<typeof useVizijExport>[0] {
@@ -231,7 +267,7 @@ function createOptions(
     includeVizijBundle: true,
     includeImportedAnimations: false,
     loadedBundle: null,
-    world: {},
+    world: ROOT_WORLD,
     animatableComponents: [COMPONENT],
     animatables: {
       [ANIMATABLE.id]: ANIMATABLE,
@@ -251,7 +287,6 @@ function createOptions(
       },
     }),
     setStoreState: () => {},
-    getExportableBodies: () => [{ traverse: () => {} }],
     alertDialog: vi.fn(),
     poseRig: {
       poseGraphSpec: null,
@@ -984,7 +1019,7 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
-  it("skips null exportable bodies and exports with the first valid body", async () => {
+  it("exports the scene built from the document under the face's root", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
@@ -994,23 +1029,25 @@ describe("useVizijExport", () => {
     mockedNormalizeGraphSpec.mockResolvedValue({
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
-
-    const validBody = { traverse: vi.fn() };
-    const options = createOptions({
-      getExportableBodies: () => [null as unknown as object, validBody],
-    });
-    const hook = renderHook(options);
+    const scene = { traverse: vi.fn() };
+    mockedBuildSceneGraph.mockReturnValueOnce(scene as never);
+    const hook = renderHook(createOptions());
 
     await act(async () => {
       await hook.result.current?.exportGlb();
     });
 
+    expect(mockedBuildSceneGraph).toHaveBeenCalledWith(
+      ROOT_WORLD,
+      { [ANIMATABLE.id]: ANIMATABLE },
+      "root",
+    );
     expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    expect(mockedExportScene.mock.calls[0]?.[0]).toBe(validBody);
+    expect(mockedExportScene.mock.calls[0]?.[0]).toBe(scene);
     hook.unmount();
   });
 
-  it("uses fallback export body when store export bodies are unavailable for raw GLB export", async () => {
+  it("writes the values scene editing set as the exported defaults", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
       summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
@@ -1020,55 +1057,35 @@ describe("useVizijExport", () => {
     mockedNormalizeGraphSpec.mockResolvedValue({
       nodes: [{ id: "n1", type: "input" }],
     } as GraphSpec);
-
-    const fallbackBody = { traverse: vi.fn() };
-    const options = createOptions({
-      includeVizijBundle: false,
-      getExportableBodies: () => [],
-      fallbackExportBody: fallbackBody,
-    });
-    const hook = renderHook(options);
+    const values = new Map([
+      [getLookup(DEFAULT_NAMESPACE, ANIMATABLE.id), 0.4],
+    ]);
+    const hook = renderHook(createOptions({ values }));
 
     await act(async () => {
       await hook.result.current?.exportGlb();
     });
 
-    expect(mockedExportScene).toHaveBeenCalledTimes(1);
-    expect(mockedExportScene.mock.calls[0]?.[0]).toBe(fallbackBody);
+    expect(mockedBuildSceneGraph).toHaveBeenCalledWith(
+      ROOT_WORLD,
+      { [ANIMATABLE.id]: { ...ANIMATABLE, default: 0.4 } },
+      "root",
+    );
     hook.unmount();
   });
 
-  it("blocks bundled export when fallback body lacks RobotData", async () => {
-    mockedBuildRigGraphSpec.mockReturnValue({
-      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
-      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
-      issues: { fatal: [], warnings: [], info: [] },
-      ir: { graph: { nodes: [{ id: "ir1" }] } },
-    } as unknown as ReturnType<typeof buildRigGraphSpec>);
-    mockedNormalizeGraphSpec.mockResolvedValue({
-      nodes: [{ id: "n1", type: "input" }],
-    } as GraphSpec);
-
-    const fallbackBody = { traverse: vi.fn() };
+  it("asks for a face when the document does not hold the root", async () => {
     const alertDialog = vi.fn();
-    const options = createOptions({
-      getExportableBodies: () => [],
-      fallbackExportBody: fallbackBody,
-      alertDialog,
-    });
-    const hook = renderHook(options);
+    const hook = renderHook(createOptions({ world: {}, alertDialog }));
 
     await act(async () => {
       await hook.result.current?.exportGlb();
     });
 
     expect(mockedExportScene).not.toHaveBeenCalled();
-    expect(alertDialog).toHaveBeenCalledTimes(1);
-    const alertMessage = vi.mocked(alertDialog).mock.calls[0]?.[0];
-    expect(typeof alertMessage).toBe("string");
-    expect(alertMessage).toContain("Bundled export is using fallback scene");
-    expect(alertMessage).toContain("no mounted runtime refs were found");
-    expect(alertMessage).toContain("Fallback scene has no RobotData nodes");
+    expect(alertDialog).toHaveBeenCalledWith(
+      "Load a Vizij asset before exporting.",
+    );
     hook.unmount();
   });
 
@@ -2077,8 +2094,7 @@ describe("useVizijExport GLB animation baking", () => {
     return {
       nodes: [
         {
-          // The `input_` prefix is what collectInputPathMap strips to make the
-          // lookup key a clip's variableId matches.
+          // Reads the key the face plays the clip's channel on.
           id: "input_propsrig_l_lid_translation_y",
           type: "input",
           params: { path: BAKE_INPUT_PATH, value: { float: 0 } },
@@ -2110,6 +2126,13 @@ describe("useVizijExport GLB animation baking", () => {
   ) {
     return createOptions({
       world: {
+        root: {
+          id: "root",
+          name: "Scene",
+          type: "group",
+          features: {},
+          children: ["lid"],
+        },
         lid: {
           id: "lid",
           name: "L_Lid",
@@ -2122,15 +2145,6 @@ describe("useVizijExport GLB animation baking", () => {
         [ANIMATABLE.id]: ANIMATABLE,
         [LID_TRANSLATION.id]: LID_TRANSLATION,
       } as never,
-      getExportableBodies: () => [
-        {
-          name: "Scene",
-          traverse: (callback: (child: { name: string }) => void) => {
-            callback({ name: "Scene" });
-            callback({ name: "L_Lid" });
-          },
-        },
-      ],
       authoredAnimationClips: [
         {
           schemaVersion: 1 as const,
@@ -2158,6 +2172,15 @@ describe("useVizijExport GLB animation baking", () => {
   beforeEach(() => {
     mockedPatchBundleMetadata.mockClear();
     mockedDownloadGlb.mockClear();
+    // The scene the bake validates its targets against: the root and the
+    // lid it animates.
+    mockedBuildSceneGraph.mockReturnValue({
+      name: "Scene",
+      traverse: (callback: (child: { name: string }) => void) => {
+        callback({ name: "Scene" });
+        callback({ name: "L_Lid" });
+      },
+    } as never);
     // Export runs once and returns the finished GLB; the hook fingerprints
     // it and patches the metadata into that same buffer. A real GLB, not an
     // empty buffer: fingerprinting has to actually parse it, and skipping the

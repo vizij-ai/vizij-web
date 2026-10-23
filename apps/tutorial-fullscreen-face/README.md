@@ -1,10 +1,11 @@
 # tutorial-fullscreen-face
 
-`tutorial-fullscreen-face` is the smallest app in this repo that demonstrates the current `@vizij/runtime-react` workflow end to end: one bundled GLB, one runtime provider, one rendered face, plus a couple of runtime-aware interaction hooks.
+`tutorial-fullscreen-face` is the smallest app that drives a Vizij face from
+React end to end: one GLB, one `VizijRuntimeProvider`, one face on the page's
+canvas, and the keyboard showing its expressions and visemes through the Vizij
+face standard.
 
-It is the fastest place to inspect the baseline runtime stack before moving on to `tutorial-agent-face`, `demo-vizij-player`, or the larger shared-runtime surfaces.
-
-This is the canonical minimal tutorial. The detailed bundle-first runtime narrative lives in [`tutorial.md`](./tutorial.md); the README is just the short entry point.
+The walkthrough is [`tutorial.md`](./tutorial.md).
 
 ## Scripts
 
@@ -16,14 +17,19 @@ pnpm --filter fullscreen-face typecheck
 pnpm --filter fullscreen-face lint
 ```
 
-## Docs
+`?autoplay` runs the face's active program from load. The e2e spec is
+`e2e/tests/fullscreen-face.spec.ts` (port 5204).
 
-- Runtime tutorial: [`tutorial.md`](./tutorial.md)
-- Runtime package reference: [`packages/@vizij/runtime-react/README.md`](../../packages/@vizij/runtime-react/README.md)
-- Next step: [`apps/tutorial-agent-face/tutorial.md`](../tutorial-agent-face/tutorial.md)
+The face is Quori, loaded from
+`apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` by
+`src/FaceApp.tsx`. The app drives it only through the face standard's keys
+(`runtime.path("standard/vizij/…")`) and `play_viseme`, and writes no rig path.
+The hotkeys come from the `vizij-face` profile, so an expression or viseme the
+standard gains gets a key without a code change.
 
 ## Key Files
 
-- [`src/FaceApp.tsx`](./src/FaceApp.tsx): provider + runtime stage
-- [`src/hooks/useMouseGaze.ts`](./src/hooks/useMouseGaze.ts): gaze input staging
-- [`src/hooks/usePoseHotkeys.ts`](./src/hooks/usePoseHotkeys.ts): semantic pose ordering + hotkey animation
+- [`src/FaceApp.tsx`](./src/FaceApp.tsx): the canvas, the provider and the
+  face's slot.
+- [`src/hooks/useFaceHotkeys.ts`](./src/hooks/useFaceHotkeys.ts): the face
+  standard's expressions and visemes on the keyboard.

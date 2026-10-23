@@ -1,5 +1,4 @@
 import type { GraphSpec } from "@vizij/node-graph";
-import { resolveAnimationBridgeOutputPaths } from "@vizij/runtime-react";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import {
   bakeClipToTrackSpecs,
@@ -13,6 +12,7 @@ import {
   type DecimateReport,
 } from "./decimateClip";
 import type { SampledOutputSpec } from "./bakeChannelIndex";
+import { inputPathsOfSpec } from "./bakeGraphSources";
 import {
   describeBakeHazards,
   detectBakeHazards,
@@ -98,16 +98,16 @@ export interface BakeAuthoredClipsResult {
 }
 
 /**
- * Bake every authored clip against `graphSources`.
+ * Bake every authored clip through `spec`.
  *
- * `graphSources` should be the specs actually being exported, so the baked
- * motion is produced by the same graph the bundle ships. Composing a
- * different set here would let the GLB and the bundle disagree about what the
- * face does.
+ * `spec` is the exported bundle's graph as the face composes it
+ * (`composeBakeGraph`), so the baked motion is produced by the graph the
+ * face runs. Composing a different graph here would let the GLB and the
+ * bundle disagree about what the face does.
  */
 export async function bakeAuthoredClips(options: {
   clips: ReadonlyArray<AnimationClipIR>;
-  /** Composed spec for the bake device, built from the exported specs. */
+  /** The graph the bake device steps: `composeBakeGraph` of the bundle. */
   spec: GraphSpec;
   /**
    * What to record: the store paths the graph writes and each component's
@@ -116,16 +116,12 @@ export async function bakeAuthoredClips(options: {
    */
   outputs: ReadonlyArray<SampledOutputSpec>;
   /**
-   * Clip variable id (or channel) -> the rig graph input path that drives it,
-   * from `collectInputPathMap` on the exported rig spec.
-   *
-   * Required because a clip's channel is NOT a graph input path: a clip drives
-   * `propsrig/l_eye/scale/x` while the graph's input node declares
-   * `rig/<face>/override/propsrig_l_eye_scale_x/value`. Staging the channel
-   * raw writes to a path nothing reads — the same failure that stopped
-   * playback, in a different place.
+   * Each track channel -> the store key it drives on the exported face
+   * (`bakeChannelKeys`): the key the face plays the track on. A channel is a
+   * rig-relative path or an input's id, not a graph input path, so staging
+   * it raw would write a key nothing reads.
    */
-  inputPathMap: Readonly<Record<string, string>>;
+  channelKeys: ReadonlyMap<string, string>;
   targets: BakeTargetIndex;
   /** The tree the clips will be exported against, for binding validation. */
   root: ThreeObject3DLike;
@@ -172,26 +168,18 @@ export async function bakeAuthoredClips(options: {
     };
   }
 
+  // A track drives the key the face plays it on, where the graph declares
+  // that key as an input. A channel whose key the graph does not read cannot
+  // drive anything, and is reported by the sampler rather than staged into
+  // the void.
+  const declaredInputPaths = new Set(inputPathsOfSpec(options.spec));
+  const resolveInputPath = (track: { channel: string }) => {
+    const key = options.channelKeys.get(track.channel);
+    return key && declaredInputPaths.has(key) ? key : null;
+  };
+
   // Measure the hop cost from a channel the graph actually drives, rather
   // than assuming it: it depends on how many sources the value crosses.
-  // Resolve through the same bridge playback uses, then keep only a candidate
-  // the graph actually declares as an input. A channel that resolves to
-  // nothing declared cannot drive anything, and is reported by the sampler
-  // rather than staged into the void.
-  const declaredInputPaths = new Set(Object.values(options.inputPathMap));
-  const resolveInputPath = (track: { variableId: string; channel: string }) => {
-    const map = options.inputPathMap;
-    const direct = map[track.variableId] ?? map[track.channel];
-    if (direct && declaredInputPaths.has(direct)) {
-      return direct;
-    }
-    const candidates = resolveAnimationBridgeOutputPaths(
-      track.channel,
-      undefined,
-      options.inputPathMap,
-    );
-    return candidates.find((path) => declaredInputPaths.has(path)) ?? null;
-  };
 
   let propagationTicks = options.propagationTicks;
   if (propagationTicks === undefined) {

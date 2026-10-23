@@ -1,41 +1,46 @@
 # demo-vizij-player
 
-Bundle-first showcase for Vizij face exports. Load one bundled GLB, inspect the embedded rig and pose structure, and drive authored animations and procedural programs from a single runtime workspace.
+A showcase for Vizij face exports: load one face GLB, inspect the rig, poses,
+animations and programs its bundle carries, and drive each of them from
+panels built out of what the GLB declares.
 
 ## What This Demo Teaches
 
-`demo-vizij-player` is the reference app in this repo for the current `@vizij/runtime-react` workflow:
+`demo-vizij-player` is the reference consumer of
+[`@vizij/runtime-react`](../../packages/@vizij/runtime-react/README.md) and
+[`@vizij/render`](../../packages/@vizij/render/README.md):
 
-- load one face bundle at a time from a curated sample or an uploaded `.glb`
-- let `VizijRuntimeProvider` unpack embedded rig, pose, animation, and program content
-- render the face with `VizijRuntimeFace`
-- build operator controls from runtime metadata instead of hard-coded paths
-- inspect what the runtime actually registered through diagnostics and runtime API examples
+- one face at a time, from the curated sample or an uploaded `.glb`, on the
+  page's canvas (`<VizijCanvas>`, `<VizijRuntimeFace>`);
+- panels built from `describe(glb)`: rig inputs, poses, animations, programs;
+- every control a call on the face's `Runtime` from `@vizij/runtime`: store
+  writes for rig inputs and pose weights, the animation module's transport
+  and the rest module's `reset` by name, programs as interpreter runs.
 
-If you want to build your own runtime-react surface, this app is the closest end-to-end example in the workspace.
+The face loads with its rig, pose driver and poses only
+(`options: { graphs: ["rig", "pose-driver", "pose"], program: "none" }` in
+`src/App.tsx`), without the standard adaptation, so the panels drive its rig
+inputs and pose weights directly; its programs start from the Programs panel.
+A capability the panels need belongs in `@vizij/runtime`, not in a helper
+here.
 
-It is intentionally the canonical "reference consumer" for runtime-react in this repo. The package README explains the API; this app shows what the API looks like when it is driving a real bundle-first UI.
-
-## Documentation
-
-- Full walkthrough: [`docs/runtime-react-walkthrough.md`](./docs/runtime-react-walkthrough.md)
-- Runtime package reference: [`packages/@vizij/runtime-react/README.md`](../../packages/@vizij/runtime-react/README.md)
-
-The walkthrough covers:
-
-- how a curated sample or uploaded GLB becomes a `VizijAssetBundle`
-- how `VizijRuntimeProvider` extracts and merges embedded bundle content
-- how the demo derives pose, animation, program, and face-control surfaces
-- what the diagnostics panel is actually telling you
-- how the embedded runtime API call examples map to the transport UI
+The walkthrough is [`docs/runtime-react-walkthrough.md`](./docs/runtime-react-walkthrough.md).
 
 ## Key Files
 
-- [`src/App.tsx`](./src/App.tsx): runtime provider + workspace shell
-- [`src/data/samples.ts`](./src/data/samples.ts): sample-to-bundle mapping
-- [`src/components/PosePanel.tsx`](./src/components/PosePanel.tsx): canonical pose-weight controls
-- [`src/components/FaceControlsPanel.tsx`](./src/components/FaceControlsPanel.tsx): metadata-driven controls via runtime helpers
-- [`src/components/DiagnosticsPanel.tsx`](./src/components/DiagnosticsPanel.tsx): runtime status/error/controller surfaces
+- [`src/App.tsx`](./src/App.tsx): the canvas, the provider and the workspace.
+- [`src/data/samples.ts`](./src/data/samples.ts): the sources and their GLBs.
+- [`src/components/FaceControlsPanel.tsx`](./src/components/FaceControlsPanel.tsx): rig inputs as sliders.
+- [`src/components/PosePanel.tsx`](./src/components/PosePanel.tsx): pose weights, pulsed and held.
+- [`src/components/AnimationPanel.tsx`](./src/components/AnimationPanel.tsx): the animation module's transport.
+- [`src/components/ProgramsPanel.tsx`](./src/components/ProgramsPanel.tsx): programs as runs.
+- [`src/components/DiagnosticsPanel.tsx`](./src/components/DiagnosticsPanel.tsx): what the device lists of itself.
+- [`src/state/storage.ts`](./src/state/storage.ts): the persisted source and
+  panels. Bump its `STORAGE_VERSION` whenever their shape changes, so a stored
+  state of the old shape is not read back.
+
+The curated sample is Quori from `apps/vizij-authoring/public/assets`; keep
+`src/data/samples.ts` aligned with the assets there.
 
 ## Scripts
 
@@ -46,9 +51,4 @@ The walkthrough covers:
 - `pnpm lint` - run ESLint across the project
 - `pnpm test` - execute the Vitest suite
 
-## Current Workflow
-
-- Start with the curated built-in sample: `Quori_Current_Extended.glb`.
-- Upload your own bundled `.glb` when you want to validate an external face.
-- The app is intentionally bundle-oriented: separate low-level rig JSON, high-level rig JSON, and standalone animation JSON imports are not part of the main flow.
-- Diagnostics are read-only and runtime-focused: graph inventory, controller ids, output paths, metadata, and runtime errors.
+The e2e spec is `e2e/tests/demo-vizij-player-load-sample.spec.ts` (port 5200).

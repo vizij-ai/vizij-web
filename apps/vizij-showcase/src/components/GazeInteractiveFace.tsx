@@ -1,88 +1,67 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useVizijRuntime } from "@vizij/runtime-react";
-import { usePoseHotkeys } from "../hooks/usePoseHotkeys";
+import { FEATURED_EXPRESSIONS, useExpressions } from "../hooks/useExpressions";
 import { useMouseGaze } from "../hooks/useMouseGaze";
-import { useIdleGazeBehavior } from "../hooks/useIdleGazeBehavior";
 import { RuntimeFaceFrame } from "./RuntimeFaceFrame";
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+const WEIGHT = 0.75;
+const REACTION_MS = 520;
 
+/**
+ * The gaze demo: the face's program keeps the face alive and looks where it
+ * likes; the pointer takes the eyes through the face standard's gaze target,
+ * and a click flashes a random expression.
+ */
 export function GazeInteractiveFace({ enabled = true }: { enabled?: boolean }) {
-  const { ready, assetBundle } = useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const { bindings, setPoseWeight } = usePoseHotkeys(
-    poseConfig,
-    ready && enabled,
-  );
-  const { ref: gazeRef, isPointerActive } = useMouseGaze(ready && enabled);
-  useIdleGazeBehavior({
-    enabled: ready && enabled,
-    pointerActive: isPointerActive,
-  });
+  const { status } = useVizijRuntime();
+  const ready = status === "ready";
+  const { ref: gazeRef } = useMouseGaze(ready && enabled);
+  const { set, solo } = useExpressions();
   const [prompt, setPrompt] = useState("Move your cursor to steer gaze.");
-  const resetTimer = useRef<number | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(true);
+  const resetTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current) window.clearTimeout(resetTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
-    return () => {
-      if (resetTimer.current) {
-        window.clearTimeout(resetTimer.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!overlayVisible) {
-      return;
-    }
     const node = gazeRef.current;
-    if (!node) {
-      return;
-    }
-    const hideOverlay = () => setOverlayVisible(false);
-    node.addEventListener("pointermove", hideOverlay, { once: true });
-    node.addEventListener("pointerdown", hideOverlay, { once: true });
+    if (!overlayVisible || !node) return;
+    const hide = () => setOverlayVisible(false);
+    node.addEventListener("pointermove", hide, { once: true });
+    node.addEventListener("pointerdown", hide, { once: true });
     return () => {
-      node.removeEventListener("pointermove", hideOverlay);
-      node.removeEventListener("pointerdown", hideOverlay);
+      node.removeEventListener("pointermove", hide);
+      node.removeEventListener("pointerdown", hide);
     };
   }, [gazeRef, overlayVisible]);
 
   const handleClick = useCallback(() => {
-    if (!ready) {
-      return;
-    }
-    if (bindings.length === 0) {
-      setPrompt("Pose bundle required for click reactions.");
-      return;
-    }
+    if (!ready) return;
     setOverlayVisible(false);
-    const randomBinding = bindings[Math.floor(Math.random() * bindings.length)];
-    bindings.forEach((binding) => {
-      if (binding.pose.id === randomBinding.pose.id) {
-        return;
-      }
-      setPoseWeight(binding, 0);
-    });
-    setPoseWeight(randomBinding, DEFAULT_POSE_WEIGHT);
-    setPrompt(
-      `Reacting with ${randomBinding.pose.name ?? randomBinding.pose.id}.`,
-    );
-    if (resetTimer.current) {
-      window.clearTimeout(resetTimer.current);
-    }
+    const name =
+      FEATURED_EXPRESSIONS[
+        Math.floor(Math.random() * FEATURED_EXPRESSIONS.length)
+      ];
+    void solo(name, WEIGHT, 0.15);
+    setPrompt(`Reacting with ${name}.`);
+    if (resetTimer.current) window.clearTimeout(resetTimer.current);
     resetTimer.current = window.setTimeout(() => {
-      setPoseWeight(randomBinding, 0);
+      void set(name, 0, 0.2);
       setPrompt("Click anywhere on the face to react.");
       resetTimer.current = null;
-    }, 520);
-  }, [bindings, ready, setPoseWeight]);
+    }, REACTION_MS);
+  }, [ready, set, solo]);
 
   return (
     <RuntimeFaceFrame
       variant="lg"
       label="Cursor-reactive gaze"
-      subtitle="Pointer tracking + pose triggers"
+      subtitle="Pointer tracking + expression triggers"
       pointerTargetRef={gazeRef}
       onCanvasClick={handleClick}
       overlay={
@@ -90,14 +69,17 @@ export function GazeInteractiveFace({ enabled = true }: { enabled?: boolean }) {
           <div className="face-overlay">
             <span className="face-overlay__pill">Live demo</span>
             <p>{prompt}</p>
-            <p>Mouse movements steer the eyes, clicks trigger random poses.</p>
+            <p>
+              Mouse movements steer the eyes, clicks trigger random expressions.
+            </p>
           </div>
         ) : null
       }
       footer={
         <p className="face-frame__note">
-          In this demo we normalise pointer movement into Vizij eye rig paths so
-          any cursor, touch, or gaze input can puppeteer attention.
+          The pointer sets the face standard's gaze target, and its weight
+          decides how firmly the eyes hold it against the face's own idle gaze —
+          so any cursor, touch, or gaze input can puppeteer attention.
         </p>
       }
     />

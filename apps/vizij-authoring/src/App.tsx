@@ -9,7 +9,11 @@ import {
 import { useDialogQueue } from "@vizij/authoring-shared";
 import { loadGLTFFromBlobWithBundle, useVizijStore } from "@vizij/render";
 import type { ToneMappingMode, VizijBundleProfile } from "@vizij/render";
-import { normalizeToneMappingMode } from "@vizij/render";
+import { normalizeToneMappingMode, VizijCanvas } from "@vizij/render";
+import {
+  VizijRuntimeProvider,
+  useOptionalVizijRuntime,
+} from "@vizij/runtime-react";
 import {
   normalizeStandardRigInputPath,
   type StandardRigInput,
@@ -28,10 +32,7 @@ import {
   type SurfaceTab,
 } from "./components/panels/VariablesPanel";
 import { AnimationPanel } from "./components/panels/AnimationPanel";
-import {
-  Viewer,
-  type RuntimeExportBodiesSnapshot,
-} from "./components/app/Viewer";
+import { Viewer } from "./components/app/Viewer";
 import { HierarchyPanel } from "./components/panels/HierarchyPanel";
 import { ReferenceFacePanel } from "./components/app/ReferenceFacePanel";
 import { FaceLoadingProgressBar } from "./components/app/FaceLoadingProgressBar";
@@ -45,6 +46,17 @@ import { nextClipOrdinal } from "./utils/animationClipIds";
 import type { AnimationClipEntry } from "./state/animationClipsStore";
 import { buildImportedClipEntries } from "./state/importedClipEntries";
 import { useVizijAssetLoader } from "./hooks/useVizijAssetLoader";
+import {
+  useMainFaceBytes,
+  useMainFaceValues,
+  type MainFace,
+} from "./hooks/useMainFaceBytes";
+import {
+  pauseTimeline,
+  playTimeline,
+  stopTimeline,
+  timelinePlayer,
+} from "./hooks/timelinePlayer";
 import {
   buildCatalogFromInputPaths,
   computeInputRangeFit,
@@ -94,7 +106,6 @@ import type {
 import { ReferenceFaceProvider } from "./state/ReferenceFaceContext";
 import { useReferenceFaceState } from "./hooks/useReferenceFaceState";
 import { useUnifiedSelection } from "./hooks/useUnifiedSelection";
-import { buildRuntimeBaseBundle } from "./utils/runtimeBundle";
 import { useSharedVariableSync } from "./hooks/useSharedVariableSync";
 import { useSessionResetEffect } from "./hooks/authoringSessionLifecycle";
 import { SharedVariableSyncProvider } from "./state/SharedVariableSyncContext";
@@ -173,14 +184,6 @@ function parseBundleTargetIndex(
   return Number.isFinite(index) && index >= 0 ? index : null;
 }
 
-function createEmptyRuntimeExportBodiesSnapshot(): RuntimeExportBodiesSnapshot {
-  return {
-    rootFilteredBodies: [],
-    anyBodies: [],
-    runtimeRootId: null,
-  };
-}
-
 function MemoryDebugBridge({ loader }: { loader: VizijAssetLoaderState }) {
   const memoryInvestigation = getMemoryInvestigationFlags();
   const authoringWorldEntryCount = useVizijStore(
@@ -190,6 +193,13 @@ function MemoryDebugBridge({ loader }: { loader: VizijAssetLoaderState }) {
     (state) => Object.keys(state.animatables).length,
   );
   const authoringValuesSize = useVizijStore((state) => state.values.size);
+  const mainFace = useOptionalVizijRuntime();
+  const runtimeViewReady = mainFace?.status === "ready";
+  const runtimeViewLoading = mainFace?.status === "loading";
+  const runtimeViewGraphCount = mainFace?.description?.graphs.length ?? 0;
+  const runtimeViewOutputCount = Object.keys(
+    mainFace?.description?.animatables ?? {},
+  ).length;
   const graphRuntimeDebug = useGraphRuntime(
     useShallow((state) => ({
       faceId: state.faceId,
@@ -201,11 +211,6 @@ function MemoryDebugBridge({ loader }: { loader: VizijAssetLoaderState }) {
       graphPlaybackAvailable: state.graphPlaybackAvailable,
       graphFrameRate: state.graphFrameRate,
       graphTimeSeconds: state.graphTimeSeconds,
-      runtimeViewReady: state.runtimeViewReady,
-      runtimeViewLoading: state.runtimeViewLoading,
-      runtimeViewRootId: state.runtimeViewRootId,
-      runtimeViewGraphCount: state.runtimeViewGraphCount,
-      runtimeViewOutputCount: state.runtimeViewOutputCount,
       worldEntryCount: Object.keys(state.world).length,
       animatableCount: Object.keys(state.animatables).length,
       valuesSize: state.values.size,
@@ -237,13 +242,24 @@ function MemoryDebugBridge({ loader }: { loader: VizijAssetLoaderState }) {
         faceLoadLastOperationUpdateAtMs: loader.faceLoadLastOperationUpdateAtMs,
         faceLoadMilestones: { ...loader.faceLoadMilestones },
       };
-      state.graphRuntime = { ...graphRuntimeDebug };
+      state.graphRuntime = {
+        ...graphRuntimeDebug,
+        runtimeViewReady,
+        runtimeViewLoading,
+        runtimeViewRootId: runtimeViewReady ? loader.rootId : null,
+        runtimeViewGraphCount,
+        runtimeViewOutputCount,
+      };
     });
   }, [
     authoringAnimatableCount,
     authoringValuesSize,
     authoringWorldEntryCount,
     graphRuntimeDebug,
+    runtimeViewGraphCount,
+    runtimeViewLoading,
+    runtimeViewOutputCount,
+    runtimeViewReady,
     loader.bundle,
     loader.error,
     loader.exportSceneRoot,
@@ -310,11 +326,6 @@ interface AnimationTargetPlaybackStatus {
 
 interface ProgramTargetPlaybackStatus {
   state: RuntimePlaybackState;
-}
-
-interface MotionGraphRuntimeResetEntry {
-  path: string;
-  value: number;
 }
 
 function authoredAnimationTargetValue(clipId: string): string {
@@ -538,15 +549,27 @@ function applyEditFocusPanelDefaults(
   );
 }
 
+/** The id the main face is loaded and shown under. */
+export const MAIN_FACE_VIZIJ_ID = "authoring-main";
+
 export default function App() {
   const assetLoader = useVizijAssetLoader();
+  // The callback reads the loader's fields, not the loader: a loader state
+  // captured in it would keep the face it held loaded until the callback is
+  // made anew.
+  const {
+    faceLoadSessionToken,
+    faceLoadMilestones,
+    markFaceLoadMilestone,
+    updateExternalPhase,
+  } = assetLoader;
   const updateFaceLoadPhase = useCallback(
     (update: FaceLoadPhaseChange) => {
-      const sessionToken = assetLoader.faceLoadSessionToken;
+      const sessionToken = faceLoadSessionToken;
       const operationId =
         update.operationId ??
         (update.substepId ? `${update.stepId}:${update.substepId}` : undefined);
-      assetLoader.updateExternalPhase({
+      updateExternalPhase({
         ...update,
         sessionToken,
         operationId,
@@ -555,43 +578,74 @@ export default function App() {
         update.stepId === "runtime-stabilization" &&
         update.substepId === "settle-recompiles" &&
         update.status === "complete" &&
-        assetLoader.faceLoadMilestones["bundle-synced"] !== null
+        faceLoadMilestones["bundle-synced"] !== null
       ) {
-        assetLoader.markFaceLoadMilestone("graph-ready", {
+        markFaceLoadMilestone("graph-ready", {
           sessionToken,
         });
       }
     },
     [
-      assetLoader.faceLoadSessionToken,
-      assetLoader.faceLoadMilestones,
-      assetLoader.markFaceLoadMilestone,
-      assetLoader.updateExternalPhase,
+      faceLoadSessionToken,
+      faceLoadMilestones,
+      markFaceLoadMilestone,
+      updateExternalPhase,
     ],
   );
 
-  return (
-    <RigControllerProvider
-      namespace={DEFAULT_NAMESPACE}
-      rootId={assetLoader.rootId}
-      sourceName={assetLoader.sourceName}
-      onLoadPhaseChange={updateFaceLoadPhase}
-    >
-      <PoseRigProvider
-        rootId={assetLoader.rootId}
-        onLoadPhaseChange={updateFaceLoadPhase}
-      >
-        <AuthoringUiProvider>
-          <RegistryProvider>
-            <AppContent
-              loader={assetLoader}
-              onFaceLoadPhaseChange={updateFaceLoadPhase}
-            />
-          </RegistryProvider>
-        </AuthoringUiProvider>
-      </PoseRigProvider>
-    </RigControllerProvider>
+  const mainFace = useMainFaceBytes(
+    assetLoader.rootId,
+    assetLoader.bundle,
+    getMemoryInvestigationFlags().mainRuntimeEnabled,
   );
+
+  // The main face's provider holds the whole workspace, so the viewport, the
+  // inspector, the panels, the rig controller, the motion-graph editor and the
+  // timeline all reach the same `Runtime`. With no face its `glb` is null and
+  // the workspace stays mounted. The face loads as any app loads it: its
+  // graphs and standard adaptation, with its active program running. A
+  // structural edit gives new bytes, which reload it; a value edit shows in
+  // place.
+  return (
+    <VizijRuntimeProvider
+      glb={mainFace?.bytes ?? null}
+      vizijId={MAIN_FACE_VIZIJ_ID}
+    >
+      <MainFaceValues face={mainFace} />
+      <AuthoringUiProvider>
+        <RegistryProvider>
+          {/* Each scene (File > New) mounts a new rig controller, pose rig
+              and workspace. Their callbacks are memoized across renders, and
+              each holds the render it was made in, with the world and face
+              that render saw; new ones release the previous scene's faces. */}
+          <RigControllerProvider
+            key={assetLoader.sceneGeneration}
+            namespace={DEFAULT_NAMESPACE}
+            rootId={assetLoader.rootId}
+            sourceName={assetLoader.sourceName}
+            onLoadPhaseChange={updateFaceLoadPhase}
+          >
+            <PoseRigProvider
+              rootId={assetLoader.rootId}
+              onLoadPhaseChange={updateFaceLoadPhase}
+            >
+              <AppContent
+                loader={assetLoader}
+                onFaceLoadPhaseChange={updateFaceLoadPhase}
+              />
+            </PoseRigProvider>
+          </RigControllerProvider>
+        </RegistryProvider>
+      </AuthoringUiProvider>
+    </VizijRuntimeProvider>
+  );
+}
+
+/** Shows the main face's in-place values on the face the provider runs. */
+function MainFaceValues({ face }: { face: MainFace | null }) {
+  const runtime = useOptionalVizijRuntime()?.runtime ?? null;
+  useMainFaceValues(MAIN_FACE_VIZIJ_ID, runtime, face);
+  return null;
 }
 
 interface AppContentProps {
@@ -604,7 +658,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     rootId,
     sourceName,
     isLoading,
-    exportSceneRoot,
     faceLoadSessionToken,
     faceLoadMilestones,
     faceLoadInFlightOperationCount,
@@ -636,10 +689,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   }, [faceLoadSessionToken]);
 
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [runtimeExportBodies, setRuntimeExportBodies] =
-    useState<RuntimeExportBodiesSnapshot>(
-      createEmptyRuntimeExportBodiesSnapshot,
-    );
   const [selectedPoseGroup, setSelectedPoseGroup] =
     useState<PoseGroupInspectorSelection | null>(null);
   const [selectedBlendStage, setSelectedBlendStage] =
@@ -786,15 +835,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const faceSegment = useGraphRuntime((state) => state.faceSegment);
   const graphStatus = useGraphRuntime((state) => state.graphStatus);
   const graphError = useGraphRuntime((state) => state.graphError);
-  const stageRuntimeInput = useGraphRuntime((state) => state.stageRuntimeInput);
-  const runtimeViewReady = useGraphRuntime((state) => state.runtimeViewReady);
-  const runtimeViewLoading = useGraphRuntime(
-    (state) => state.runtimeViewLoading,
-  );
-  const runtimeViewRootId = useGraphRuntime((state) => state.runtimeViewRootId);
-  const runtimeViewGraphCount = useGraphRuntime(
-    (state) => state.runtimeViewGraphCount,
-  );
+  // The main face as the view shows it.
+  const mainFace = useOptionalVizijRuntime();
+  const runtimeViewReady = mainFace?.status === "ready";
+  const runtimeViewLoading = mainFace?.status === "loading";
+  const runtimeViewRootId = runtimeViewReady ? rootId : null;
+  const runtimeViewGraphCount = mainFace?.description?.graphs.length ?? 0;
   const runtimeWorld = useVizijStore((state) => state.world);
   const runtimeAnimatables = useVizijStore((state) => state.animatables);
 
@@ -918,35 +964,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     useState<string | null>(null);
   const [programRuntimePlaybackState, setProgramRuntimePlaybackState] =
     useState<RuntimePlaybackState>("stopped");
-  const handleRuntimeExportBodiesChange = useCallback(
-    (next: RuntimeExportBodiesSnapshot) => {
-      setRuntimeExportBodies((previous) => {
-        const sameRootFiltered =
-          previous.rootFilteredBodies.length ===
-            next.rootFilteredBodies.length &&
-          previous.rootFilteredBodies.every(
-            (body, index) => body === next.rootFilteredBodies[index],
-          );
-        const sameAny =
-          previous.anyBodies.length === next.anyBodies.length &&
-          previous.anyBodies.every(
-            (body, index) => body === next.anyBodies[index],
-          );
-        if (
-          previous.runtimeRootId === next.runtimeRootId &&
-          sameRootFiltered &&
-          sameAny
-        ) {
-          return previous;
-        }
-        return next;
-      });
-    },
-    [],
-  );
-  useEffect(() => {
-    setRuntimeExportBodies(createEmptyRuntimeExportBodiesSnapshot());
-  }, [rootId]);
   useEffect(() => {
     setBundleProceduralNameOverrides({});
     setBundleProceduralSnapshotOverrides({});
@@ -1011,9 +1028,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const animationPlaybackState = useAnimationStore(
     (state) => state.transportPlaybackState,
   );
-  const animationRuntimeTransportAdapter = useAnimationStore(
-    (state) => state.runtimeTransportAdapter,
-  );
+  const mainFaceRuntime = mainFace?.runtime ?? null;
   const animationTransportSessionKey = useAnimationStore(
     (state) => state.transportSessionKey,
   );
@@ -1127,12 +1142,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   );
   const clearAnimationRuntimeState = useCallback(() => {
     advanceAnimationTransportSessionKey();
-    animationRuntimeTransportAdapter?.stopAnimation(AUTHORED_TIMELINE_CLIP_ID, {
-      clearOutputs: true,
-    });
+    if (mainFaceRuntime) {
+      void stopTimeline(mainFaceRuntime);
+    }
     setPendingAnimationRuntimePlayTargetId(null);
     setActiveAnimationRuntimeTargetId(null);
-  }, [advanceAnimationTransportSessionKey, animationRuntimeTransportAdapter]);
+  }, [advanceAnimationTransportSessionKey, mainFaceRuntime]);
   const clearProgramRuntimeState = useCallback(() => {
     setProgramRuntimePlaybackState("stopped");
     setActiveProgramRuntimeTargetId(null);
@@ -1403,15 +1418,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     [bundleProceduralSnapshotOverrides, resolveImportedProceduralBaseSnapshot],
   );
   // The pending flag makes the transport read as "playing" from the moment
-  // Play is pressed, so the button does not flicker while the engine starts.
-  // It was only ever cleared by a synchronous `getAnimationState` issued
-  // immediately after `playAnimation`, which returns null because the engine
-  // has not registered the clip yet — so it stayed set for the whole session
-  // and pinned the transport to "playing". Pause could never flip the button,
-  // because the button was not reading the transport at all.
-  //
-  // Clear it when the engine confirms instead: that is the event the flag was
-  // always standing in for.
+  // Play is pressed, so the button does not flicker while the device starts
+  // the player. It clears when the device reports the player playing: the
+  // event the flag stands in for.
   useEffect(() => {
     if (
       pendingAnimationRuntimePlayTargetId &&
@@ -2069,29 +2078,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       resolveImportedProceduralSnapshot,
       selectedProceduralTargetId,
     ]);
-  const activeProgramRuntimeResetValues = useMemo<
-    MotionGraphRuntimeResetEntry[]
-  >(() => {
-    if (!activeProgramRuntimeSnapshot) {
-      return [];
-    }
-    return Array.from(new Set(activeProgramRuntimeSnapshot.enabledOutputs))
-      .sort((left, right) => left.localeCompare(right))
-      .map((path) => {
-        const input = resolveStandardInputForRuntimePath(
-          standardInputsByPath,
-          path,
-        );
-        const defaultValue = input?.defaultValue;
-        return {
-          path,
-          value:
-            typeof defaultValue === "number" && Number.isFinite(defaultValue)
-              ? defaultValue
-              : 0,
-        };
-      });
-  }, [activeProgramRuntimeSnapshot, standardInputsByPath]);
   const activeProgramRuntimeControllerId = useMemo(
     () =>
       activeProgramRuntimeTargetId
@@ -2966,30 +2952,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (
         targetId === activeAnimationRuntimeTargetId &&
         animationPlaybackState === "paused" &&
-        animationRuntimeTransportAdapter
+        mainFaceRuntime
       ) {
-        animationRuntimeTransportAdapter.setAnimationLoop(
-          AUTHORED_TIMELINE_CLIP_ID,
-          animationLoopEnabled,
-        );
-        animationRuntimeTransportAdapter.seekAnimation(
-          AUTHORED_TIMELINE_CLIP_ID,
-          getCurrentPlayheadTime(),
-        );
-        void animationRuntimeTransportAdapter.playAnimation(
-          AUTHORED_TIMELINE_CLIP_ID,
-          {
-            reset: false,
-            speed: animationPlaySpeed,
-          },
-        );
-        // Resuming has to say so locally, the same as pause and stop do.
-        // This branch used to clear the optimistic flag — the only thing
-        // standing in for "playing" until the runtime confirms — and write
-        // nothing in its place, so a resumed clip went on reporting "paused"
-        // until a frame arrived to correct it. The first Play of a session
-        // looked fine only because it takes the branch below, which sets the
-        // optimistic flag rather than clearing it.
+        void playTimeline(mainFaceRuntime, {
+          time: getCurrentPlayheadTime(),
+          loop: animationLoopEnabled,
+          speed: animationPlaySpeed,
+        });
+        // Resuming says so locally, as pause and stop do: the transport
+        // reads "playing" now rather than when the device next reports.
         playAnimationTransportState();
         setPendingAnimationRuntimePlayTargetId(null);
         return;
@@ -3003,7 +2974,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       playAnimationTransportState,
       animationPlaySpeed,
       animationPlaybackState,
-      animationRuntimeTransportAdapter,
+      mainFaceRuntime,
       clearAnimationRuntimeState,
       handleSelectAnimationTarget,
       selectedAnimationTargetId,
@@ -3027,9 +2998,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       // moot, and leaving it set pinned the button to Pause forever whenever
       // the confirmation never arrived.
       setPendingAnimationRuntimePlayTargetId(null);
-      animationRuntimeTransportAdapter?.pauseAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
-      );
+      if (mainFaceRuntime) {
+        void pauseTimeline(mainFaceRuntime);
+      }
       // Write the paused state here rather than waiting to be told, exactly
       // as Stop does two functions down. The runtime confirms a pause through
       // the feedback loop, which only runs while frames arrive; relying on
@@ -3041,7 +3012,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       activeAnimationRuntimeTargetId,
-      animationRuntimeTransportAdapter,
+      mainFaceRuntime,
       pauseAnimationTransportState,
       uiActions,
     ],
@@ -3068,15 +3039,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       uiActions.setActiveRuntimeSource("animation");
       setPendingAnimationRuntimePlayTargetId(null);
-      animationRuntimeTransportAdapter?.stopAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
-        { clearOutputs: true },
-      );
+      if (mainFaceRuntime) {
+        void stopTimeline(mainFaceRuntime);
+      }
       stopAnimationTransportState();
     },
     [
       activeAnimationRuntimeTargetId,
-      animationRuntimeTransportAdapter,
+      mainFaceRuntime,
       stopAnimationTransportState,
       uiActions,
     ],
@@ -3479,7 +3449,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       !pendingAnimationRuntimePlayTargetId ||
       pendingAnimationRuntimePlayTargetId !== activeAnimationRuntimeTargetId ||
       !activeAnimationRuntimeClip ||
-      !animationRuntimeTransportAdapter ||
+      !mainFaceRuntime ||
       !animationTransportRuntimeReady
     ) {
       return;
@@ -3491,62 +3461,28 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       if (cancelled) {
         return;
       }
+      // The device lists the timeline's player a step after it holds the
+      // clip; until then, look again shortly.
+      if (!timelinePlayer(mainFaceRuntime)) {
+        retryTimeoutId = window.setTimeout(attemptPlay, 50);
+        return;
+      }
       // Match the transport contract (UI_DESIGN.md "Animation Transport
       // Contract" 1): Play starts from the current playhead, at the chosen
-      // speed. This path used to pass `{ reset: true, speed: 1 }`, so the
-      // first Play of a session silently rewound to 0 and ignored the speed
-      // dropdown — while the resume path a few lines up did it correctly.
-      // Read the transport settings imperatively rather than closing over
-      // them: `currentTime` changes on every playhead tick, so having it in
-      // this effect's dependencies would restart playback continuously.
+      // speed. Read the transport settings imperatively rather than closing
+      // over them: `currentTime` changes on every playhead tick, so having it
+      // in this effect's dependencies would restart playback continuously.
       const {
         currentTime: playFromTime,
         loop: playLoop,
         playSpeed,
       } = useAnimationStore.getState();
-      animationRuntimeTransportAdapter.setAnimationLoop(
-        AUTHORED_TIMELINE_CLIP_ID,
-        playLoop,
-      );
-      animationRuntimeTransportAdapter.seekAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
-        playFromTime,
-      );
-      const playPromise = animationRuntimeTransportAdapter.playAnimation(
-        AUTHORED_TIMELINE_CLIP_ID,
-        { reset: false, speed: playSpeed },
-      );
-      if (
-        animationRuntimeTransportAdapter.getAnimationState(
-          AUTHORED_TIMELINE_CLIP_ID,
-        )
-      ) {
-        setPendingAnimationRuntimePlayTargetId(null);
-        void playPromise.catch((error) => {
-          if (!cancelled) {
-            console.error(
-              "[vizij-authoring] animation runtime playback failed",
-              error,
-            );
-          }
-        });
-        return;
-      }
-      void playPromise.catch((error) => {
-        if (
-          error instanceof Error &&
-          error.message.includes("is not part of the current asset bundle")
-        ) {
-          return;
-        }
-        if (!cancelled) {
-          console.error(
-            "[vizij-authoring] animation runtime playback failed",
-            error,
-          );
-        }
+      void playTimeline(mainFaceRuntime, {
+        time: playFromTime,
+        loop: playLoop,
+        speed: playSpeed,
       });
-      retryTimeoutId = window.setTimeout(attemptPlay, 50);
+      setPendingAnimationRuntimePlayTargetId(null);
     };
 
     attemptPlay();
@@ -3560,7 +3496,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     activeAnimationRuntimeClip,
     activeAnimationRuntimeTargetId,
     animationTransportRuntimeReady,
-    animationRuntimeTransportAdapter,
+    mainFaceRuntime,
     pendingAnimationRuntimePlayTargetId,
   ]);
 
@@ -4707,20 +4643,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     />
   );
 
-  const runtimeBundle = useMemo(
-    () =>
-      buildRuntimeBaseBundle({
-        namespace: DEFAULT_NAMESPACE,
-        world: runtimeWorld ?? null,
-        animatables: runtimeAnimatables ?? null,
-        loadedBundle: loadedBundle ?? null,
-      }),
-    [loadedBundle, runtimeAnimatables, runtimeWorld],
-  );
-
   const runtimeInputReady =
     runtimeInvestigationBypassed ||
-    (typeof stageRuntimeInput === "function" && graphStatus === "ready");
+    (Boolean(mainFace?.runtime) && graphStatus === "ready");
   const runtimeVisibleReady =
     runtimeInvestigationBypassed ||
     (runtimeViewReady &&
@@ -4989,7 +4914,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const mainViewerPane = (
     <div className="relative w-full h-full">
       {loadingBarVisible && (
-        <div className="absolute top-2 left-2 right-2 z-20 pointer-events-none">
+        <div
+          data-testid="face-load-progress"
+          className="absolute top-2 left-2 right-2 z-20 pointer-events-none"
+        >
           <FaceLoadingProgressBar
             visible={loadingBarVisible}
             progress={loadingBarProgress}
@@ -5007,8 +4935,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       )}
       <Viewer
         rootId={rootId}
-        namespace={DEFAULT_NAMESPACE}
-        bundle={rootId ? runtimeBundle : null}
+        bundle={loadedBundle ?? null}
         runtimeEnabled={memoryInvestigation.mainRuntimeEnabled}
         animationSourceActive={animationSourceActive}
         animationRuntimeClip={activeAnimationRuntimeClip}
@@ -5017,7 +4944,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         motionGraphRuntimeEdges={activeProgramRuntimeSnapshot?.edges}
         motionGraphPlaybackState={effectiveProgramRuntimePlaybackState}
         motionGraphRuntimeControllerId={activeProgramRuntimeControllerId}
-        motionGraphRuntimeResetValues={activeProgramRuntimeResetValues}
         runtimeStatusLabel={runtimeStatusLabel}
         runtimePlaybackState={viewerRuntimePlaybackState}
         onPlayRuntime={viewerPlayRuntime}
@@ -5026,7 +4952,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         selectedSceneId={selectedSceneId}
         onSelectScene={handleSelectObjectWithInspectorSync}
         onRuntimeInputsReady={handleMainRuntimeInputsReady}
-        onRuntimeExportBodiesChange={handleRuntimeExportBodiesChange}
         onClearSelection={handleClearSelectionWithInspectorSync}
         showSelectionGlow={showSelectionGlow}
         toneMapping={toneMapping}
@@ -5041,38 +4966,48 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     <div
       className={
         activeWorkbench === "std-feature-spaces"
-          ? `viewer-split ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
-          : "viewer-wrapper relative w-full h-full"
+          ? `viewer-split relative bg-bg-panel ${viewerSplitVertical ? "viewer-split--vertical" : ""}`
+          : "viewer-wrapper relative w-full h-full bg-bg-panel"
       }
       style={{ height: "100%", width: "100%" }}
     >
-      <PanelGroup orientation={viewerSplitVertical ? "horizontal" : "vertical"}>
-        <ResizablePanel
-          defaultSize={effectiveReferenceFacePanelVisible ? 70 : 100}
-          minSize={20}
+      {/* The page's one canvas, beneath the panes: every face the viewer
+          shows — the main face, the reference face, the empty-state demo —
+          draws on it where its slot lies. The panes above it let presses
+          through to it, so the main face takes picks; their controls keep
+          theirs. */}
+      <VizijCanvas className="absolute inset-0" />
+      <div className="relative z-10 h-full w-full pointer-events-none">
+        <PanelGroup
+          orientation={viewerSplitVertical ? "horizontal" : "vertical"}
         >
-          {mainViewerPane}
-        </ResizablePanel>
-        {effectiveReferenceFacePanelVisible ? (
-          <>
-            <PanelResizeHandle
-              className={
-                viewerSplitVertical
-                  ? "w-1 bg-border-default hover:bg-border-hover transition-colors"
-                  : "h-1 bg-border-default hover:bg-border-hover transition-colors"
-              }
-            />
-            <ResizablePanel defaultSize={30} minSize={20}>
-              <ReferenceFacePanel
-                runtimeEnabled={memoryInvestigation.referenceRuntimeEnabled}
-                splitVertical={viewerSplitVertical}
-                onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
-                onClosePanel={handleHideReferenceFacePanel}
+          <ResizablePanel
+            defaultSize={effectiveReferenceFacePanelVisible ? 70 : 100}
+            minSize={20}
+          >
+            {mainViewerPane}
+          </ResizablePanel>
+          {effectiveReferenceFacePanelVisible ? (
+            <>
+              <PanelResizeHandle
+                className={
+                  viewerSplitVertical
+                    ? "w-1 bg-border-default hover:bg-border-hover transition-colors pointer-events-auto"
+                    : "h-1 bg-border-default hover:bg-border-hover transition-colors pointer-events-auto"
+                }
               />
-            </ResizablePanel>
-          </>
-        ) : null}
-      </PanelGroup>
+              <ResizablePanel defaultSize={30} minSize={20}>
+                <ReferenceFacePanel
+                  runtimeEnabled={memoryInvestigation.referenceRuntimeEnabled}
+                  splitVertical={viewerSplitVertical}
+                  onToggleSplit={() => setViewerSplitVertical((prev) => !prev)}
+                  onClosePanel={handleHideReferenceFacePanel}
+                />
+              </ResizablePanel>
+            </>
+          ) : null}
+        </PanelGroup>
+      </div>
 
       {/* Hidden file input for Reference Face import */}
       <input
@@ -5447,8 +5382,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           showExportDialog={showExportDialog}
           onCloseExportDialog={() => setShowExportDialog(false)}
           rootId={rootId}
-          exportSceneRoot={exportSceneRoot}
-          runtimeExportBodies={runtimeExportBodies}
           sourceName={sourceName}
           loadedBundle={loadedBundle}
           toneMapping={toneMapping}

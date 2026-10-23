@@ -58,6 +58,28 @@ function hopSpec(): GraphSpec {
   } as unknown as GraphSpec;
 }
 
+/** The hop spec with a damper before the hop: the rig's smoothing. */
+function smoothedHopSpec(): GraphSpec {
+  return {
+    nodes: [
+      { id: "in", type: "input", params: { path: IN, value: { float: 0 } } },
+      { id: "smooth", type: "damp", params: { half_life: 0.25 } },
+      { id: "mid", type: "output", params: { path: HOP_MID } },
+      {
+        id: "relay",
+        type: "input",
+        params: { path: HOP_MID, value: { float: 0 } },
+      },
+      { id: "out", type: "output", params: { path: HOP_OUT } },
+    ],
+    edges: [
+      { from: { node_id: "in" }, to: { node_id: "smooth", input: "in" } },
+      { from: { node_id: "smooth" }, to: { node_id: "mid", input: "in" } },
+      { from: { node_id: "relay" }, to: { node_id: "out", input: "in" } },
+    ],
+  } as unknown as GraphSpec;
+}
+
 describe("device graph evaluator", () => {
   it("sees a staged input in the same tick, with no hop", async () => {
     const evaluator = await createDeviceGraphEvaluator({ spec: directSpec() });
@@ -90,6 +112,24 @@ describe("device graph evaluator", () => {
     expect(direct).toBe(0);
     expect(hopped).not.toBeNull();
     expect(hopped!).toBeGreaterThan(direct!);
+  });
+
+  it("counts the hops of a path through a smoother as of one without", async () => {
+    // A smoother holds at a step with no time in it, so a probe that steps
+    // no time sees nothing arrive through one.
+    const plain = await measurePropagationTicks({
+      spec: hopSpec(),
+      inputPath: IN,
+      outputPath: HOP_OUT,
+    });
+    const smoothed = await measurePropagationTicks({
+      spec: smoothedHopSpec(),
+      inputPath: IN,
+      outputPath: HOP_OUT,
+    });
+
+    expect(plain).not.toBeNull();
+    expect(smoothed).toBe(plain);
   });
 
   it("propagates a hop within one frame when given propagation ticks", async () => {

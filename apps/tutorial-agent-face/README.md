@@ -1,10 +1,8 @@
 # tutorial-agent-face
 
-`tutorial-agent-face` is the live conversational runtime demo. It builds on the fullscreen runtime tutorial and adds Gemini Live, viseme playback, speech anticipation, idle gaze behavior, and function-call tools that steer the face through `@vizij/runtime-react`.
+`tutorial-agent-face` is the live conversational face. It builds on the fullscreen tutorial and adds Gemini Live as the agent and its voice, lips from the agent's audio through the device's `play_viseme`, the conversation state the face's program reacts to, and tools the agent calls to steer the gaze and show expressions — all through the Vizij face standard.
 
-Use this app when you want the clearest example of a runtime-react face that is being actively driven by voice, gaze, emotion, and agent tools.
-
-This README focuses on the app-specific delta. The shared runtime-react basics live in the fullscreen tutorial and the package README.
+This README covers setup. The walkthrough is [`tutorial.md`](./tutorial.md).
 
 ## Environment
 
@@ -29,7 +27,10 @@ pnpm --filter tutorial-agent-face build
 pnpm --filter tutorial-agent-face preview
 pnpm --filter tutorial-agent-face typecheck
 pnpm --filter tutorial-agent-face lint
+pnpm --filter tutorial-agent-face test
 ```
+
+The e2e spec is `e2e/tests/tutorial-agent-face.spec.ts` (port 5206). It needs no Gemini key: it checks the face and its debug controls.
 
 If you are not using `.env.local`, pass the key inline when running the commands.
 
@@ -53,21 +54,33 @@ The HTTPS dev flow generates a local self-signed certificate under `apps/tutoria
 
 Use `pnpm`, not `npm`, in this workspace. The monorepo uses `workspace:*` dependencies, so `npm install` is not supported here.
 
+## How It Drives The Face
+
+- The face is Quori, loaded from
+  `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb`
+  (`faceAssetUrl` in `src/FaceApp.tsx`).
+- The app drives it only through its Arora API: the face standard's keys
+  (`standard/vizij/*`) and the device's `play_viseme`.
+- Quori's program writes the eye positions, so the app steers the eyes
+  through the standard's gaze target (`useGazeTarget`), never through the eye
+  positions.
+- **Mouth source** picks the viseme timeline: a text-only baseline, or audio
+  and text, synthesised or aligned. **Viseme lead** shifts it against the
+  audio. The device's viseme players smooth and blend the visemes.
+- The debug controls turn on mouse gaze, the expression hotkeys and the
+  emotion buttons, and give the agent its `express_emotion` tool.
+
 ## Docs
 
 - App walkthrough: [`tutorial.md`](./tutorial.md)
 - Baseline runtime tutorial: [`apps/tutorial-fullscreen-face/tutorial.md`](../tutorial-fullscreen-face/tutorial.md)
 - Runtime package reference: [`packages/@vizij/runtime-react/README.md`](../../packages/@vizij/runtime-react/README.md)
 
-The walkthrough focuses on what this app adds on top of the baseline:
-
-- Gemini Live session wiring
-- tool-driven gaze and emotion control
-- runtime-aware viseme, anticipation, and warmup behavior
-
 ## Key Files
 
-- [`src/FaceApp.tsx`](./src/FaceApp.tsx): runtime bootstrap + live UI shell
-- [`src/hooks/useGeminiLive.ts`](./src/hooks/useGeminiLive.ts): Gemini Live session
-- [`src/hooks/useAgentFaceTools.ts`](./src/hooks/useAgentFaceTools.ts): tool-driven gaze/emotion runtime control
-- [`src/hooks/useVisemeMouth.ts`](./src/hooks/useVisemeMouth.ts): speech-to-mouth behavior
+- [`src/FaceApp.tsx`](./src/FaceApp.tsx): the canvas, the provider and the live UI shell
+- [`src/hooks/useGeminiLive.ts`](./src/hooks/useGeminiLive.ts): the Gemini Live session
+- [`src/hooks/useConversationState.ts`](./src/hooks/useConversationState.ts): the conversation state onto the face standard
+- [`src/hooks/useGazeTarget.ts`](./src/hooks/useGazeTarget.ts): the eyes through the face standard's gaze target
+- [`src/hooks/useAgentFaceTools.ts`](./src/hooks/useAgentFaceTools.ts): the agent's `set_gaze` and `express_emotion` tools
+- [`src/hooks/useVisemeMouth.ts`](./src/hooks/useVisemeMouth.ts): the agent's audio onto `play_viseme`

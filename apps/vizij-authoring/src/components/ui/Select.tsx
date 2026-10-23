@@ -48,9 +48,9 @@ const SIZES: Record<"sm" | "md", Size> = {
  * `visuals="labels"` is explicit: semio defaults to `"both"`, which reserves an
  * icon slot per option, and these options never carry icons.
  *
- * `SelectOption.description` is retained on the type — `hooks/useSpeechPlayback.ts`
- * imports it — but semio's `SelectOption` has no per-option description and no
- * `renderItem` escape hatch, so it is not rendered. No call site sets it.
+ * `SelectOption.description` is on the type, but semio's `SelectOption` has no
+ * per-option description and no `renderItem` escape hatch, so it is not
+ * rendered. No call site sets it.
  */
 export function Select({
   value,

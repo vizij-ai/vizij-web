@@ -5,24 +5,13 @@ type AssetOverviewPanelProps = {
   sourceLabel: string;
   sourceMeta: string;
   summary: DemoBundleSummary;
-  status: Pick<
-    VizijRuntimeStatus,
-    "loading" | "ready" | "error" | "controllers"
-  >;
+  status: VizijRuntimeStatus;
+  error: Error | null;
 };
 
-function RuntimeStateChip({
-  status,
-}: {
-  status: Pick<VizijRuntimeStatus, "loading" | "ready" | "error">;
-}) {
-  const label = status.error
-    ? "Error"
-    : status.loading
-      ? "Loading"
-      : status.ready
-        ? "Ready"
-        : "Idle";
+function RuntimeStateChip({ status }: { status: VizijRuntimeStatus }) {
+  const label =
+    status === "error" ? "Error" : status === "loading" ? "Loading" : "Ready";
   return (
     <span className={`runtime-chip runtime-chip-${label.toLowerCase()}`}>
       {label}
@@ -52,6 +41,7 @@ export function AssetOverviewPanel({
   sourceMeta,
   summary,
   status,
+  error,
 }: AssetOverviewPanelProps) {
   const rows: OverviewRow[] = [
     {
@@ -106,16 +96,6 @@ export function AssetOverviewPanel({
         summary.metadataKeys.length > 0
           ? `${summary.metadataKeys.length} metadata keys`
           : "No bundle metadata keys",
-    },
-    {
-      label: "Runtime surfacing",
-      count: `${status.controllers.graphs.length}/${status.controllers.anims.length}`,
-      coverage: "Graphs / animations listed",
-      detail:
-        status.controllers.graphs.length > 0 ||
-        status.controllers.anims.length > 0
-          ? "Controller ids are available in diagnostics."
-          : "No controller ids surfaced yet.",
     },
   ];
 
@@ -191,13 +171,12 @@ export function AssetOverviewPanel({
             ) : null}
           </div>
         </div>
-        <div className="overview-detail">
-          <strong>Surfaced controller ids</strong>
-          <p>
-            {status.controllers.graphs.length} graphs listed,{" "}
-            {status.controllers.anims.length} animations listed.
-          </p>
-        </div>
+        {error ? (
+          <div className="overview-detail">
+            <strong>Load error</strong>
+            <p>{error.message}</p>
+          </div>
+        ) : null}
       </div>
     </section>
   );

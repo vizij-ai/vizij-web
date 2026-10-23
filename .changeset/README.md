@@ -10,4 +10,4 @@ This repository uses [Changesets](https://github.com/changesets/changesets) to m
 
 A changeset may name a private app (`vizij-authoring`, `vizij-standalone`) alongside published packages — those get versions and changelogs but are never published. An app with no `version` field in its `package.json` cannot appear in a changeset at all; changesets treats it as ignored and refuses the entire run.
 
-See [Publishing & Versioning](../README.md#publishing--versioning) in the root README for the publish half.
+See [`CONTRIBUTING.md` › Releasing](../CONTRIBUTING.md#releasing) for the publish half.

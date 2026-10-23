@@ -1,108 +1,116 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import {
-  EMOTION_POSE_KEYS,
-  buildPoseWeightPathMap,
-  resolvePoseSemantics,
-  useVizijRuntime,
-} from "@vizij/runtime-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAnimateValue, useVizijRuntime } from "@vizij/runtime-react";
 import { Button } from "../../ui";
 
-const DEFAULT_POSE_WEIGHT = 0.75;
+/** The face standard's expression weights, relative to the face. */
+const EXPRESSIONS = "standard/vizij/expression/";
+
+/** The expressions the demo offers, in order, where the face implements
+ * them. */
+const FEATURED_EXPRESSIONS = [
+  "concerned",
+  "happy",
+  "sad",
+  "sleepy",
+  "surprised",
+  "angry",
+] as const;
+
+const WEIGHT = 0.75;
+const RISE_SECONDS = 0.25;
 const RELEASE_DELAY_MS = 650;
+const RELEASE_SECONDS = 0.35;
 
-type EmotionBinding = {
-  poseId: string;
-  label: string;
-  weightPath: string;
-  semanticKey: string;
-};
-
-function formatLabel(key: string): string {
-  return key
-    .split(/[_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function formatLabel(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+/**
+ * A button per featured expression the face implements — the expression
+ * keys its device lists. A press eases that expression up, every other one
+ * back to 0, and releases it shortly after.
+ */
 export function DemoEmotionRow() {
-  const { ready, animateValue, faceId, assetBundle } = useVizijRuntime();
-  const poseConfig = assetBundle.pose?.config ?? null;
-  const timeoutsRef = useRef<Map<string, number>>(new Map());
-
-  const bindings = useMemo((): EmotionBinding[] => {
-    if (!poseConfig) {
-      return [];
-    }
-    const weightPaths = buildPoseWeightPathMap(
-      poseConfig.poses,
-      poseConfig.faceId ?? faceId ?? "face",
-    );
-    const candidates: EmotionBinding[] = [];
-    for (const pose of poseConfig.poses) {
-      const semantics = resolvePoseSemantics(pose, poseConfig.poseGroups);
-      if (
-        semantics.kind !== "emotion" ||
-        !semantics.key ||
-        semantics.key === "neutral"
-      ) {
-        continue;
-      }
-      const weightPath = weightPaths.get(pose.id);
-      if (!weightPath) {
-        continue;
-      }
-      candidates.push({
-        poseId: pose.id,
-        label: formatLabel(semantics.key),
-        weightPath,
-        semanticKey: semantics.key,
-      });
-    }
-    const orderedKeys: readonly string[] = EMOTION_POSE_KEYS.filter(
-      (key) => key !== "neutral",
-    );
-    const byKey = new Map(
-      candidates.map((binding) => [binding.semanticKey, binding] as const),
-    );
-    const ordered = orderedKeys
-      .map((key) => byKey.get(key))
-      .filter((binding): binding is EmotionBinding => Boolean(binding));
-    const extras = candidates.filter(
-      (binding) => !orderedKeys.includes(binding.semanticKey),
-    );
-    return [...ordered, ...extras];
-  }, [faceId, poseConfig]);
-
-  const trigger = useCallback(
-    (binding: EmotionBinding) => {
-      void animateValue(
-        binding.weightPath,
-        { float: DEFAULT_POSE_WEIGHT },
-        { duration: 0.25 },
-      );
-      const existing = timeoutsRef.current.get(binding.poseId);
-      if (existing) {
-        window.clearTimeout(existing);
-      }
-      const timeout = window.setTimeout(() => {
-        void animateValue(binding.weightPath, { float: 0 }, { duration: 0.35 });
-        timeoutsRef.current.delete(binding.poseId);
-      }, RELEASE_DELAY_MS);
-      timeoutsRef.current.set(binding.poseId, timeout);
-    },
-    [animateValue],
-  );
+  const { status, runtime } = useVizijRuntime();
+  const { animateValue } = useAnimateValue();
+  const [expressions, setExpressions] = useState<string[]>([]);
+  const releaseRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const timeouts = timeoutsRef.current;
+    setExpressions([]);
+    if (!runtime) {
+      return;
+    }
+    let current = true;
+    const prefix = runtime.path(EXPRESSIONS);
+    runtime.listKeys(prefix).then(
+      (keys) => {
+        if (!current) {
+          return;
+        }
+        const implemented = new Set(
+          keys.map((key) => key.path.slice(prefix.length)),
+        );
+        setExpressions(
+          FEATURED_EXPRESSIONS.filter((name) => implemented.has(name)),
+        );
+      },
+      (error: unknown) => {
+        console.error(
+          "[vizij-authoring] the demo face's expressions did not list",
+          error,
+        );
+      },
+    );
     return () => {
-      timeouts.forEach((id) => window.clearTimeout(id));
-      timeouts.clear();
+      current = false;
     };
-  }, []);
+  }, [runtime]);
 
-  if (!ready || bindings.length === 0) {
+  const ease = useCallback(
+    (name: string, weight: number, seconds: number) => {
+      if (!runtime) {
+        return;
+      }
+      void animateValue(runtime.path(`${EXPRESSIONS}${name}`), weight, {
+        duration: seconds,
+        easing: "easeInOut",
+      }).catch((error: unknown) => {
+        console.error(
+          `[vizij-authoring] the demo face's ${name} expression did not move`,
+          error,
+        );
+      });
+    },
+    [animateValue, runtime],
+  );
+
+  const trigger = useCallback(
+    (name: string) => {
+      expressions.forEach((other) => {
+        ease(other, other === name ? WEIGHT : 0, RISE_SECONDS);
+      });
+      if (releaseRef.current !== null) {
+        window.clearTimeout(releaseRef.current);
+      }
+      releaseRef.current = window.setTimeout(() => {
+        releaseRef.current = null;
+        ease(name, 0, RELEASE_SECONDS);
+      }, RELEASE_DELAY_MS);
+    },
+    [ease, expressions],
+  );
+
+  useEffect(
+    () => () => {
+      if (releaseRef.current !== null) {
+        window.clearTimeout(releaseRef.current);
+      }
+    },
+    [],
+  );
+
+  if (status !== "ready" || expressions.length === 0) {
     return null;
   }
 
@@ -111,15 +119,15 @@ export function DemoEmotionRow() {
       data-testid="empty-state-demo-emotions"
       className="flex flex-wrap justify-center gap-2"
     >
-      {bindings.map((binding) => (
+      {expressions.map((name) => (
         <Button
-          key={binding.poseId}
-          data-testid={`empty-state-demo-emotion-${binding.semanticKey}`}
+          key={name}
+          data-testid={`empty-state-demo-emotion-${name}`}
           variant="secondary"
           size="sm"
-          onClick={() => trigger(binding)}
+          onClick={() => trigger(name)}
         >
-          {binding.label}
+          {formatLabel(name)}
         </Button>
       ))}
     </div>

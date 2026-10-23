@@ -47,52 +47,109 @@ async function readPlayhead(field: Locator): Promise<number> {
   throw new Error(`Could not read a playhead time from "${raw}"`);
 }
 
+/**
+ * Each window's least number of drawn frames, besides its length. The
+ * playhead and the chip follow the device as the provider drains it, once per
+ * drawn frame, and under SwiftShader the page draws about one frame a second
+ * once the face's pipelines compile: a window of wall time alone can pass
+ * without a frame and read a still playhead.
+ */
+const WINDOW_FRAMES = 10;
+/** The longest a window waits for its frames. */
+const FRAMES_TIMEOUT_MS = 60_000;
+
+/**
+ * The distinct readings of `target` — an input's value, or an element's
+ * text — over a window of `durationMs` and {@link WINDOW_FRAMES} drawn
+ * frames, whichever lasts longer, in order of first appearance, read every
+ * `everyMs`.
+ */
+async function watch(
+  target: Locator,
+  reading: "value" | "text",
+  durationMs: number,
+  everyMs: number,
+): Promise<string[]> {
+  return target.evaluate(
+    async (node, options) => {
+      const read = () =>
+        options.reading === "value"
+          ? (node as HTMLInputElement).value
+          : (node.textContent?.trim() ?? "");
+      const seen: string[] = [];
+      let frames = 0;
+      let counting = true;
+      const count = () => {
+        frames += 1;
+        if (counting) {
+          requestAnimationFrame(count);
+        }
+      };
+      requestAnimationFrame(count);
+      const start = performance.now();
+      while (
+        (performance.now() - start < options.durationMs ||
+          frames < options.frames) &&
+        performance.now() - start < options.timeoutMs
+      ) {
+        const value = read();
+        if (seen[seen.length - 1] !== value) {
+          seen.push(value);
+        }
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, options.everyMs),
+        );
+      }
+      counting = false;
+      return seen;
+    },
+    {
+      reading,
+      durationMs,
+      everyMs,
+      frames: WINDOW_FRAMES,
+      timeoutMs: FRAMES_TIMEOUT_MS,
+    },
+  );
+}
+
+/** Wait until the playhead has left `from` (seconds): the device plays the
+ * clip. Returns the first reading away from it. */
+async function untilMoving(field: Locator, from = 0): Promise<number> {
+  let reading = from;
+  await expect
+    .poll(
+      async () => {
+        reading = await readPlayhead(field);
+        return Math.abs(reading - from) > 1e-3;
+      },
+      {
+        message: `the playhead never left ${from}s`,
+        timeout: FRAMES_TIMEOUT_MS,
+      },
+    )
+    .toBe(true);
+  return reading;
+}
+
 /** Distinct playhead readings over a window, in order of first appearance. */
 async function samplePlayhead(
   field: Locator,
   durationMs = 1200,
 ): Promise<string[]> {
-  return field.evaluate(
-    async (node, options) => {
-      const input = node as HTMLInputElement;
-      const seen: string[] = [];
-      const start = performance.now();
-      while (performance.now() - start < options.durationMs) {
-        if (seen[seen.length - 1] !== input.value) {
-          seen.push(input.value);
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 25));
-      }
-      return seen;
-    },
-    { durationMs },
-  );
+  return watch(field, "value", durationMs, 25);
 }
 
 /**
- * Watches the runtime chip for `durationMs` and returns every distinct value.
+ * Watches the runtime chip over a window and returns every distinct value.
  *
- * Pause reverting is only visible over time: the local write lands, the chip
- * reads "Paused", and then the next frame of runtime feedback overwrites it
- * back to "Playing". A single assertion right after the click sees only the
- * first half of that.
+ * A pause that reverts is only visible over time: the local write lands, the
+ * chip reads "Paused", and the next report from the device would overwrite
+ * it back to "Playing". A single assertion right after the click sees only
+ * the first half of that.
  */
 async function watchChip(chip: Locator, durationMs = 2000): Promise<string[]> {
-  return chip.evaluate(
-    async (node, options) => {
-      const seen: string[] = [];
-      const start = performance.now();
-      while (performance.now() - start < options.durationMs) {
-        const text = node.textContent?.trim() ?? "";
-        if (seen[seen.length - 1] !== text) {
-          seen.push(text);
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 10));
-      }
-      return seen;
-    },
-    { durationMs },
-  );
+  return watch(chip, "text", durationMs, 10);
 }
 
 interface Transport {
@@ -198,10 +255,11 @@ test("plays from a seek made while stopped @smoke", async ({ page }) => {
 
   await t.play();
   await expect(t.chip).toContainText("Animation: Playing");
-  await samplePlayhead(t.playhead, 700);
 
+  // The first reading away from the seek, before the clip can loop back
+  // past it: a 5 s clip played through a window of slow frames wraps.
   expect(
-    await readPlayhead(t.playhead),
+    await untilMoving(t.playhead, 2),
     `play rewound to the start instead of running on from the seek${t.runtimeLog()}`,
   ).toBeGreaterThan(2);
 });
@@ -255,7 +313,9 @@ test("resuming continues from the paused time instead of starting over @smoke", 
 
   await t.play();
   await expect(t.chip).toContainText("Animation: Playing");
-  await samplePlayhead(t.playhead, 900);
+  // Paused early in the clip: it loops, and a playhead paused near its end
+  // wraps within the first window after resuming, which reads as a restart.
+  await untilMoving(t.playhead);
 
   await t.pause();
   await expect(
