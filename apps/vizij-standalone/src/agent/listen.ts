@@ -6,7 +6,8 @@
 import { DeepgramClient } from "@deepgram/sdk";
 
 export interface ListenerEvents {
-  /** The user started speaking (Deepgram's VAD). */
+  /** The user started speaking (Deepgram's VAD `SpeechStarted`), or
+   * stopped (its `UtteranceEnd`, or the ear closing). */
   onUserSpeaking?: (speaking: boolean) => void;
   /** Words so far, final and interim. */
   onTranscript?: (text: string, final: boolean) => void;
@@ -16,13 +17,30 @@ export interface ListenerEvents {
   onListening?: (listening: boolean) => void;
 }
 
+/** What the conversation needs of an ear. */
+export interface Ear {
+  readonly listening: boolean;
+  start(): Promise<void>;
+  stop(): void;
+}
+
+/** An ear, built over the conversation's handlers. */
+export type HearWith = (events: ListenerEvents) => Ear;
+
+/** Deepgram as the conversation's ear; `null` without a key or a
+ * microphone. */
+export function deepgram(apiKey: string | null): HearWith | null {
+  if (!apiKey || !Listener.supported) return null;
+  return (events) => new Listener(apiKey, events);
+}
+
 type Socket = ReturnType<
   Awaited<
     ReturnType<InstanceType<typeof DeepgramClient>["listen"]["v1"]["connect"]>
   >["connect"]
 >;
 
-export class Listener {
+export class Listener implements Ear {
   private socket: Socket | null = null;
   private stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
