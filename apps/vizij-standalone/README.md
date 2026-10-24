@@ -37,6 +37,19 @@ box says what you type. Keys come from the shell's flags (`--deepgram-key`,
 / `VITE_OPENAI_API_KEY` / `VITE_API_URL`, or the page's own settings panel
 (kept in the browser).
 
+The page tells the face what the dialogue is doing through the face
+standard's conversation state, each
+`runtime.path("standard/vizij/conversation/<state>")` an `f32`, 1 while it
+holds and 0 at rest. `speaking` is 1 from the moment
+the `say` run is spawned until its status reads terminal or the page stops
+it (`stop`, or the user speaking over the face); `user_speaking` follows
+Deepgram's voice activity, from its `SpeechStarted` to its `UtteranceEnd`
+or the microphone closing; `thinking` is 1 while a call to OpenAI is
+pending. A face reacts as its author chose: the shipped Quori's
+conversational program takes a listening, a thinking and a speaking
+posture of its mouth, eyes and brows. Showing another face returns all
+three to 0 on the face being left.
+
 ## Run
 
 ```bash
@@ -48,7 +61,10 @@ pnpm --filter vizij-standalone run test    # the agent's units
 
 The e2e suite (`e2e/tests/vizij-standalone-face.spec.ts`) boots the page,
 waits for the face to be ready, and checks the canvas shows it and that an
-expression changes it.
+expression changes it. It then says a typed line over a synthesis it serves
+itself and reads the conversation state back through the page's runtime —
+which the dev server's page hands it as `window.vizijFace` — while the face
+speaks and once `stop` has cut the audio.
 
 ## The Tauri shell
 

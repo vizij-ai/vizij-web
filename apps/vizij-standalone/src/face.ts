@@ -1,8 +1,8 @@
 /**
  * The face: one page, one canvas, one face on it, run by the Bevy view and
  * its own Arora — the `Runtime` of `@vizij/runtime`. What the agent does to it goes
- * through the Vizij face standard — its expression weights and the `say`
- * skill — never through the face's own rig paths.
+ * through the Vizij face standard — its expression weights, its conversation
+ * state and the `say` skill — never through the face's own rig paths.
  */
 import {
   init,
@@ -25,6 +25,16 @@ export const FACE = "face";
  * own poses. */
 const expressionKey = (name: string) => `standard/vizij/expression/${name}`;
 
+/** The face standard's conversation state: what the dialogue the face takes
+ * part in is doing — the face speaking, the person it talks with speaking,
+ * the agent preparing its reply. */
+export type ConversationState = "speaking" | "user_speaking" | "thinking";
+
+/** The weight of conversation state `state`, relative to the face's rig
+ * prefix: an `f32`, 1 while the state holds and 0 at rest. */
+const conversationKey = (state: ConversationState) =>
+  `standard/vizij/conversation/${state}`;
+
 export interface FaceHandle {
   runtime: Runtime;
   /** Speak `text`: a `say` run on the runtime; resolves with its handle once
@@ -39,6 +49,9 @@ export interface FaceHandle {
   express(name: string): void;
   /** Keep the face over `slot` on the page. */
   place(slot: Element): void;
+  /** Write conversation state `state`: 1 while it holds, 0 when it does
+   * not. */
+  converse(state: ConversationState, holds: boolean): void;
   unload(): void;
 }
 
@@ -96,6 +109,10 @@ export async function showFace(
       shown = name;
     },
     place: (element) => placeVizijIn(FACE, element, canvas),
+    converse: (state, holds) =>
+      runtime.writeValues({
+        [runtime.path(conversationKey(state))]: { f32: holds ? 1 : 0 },
+      }),
     unload: () => {
       runtime.stop();
       unloadVizij(FACE);

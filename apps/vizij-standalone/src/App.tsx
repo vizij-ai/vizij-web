@@ -2,12 +2,14 @@
  * The page: a face in the Bevy view over its own Arora runtime, and an agent
  * talking through it — the ear (Deepgram), the mind (OpenAI), the mouth (the
  * runtime's `say` skill, lips driven by its viseme players). The agent writes
- * nothing but the face standard: the expression the mind chose and the `say`
- * run; the face's own rig paths are its own business.
+ * nothing but the face standard: the expression the mind chose, the `say`
+ * run and the conversation state; the face's own rig paths are its own
+ * business.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Conversation, type State } from "./agent/conversation";
 import { loadKeys, saveKeys, type AgentKeys } from "./agent/keys";
+import { deepgram } from "./agent/listen";
 import {
   DEFAULT_SYSTEM_PROMPT,
   EXPRESSIONS,
@@ -18,6 +20,10 @@ import { mountCanvas, showFace, unlockAudio, type FaceHandle } from "./face";
 import { fileGlb, initialGlb, type GlbSource } from "./glb";
 
 const AGENT_NAME = "Vizij";
+
+/** The dev server's build: the page hands the e2e suite its face's runtime,
+ * as `window.vizijFace`, to read the keys it writes. */
+const DEV = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV;
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,6 +59,9 @@ export default function App() {
         speechApiUrl: current.speechApiUrl,
       });
       faceRef.current = face;
+      if (DEV) {
+        (window as unknown as { vizijFace?: unknown }).vizijFace = face.runtime;
+      }
       setFaceName(source.name);
       const thinker = current.openai
         ? new Thinker(
@@ -69,7 +78,7 @@ export default function App() {
           onReply: (reply) => setReplies((all) => [...all.slice(-9), reply]),
           onError: setError,
         },
-        current.deepgram,
+        deepgram(current.deepgram),
       );
       conversationRef.current = conversation;
       setStatus("ready");
