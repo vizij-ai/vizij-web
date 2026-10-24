@@ -30,7 +30,19 @@ jobs:
     env:
       PROJECT: semio-vizij
       SITE: vizij-workspace
+    # The Firebase CLI refuses to run outside a directory holding a
+    # firebase.json, and the app's is the one naming the site.
+    defaults:
+      run:
+        working-directory: apps/vizij-authoring
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            apps/vizij-authoring/firebase.json
+            apps/vizij-authoring/.firebaserc
+          sparse-checkout-cone-mode: false
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
