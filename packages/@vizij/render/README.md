@@ -196,6 +196,13 @@ covers the whole page, and every slot already shows the runtime's stages.
   count that is not `times × stride`) is left out and returned in `issues`,
   since the exporter otherwise drops the whole animation or throws.
   `animation` is `null` when no track binds.
+- An element's compound features — translation, rotation, scale and the
+  colours — are whole (`translation`, a vector), per axis (`translation.x`,
+  `rotation.r`, `color.g`, each a number: the form Semio Studio writes its
+  faces in), or both, a component given per axis standing over the whole
+  value's. Both forms load, build into the scene graph and export unchanged.
+  A rotation is an euler `{ x, y, z }`, or `{ r, p, y }` (roll, pitch, yaw)
+  as Studio names the same angles; either applies in ZYX order.
 - An ellipse or a rectangle exports as a node with no mesh, carrying its
   `RobotData` — `type`, `width`, `height`, `fillColor`, `fillOpacity` — from
   which the Bevy view draws it: a unit circle or square scaled by the width

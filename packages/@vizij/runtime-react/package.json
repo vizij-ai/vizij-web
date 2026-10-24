@@ -38,7 +38,7 @@
     "prepack": "pnpm run build && pnpm run test && pnpm run typecheck && pnpm run lint"
   },
   "peerDependencies": {
-    "@vizij/render": "workspace:^",
+    "@vizij/render": "^2.0.0 || ^3.0.0",
     "@vizij/runtime": "^8.0.0",
     "react": ">=18"
   },

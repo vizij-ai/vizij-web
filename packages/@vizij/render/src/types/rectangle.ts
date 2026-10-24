@@ -1,4 +1,10 @@
-import type { Feature } from "./feature";
+import type {
+  ColorAxis,
+  Feature,
+  PerAxisFeatures,
+  RotationAxis,
+  VectorAxis,
+} from "./feature";
 import type { Stored } from "./stored";
 import type { RenderableBase } from "./renderable-base";
 
@@ -25,9 +31,12 @@ export interface Rectangle extends RenderableBase {
     strokeWidth?: Feature; // AnimatedNumber;
     strokeRadius?: Feature; // AnimatedNumber;
     strokeOffset?: Feature; // AnimatedNumber;
-    translation: Feature; // AnimatedVector2 | AnimatedVector3;
-    rotation: Feature; // AnimatedNumber | AnimatedEuler;
-  };
+    translation?: Feature; // AnimatedVector2 | AnimatedVector3;
+    rotation?: Feature; // AnimatedNumber | AnimatedEuler;
+  } & PerAxisFeatures<"translation", VectorAxis> &
+    PerAxisFeatures<"rotation", RotationAxis> &
+    PerAxisFeatures<"fillColor", ColorAxis> &
+    PerAxisFeatures<"strokeColor", ColorAxis>;
 }
 
 export type RectangleFeature = keyof Rectangle["features"];
