@@ -57,14 +57,26 @@ jobs:
           printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/service-account.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/service-account.json" >> "$GITHUB_ENV"
 
+      # The site's preview channels as `pr-<number>` names, one per line. The
+      # step fails when the CLI does, and logs how many channels it listed.
+      - name: List the site's preview channels
+        id: list
+        if: steps.cred.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          npx --yes firebase-tools@latest hosting:channel:list --project "$PROJECT" --site "$SITE" --json > "$RUNNER_TEMP/channels.json"
+          jq -e '.status == "success"' "$RUNNER_TEMP/channels.json" > /dev/null || { cat "$RUNNER_TEMP/channels.json"; exit 1; }
+          jq -r '(.result.channels // .result // [])[] | .name | split("/") | last | select(test("^pr-[0-9]+$"))' "$RUNNER_TEMP/channels.json" > "$RUNNER_TEMP/pr-channels.txt"
+          echo "The site has $(jq '(.result.channels // .result // []) | length' "$RUNNER_TEMP/channels.json") channels, $(wc -l < "$RUNNER_TEMP/pr-channels.txt") of them PR previews."
+
       - name: Delete the closed PR's channel
         if: steps.cred.outputs.present == 'true' && github.event_name == 'pull_request'
         env:
           CHANNEL: pr-${{ github.event.number }}
         run: |
+          set -euo pipefail
           # A PR that never touched the app has no channel; that is not a failure.
-          if npx --yes firebase-tools@latest hosting:channel:list --project "$PROJECT" --site "$SITE" --json \
-              | jq -e --arg c "$CHANNEL" '.result.channels[]? | select(.name | endswith("/channels/" + $c))' >/dev/null; then
+          if grep -qx "$CHANNEL" "$RUNNER_TEMP/pr-channels.txt"; then
             npx --yes firebase-tools@latest hosting:channel:delete "$CHANNEL" --project "$PROJECT" --site "$SITE" --force
           else
             echo "No channel $CHANNEL on $SITE."
@@ -75,9 +87,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          channels=$(npx --yes firebase-tools@latest hosting:channel:list --project "$PROJECT" --site "$SITE" --json \
-            | jq -r '.result.channels[]?.name | split("/") | last | select(test("^pr-[0-9]+$"))')
-          for channel in $channels; do
+          set -euo pipefail
+          while read -r channel; do
             number=${channel#pr-}
             state=$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json state --jq .state 2>/dev/null || echo MISSING)
             if [ "$state" = OPEN ]; then
@@ -86,4 +97,4 @@ jobs:
               echo "Deleting $channel: PR $number is $state."
               npx --yes firebase-tools@latest hosting:channel:delete "$channel" --project "$PROJECT" --site "$SITE" --force
             fi
-          done
+          done < "$RUNNER_TEMP/pr-channels.txt"
