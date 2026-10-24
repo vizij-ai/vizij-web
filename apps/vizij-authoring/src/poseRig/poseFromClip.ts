@@ -8,10 +8,12 @@ import type { StandardInputId } from "./types";
  * Computed by sampling the animation, on Arora's animation module
  * (`sampleAnimationTracks`), rather than by reading the face's runtime. It
  * works while stopped — you can take a pose from a frame without playing to
- * it — and it depends on the animation alone, never on the face's state.
- * Reading live values cannot work for this purpose. `capturePose` snapshots the pose store's `currentValues`, which is
- * a filtered mirror of the binding store's `inputValues` — see the effect in
- * `PoseRigProvider` that assigns `currentValues: filteredCurrent`, keyed on
+ * it — and its values come from the animation, not from the face's state
+ * (scope `all` starts from the `baseValues` it is given).
+ * Reading live values cannot work for this purpose. `capturePose` snapshots
+ * the pose store's `currentValues`, which is a filtered mirror of the
+ * binding store's `inputValues` — see the effect in `PoseRigProvider` that
+ * assigns `currentValues: filteredCurrent`, keyed on
  * `inputValues`. So the Inputs sliders do reach it, but a playing or scrubbed
  * clip does not: the animation drives the runtime directly and nothing mirrors
  * the runtime back into `inputValues` (the only animation-driven write in

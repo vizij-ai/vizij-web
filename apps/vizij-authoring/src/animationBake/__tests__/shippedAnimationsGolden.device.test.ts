@@ -32,8 +32,10 @@ import { bundleAnimationEntryToClipIr } from "../../utils/animationClipCompiler"
  * faces' bundle animations (Hugo's and Quori's extended faces) through their
  * composed rig, the node bake of the Blender exports' imported animations,
  * and each track's value on a 60 Hz grid and at every keyframe. A change to
- * how authoring evaluates an animation shows up here as a difference from
- * the file. `VIZIJ_WRITE_GOLDEN=1` rewrites it.
+ * the timing, the clamping or the bake's and preview's plumbing shows up here
+ * as a difference from the file. The shipped animations are linear, or cubic
+ * without tangents, so tangents and `step` segments are pinned by
+ * `sampleAnimation.test.ts` instead. `VIZIJ_WRITE_GOLDEN=1` rewrites it.
  */
 
 const ASSET_DIR = path.resolve(__dirname, "../../../public/assets");

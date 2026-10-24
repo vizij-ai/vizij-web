@@ -20,7 +20,10 @@ import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
 import { TimelineEditor } from "../animation/TimelineEditor";
-import { scrubPreviewValues } from "../animation/clipPreview";
+import {
+  latestScrubPreview,
+  scrubPreviewValues,
+} from "../animation/clipPreview";
 import { SavePoseFromPlayhead } from "../animation/SavePoseFromPlayhead";
 import { useAnimationStore } from "../../state/animationStore";
 import { useAnimationTransport } from "../../hooks/useAnimationTransport";
@@ -183,35 +186,35 @@ export function AnimationPanel({
   // nothing else writes the rig, so the seek samples the animation and applies
   // its inputs. `source: "timeline"` because these values come from the
   // animation rather than from a person moving a slider, and the manual-write
-  // lock must not treat them as a conflict.
-  //
-  // The values arrive asynchronously, from the animation module. Only the
-  // latest scrub's land, and none once playback has started meanwhile: an
-  // earlier position landing after a later one would move the face backwards.
-  const latestPreview = useRef(0);
-  const playbackStateRef = useRef(effectivePlaybackState);
-  playbackStateRef.current = effectivePlaybackState;
-  const previewClipAt = (timeSeconds: number) => {
-    const request = ++latestPreview.current;
-    void scrubPreviewValues({
-      tracks,
-      time: timeSeconds,
-      playbackState: effectivePlaybackState,
-    }).then(
-      (values) => {
-        if (
-          values &&
-          request === latestPreview.current &&
-          playbackStateRef.current !== "playing"
-        ) {
-          applyStandardInputBatch(values, { source: "timeline" });
-        }
-      },
-      (error: unknown) => {
-        console.error("[timeline] the scrub preview failed to sample:", error);
-      },
-    );
+  // lock must not treat them as a conflict. Only the latest scrub's values
+  // land, and none once playback has started (`latestScrubPreview`).
+  const scrubbed = useRef({
+    tracks,
+    effectivePlaybackState,
+    applyStandardInputBatch,
+  });
+  scrubbed.current = {
+    tracks,
+    effectivePlaybackState,
+    applyStandardInputBatch,
   };
+  const [previewClipAt] = useState(() =>
+    latestScrubPreview({
+      sample: (time) =>
+        scrubPreviewValues({
+          tracks: scrubbed.current.tracks,
+          time,
+          playbackState: scrubbed.current.effectivePlaybackState,
+        }),
+      apply: (values) =>
+        scrubbed.current.applyStandardInputBatch(values, {
+          source: "timeline",
+        }),
+      isPlaying: () => scrubbed.current.effectivePlaybackState === "playing",
+      onError: (error) =>
+        console.error("[timeline] the scrub preview failed to sample:", error),
+    }),
+  );
 
   // Who owns the clock depends on whether the engine is running it.
   //
@@ -231,7 +234,7 @@ export function AnimationPanel({
     } else {
       seek(timeSeconds);
     }
-    previewClipAt(timeSeconds);
+    void previewClipAt(timeSeconds);
   };
   const handleTimelinePause = runtimeTransportBound
     ? transport.pause

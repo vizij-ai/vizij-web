@@ -57,3 +57,32 @@ export async function scrubPreviewValues(options: {
   const values = await clipInputValuesAtTime(options.tracks, options.time);
   return Object.keys(values).length > 0 ? values : null;
 }
+
+/**
+ * A scrub preview: `preview(time)` samples the animation at `time` and
+ * applies the values, unless a later `preview` was asked for meanwhile or
+ * playback has started. The values arrive asynchronously, from the animation
+ * module, so an earlier position landing after a later one would move the
+ * face backwards.
+ */
+export function latestScrubPreview(options: {
+  /** The values to show at `time`, or null for none. */
+  sample: (time: number) => Promise<Record<string, number> | null>;
+  apply: (values: Record<string, number>) => void;
+  /** Read when the values arrive. */
+  isPlaying: () => boolean;
+  onError: (error: unknown) => void;
+}): (time: number) => Promise<void> {
+  let latest = 0;
+  return async (time) => {
+    const request = ++latest;
+    try {
+      const values = await options.sample(time);
+      if (values && request === latest && !options.isPlaying()) {
+        options.apply(values);
+      }
+    } catch (error) {
+      options.onError(error);
+    }
+  };
+}

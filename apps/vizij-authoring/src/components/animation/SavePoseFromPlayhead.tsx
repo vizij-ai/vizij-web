@@ -122,11 +122,18 @@ export function SavePoseFromPlayhead({
     [open, duration, tracks],
   );
 
+  // The pose starts from the current values only when it pins every input,
+  // so a slider moving underneath the dialog resamples nothing otherwise.
+  const baseValues = scope === "all" ? allInputValues : undefined;
+
   // The animation module answers asynchronously; until it has, the dialog
-  // shows the pose as not yet sampled rather than as empty.
+  // shows the pose as not yet sampled rather than as empty, and a sampling
+  // that fails says so rather than waiting for good.
   const [preview, setPreview] = useState<PoseFromClipResult | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     setPreview(null);
+    setFailure(null);
     if (!clip) {
       return;
     }
@@ -135,7 +142,7 @@ export function SavePoseFromPlayhead({
       clip,
       time: capturedTime,
       knownInputIds,
-      baseValues: allInputValues,
+      baseValues,
       neutralValues,
       scope,
     }).then(
@@ -146,12 +153,15 @@ export function SavePoseFromPlayhead({
       },
       (error: unknown) => {
         console.error("[save pose] sampling the animation failed:", error);
+        if (current) {
+          setFailure(error instanceof Error ? error.message : String(error));
+        }
       },
     );
     return () => {
       current = false;
     };
-  }, [allInputValues, capturedTime, clip, knownInputIds, neutralValues, scope]);
+  }, [baseValues, capturedTime, clip, knownInputIds, neutralValues, scope]);
 
   const animatedCount = useMemo(
     () =>
@@ -311,7 +321,15 @@ export function SavePoseFromPlayhead({
             </p>
           ) : null}
 
-          {preview === null ? (
+          {failure !== null ? (
+            <p
+              className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-200"
+              data-testid="save-pose-failed"
+              role="alert"
+            >
+              The animation could not be sampled at this frame: {failure}
+            </p>
+          ) : preview === null ? (
             <p
               className="text-[11px] text-text-muted"
               data-testid="save-pose-sampling"

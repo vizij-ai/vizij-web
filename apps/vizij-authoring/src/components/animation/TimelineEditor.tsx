@@ -175,9 +175,18 @@ export function TimelineEditor({
         );
         return;
       }
-      // The curve's value comes from the animation module, asynchronously.
+      // The curve's value comes from the animation module, asynchronously. A
+      // curve edited meanwhile is not the one the value was read from, so the
+      // insert is dropped rather than putting a stale value on the new curve.
       evaluateTrack(selectedTrack, time).then(
-        (value) => addKeyframe(selectedTrackId, time, value),
+        (value) => {
+          const now = useAnimationStore
+            .getState()
+            .tracks.find((track) => track.id === selectedTrackId);
+          if (now?.keyframes === selectedTrack.keyframes) {
+            addKeyframe(selectedTrackId, time, value);
+          }
+        },
         (error: unknown) => {
           console.error("[timeline] sampling the curve failed:", error);
         },

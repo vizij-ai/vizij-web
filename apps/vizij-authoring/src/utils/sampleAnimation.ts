@@ -58,13 +58,24 @@ function handed(value: unknown, what: string): ValueInput {
 }
 
 /** `track` on `channel`, its keyframes in time order, each stating how its
- * segment plays, as `Runtime.moduleAnimation` takes them. */
+ * segment plays, as `Runtime.moduleAnimation` takes them. A keyframe whose
+ * time or value is not a finite number is refused, naming the track: no
+ * curve passes through it, and reading one anyway would put a number on the
+ * face that the animation does not hold. */
 function trackOf(
   track: AnimationTrackIR,
   channel: string,
 ): Animation["tracks"][number] {
   const finite = (value: unknown) =>
     typeof value === "number" && Number.isFinite(value) ? value : null;
+  for (const keyframe of track.keyframes) {
+    if (finite(keyframe.time) === null || finite(keyframe.value) === null) {
+      throw new RangeError(
+        `track ${track.id} has a keyframe (${keyframe.id}) whose time or ` +
+          "value is not a finite number",
+      );
+    }
+  }
   const keyframes = [...track.keyframes].sort(
     (left, right) => left.time - right.time || left.id.localeCompare(right.id),
   );
@@ -83,10 +94,42 @@ function trackOf(
   };
 }
 
+/** The latest keyframe time of `played`, and zero when none is later. A loop
+ * rather than `Math.max(...times)`, whose arguments overflow the stack on a
+ * long animation. */
+function lastKeyTime(
+  played: ReadonlyArray<{ track: AnimationTrackIR }>,
+): number {
+  let last = 0;
+  for (const { track } of played) {
+    for (const keyframe of track.keyframes) {
+      last = Math.max(last, keyframe.time);
+    }
+  }
+  return last;
+}
+
 const warn = (error: unknown) =>
   console.warn("[animation sampling] the module refused a removal:", error);
 
 let device: Promise<Runtime> | undefined;
+
+/** The sampler's device, started on first use. A start that fails is not
+ * kept, so the next sampling tries again. */
+function samplerDevice(): Promise<Runtime> {
+  device ??= startRuntime().catch((error: unknown) => {
+    device = undefined;
+    throw error;
+  });
+  return device;
+}
+
+// A module replaced by hot reload leaves its device behind otherwise.
+import.meta.hot?.dispose(() => {
+  void device?.then((runtime) => runtime.dispose()).catch(() => undefined);
+  device = undefined;
+  loaded = undefined;
+});
 /** The sampling in progress. A step advances every player the module
  * holds, so one sampling runs at a time. */
 let pending: Promise<unknown> = Promise.resolve();
@@ -101,7 +144,8 @@ let pending: Promise<unknown> = Promise.resolve();
 interface Loaded {
   from: unknown[];
   anim: ValueInput;
-  player: ValueInput;
+  /** Absent until `create_player` has answered. */
+  player?: ValueInput;
   /** The track each output position plays, by its index in the sampling. */
   tracks: number[];
   /** The outputs' revision, which every step answers with. */
@@ -143,7 +187,9 @@ export async function sampleAnimationTrack(
  * before the next sampling's calls, which queue after these. */
 function unload(runtime: Runtime) {
   if (loaded) {
-    runtime.invoke("remove_player", { player: loaded.player }).catch(warn);
+    if (loaded.player) {
+      runtime.invoke("remove_player", { player: loaded.player }).catch(warn);
+    }
     runtime.invoke("unload_animation", { anim: loaded.anim }).catch(warn);
     loaded = undefined;
   }
@@ -154,7 +200,7 @@ function unload(runtime: Runtime) {
 async function load(
   runtime: Runtime,
   played: ReadonlyArray<{ track: AnimationTrackIR; index: number }>,
-): Promise<Loaded> {
+): Promise<Required<Loaded>> {
   const from = played.flatMap(({ track, index }) => [
     index,
     track,
@@ -164,18 +210,16 @@ async function load(
   if (
     loaded &&
     loaded.from.length === from.length &&
-    loaded.from.every((entry, index) => entry === from[index])
+    loaded.from.every((entry, index) => entry === from[index]) &&
+    loaded.player
   ) {
-    return loaded;
+    return { ...loaded, player: loaded.player };
   }
   unload(runtime);
   const animation: Animation = {
     id: "authoring.sample",
     name: null,
-    duration: Math.max(
-      0,
-      ...played.flatMap(({ track }) => track.keyframes.map((key) => key.time)),
-    ),
+    duration: lastKeyTime(played),
     tracks: played.map(({ track, index }) => trackOf(track, String(index))),
   };
   const { moduleAnimation } = runtime.moduleAnimation(animation);
@@ -183,12 +227,14 @@ async function load(
     await runtime.invoke("load_clip", { clip: moduleAnimation as ValueInput }),
     "the animation",
   );
+  // Recorded before anything below can be refused, so a refusal unloads it.
+  const current: Loaded = { from, anim, tracks: [], revision: "" };
+  loaded = current;
   const player = handed(
     await runtime.invoke("create_player", { name: animation.id }),
     "a player",
   );
-  // Recorded before any refusal below, so a refused instance is removed too.
-  loaded = { from, anim, player, tracks: [], revision: "" };
+  current.player = player;
   handed(
     await runtime.invoke("add_instance", { player, anim }),
     "the instance",
@@ -202,9 +248,14 @@ async function load(
   if (!keys) {
     throw new Error("the animation module named no outputs");
   }
-  loaded.tracks = keys.map(Number);
-  loaded.revision = JSON.stringify(field(table, OUTPUT_KEYS_FIELDS.revision));
-  return loaded;
+  current.tracks = keys.map(Number);
+  current.revision = JSON.stringify(field(table, OUTPUT_KEYS_FIELDS.revision));
+  for (const { index } of played) {
+    if (!current.tracks.includes(index)) {
+      throw new Error(`the animation module gave track ${index} no output`);
+    }
+  }
+  return { ...current, player };
 }
 
 async function sample(
@@ -219,10 +270,15 @@ async function sample(
     return values;
   }
 
-  const instants = times.map((time) => Math.max(0, Math.round(time * 1e9)));
+  const instants = times.map((time) => {
+    if (!Number.isFinite(time)) {
+      throw new RangeError(`cannot sample an animation at ${time} s`);
+    }
+    return Math.max(0, Math.round(time * 1e9));
+  });
   const steps = [...new Set(instants)].sort((left, right) => left - right);
 
-  const runtime = await (device ??= startRuntime());
+  const runtime = await samplerDevice();
   try {
     const { player, tracks: positions, revision } = await load(runtime, played);
     // One step of the device applies these, in order: the player back at
@@ -234,30 +290,39 @@ async function sample(
       previous = instant;
       return runtime.invoke("step_values", { dt_ns: { u64: dt } });
     });
-    handed(await sought, "the seek");
+    // Awaited together, so that no refusal among them goes unobserved.
+    const [seek, ...answers] = await Promise.all([sought, ...stepped]);
+    handed(seek, "the seek");
     const byInstant = new Map<number, unknown[]>();
-    for (const [position, step] of (await Promise.all(stepped)).entries()) {
+    answers.forEach((step, index) => {
       if (
         JSON.stringify(field(step, STEP_VALUES_FIELDS.revision)) !== revision
       ) {
-        throw new Error("the animation module's outputs changed mid-sample");
+        throw new Error(
+          "the animation module's output table is not the one the " +
+            "animation loaded with",
+        );
       }
       const row = (
         field(step, STEP_VALUES_FIELDS.values) as { values?: unknown[] } | null
       )?.values;
-      byInstant.set(steps[position]!, row ?? []);
-    }
+      byInstant.set(steps[index]!, row ?? []);
+    });
     positions.forEach((track, position) => {
-      if (!Number.isInteger(track) || !values[track]) {
+      if (!values[track]) {
         return;
       }
       instants.forEach((instant, column) => {
         const value = valueAsNumber(
           byInstant.get(instant)?.[position] as never,
         );
-        if (value !== undefined) {
-          values[track]![column] = value;
+        if (value === undefined) {
+          throw new Error(
+            `the animation module gave track ${track} no number at ` +
+              `${instant} ns`,
+          );
         }
+        values[track]![column] = value;
       });
     });
     return values;

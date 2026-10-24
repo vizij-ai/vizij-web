@@ -90,8 +90,9 @@ only the bake helps one.
    compares baked values with and without.
 3. **Yield between frames.** Does not reduce the 29 seconds, but ends the
    frozen main thread and allows progress reporting — the part a user
-   experiences. `sampleClipThroughGraph` is synchronous today;
-   `bakeAuthoredClips` is already async.
+   experiences. `sampleClipThroughGraph` and `bakeAuthoredClips` are async,
+   but `sampleClipThroughGraph` awaits only the animation's values, read
+   before its first frame; the frames themselves step without yielding.
 
 ## Reproducing
 

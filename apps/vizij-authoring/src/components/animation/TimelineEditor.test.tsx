@@ -16,6 +16,7 @@ import {
 } from "vitest";
 import { initRuntimeFromDisk } from "../../test/initRuntime";
 import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
+import { sampleAnimationTrack } from "../../utils/sampleAnimation";
 import { TimelineEditor } from "./TimelineEditor";
 
 /**
@@ -60,8 +61,11 @@ vi.mock("../../state/animationStore", async () => {
   >("../../state/animationStore");
   return {
     evaluateTrack: actual.evaluateTrack,
-    useAnimationStore: (selector?: (s: typeof state) => unknown) =>
-      selector ? selector(state) : state,
+    useAnimationStore: Object.assign(
+      (selector?: (s: typeof state) => unknown) =>
+        selector ? selector(state) : state,
+      { getState: () => state },
+    ),
   };
 });
 
@@ -169,6 +173,33 @@ describe("TimelineEditor keyframe insert", () => {
     const [, time, value] = state.addKeyframe.mock.calls[0]!;
     expect(time).toBeCloseTo(0.5, 6);
     expect(value).toBeCloseTo(0.5, 6);
+  });
+
+  it("drops an insert whose curve was edited while its value was read", async () => {
+    const keyframes = [
+      { id: "kf-1", time: 0, value: 0.2 },
+      { id: "kf-2", time: 1, value: 0.8 },
+    ];
+    const jaw = {
+      id: "track-1",
+      label: "Jaw Open",
+      variableId: "jaw.open",
+      channel: "/propsrig/jaw/open",
+      color: "#fff",
+      interpolation: "linear" as const,
+      keyframes,
+    };
+    state.tracks = [jaw];
+    state.duration = 1;
+
+    insertAt(0.5);
+    // The curve changes before the module answers.
+    state.tracks = [{ ...jaw, keyframes: [...keyframes] }];
+    // Samplings run in order, so this one answers after the insert's.
+    await sampleAnimationTrack(jaw, 0);
+    await Promise.resolve();
+
+    expect(state.addKeyframe).not.toHaveBeenCalled();
   });
 
   it("falls back to the input default on a track with no curve yet", () => {

@@ -63,6 +63,26 @@ vi.mock("../../state/animationStore", () => ({
   getCurrentPlayheadTime: () => animationState.currentTime,
 }));
 
+/** Set to make the next sampling fail, as the animation module would. */
+const sampling = { fail: false, calls: 0 };
+
+vi.mock("../../poseRig/poseFromClip", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../poseRig/poseFromClip")
+  >("../../poseRig/poseFromClip");
+  return {
+    ...actual,
+    poseFromClipAtTime: (
+      options: Parameters<typeof actual.poseFromClipAtTime>[0],
+    ) => {
+      sampling.calls += 1;
+      return sampling.fail
+        ? Promise.reject(new Error("the animation module refused the seek"))
+        : actual.poseFromClipAtTime(options);
+    },
+  };
+});
+
 vi.mock("../../poseRig/store", () => ({
   usePoseRigStore: (selector: (s: typeof poseState) => unknown) =>
     selector(poseState),
@@ -129,6 +149,8 @@ function savedValues(): Record<string, number> {
 beforeAll(initRuntimeFromDisk);
 
 beforeEach(() => {
+  sampling.fail = false;
+  sampling.calls = 0;
   animationState.tracks = [];
   animationState.duration = 2;
   animationState.currentTime = 0;
@@ -279,6 +301,40 @@ describe("SavePoseFromPlayhead", () => {
     await openDialog();
 
     expect(confirmButton().disabled).toBe(true);
+  });
+});
+
+describe("SavePoseFromPlayhead when sampling fails", () => {
+  it("says so and cannot save, rather than sampling for good", async () => {
+    animationState.tracks = [track("jaw_open", [{ time: 0, value: 0.25 }])];
+    poseState.standardInputs = [{ id: "jaw_open" }];
+    sampling.fail = true;
+
+    render(<SavePoseFromPlayhead clipName="Wave" />);
+    fireEvent.click(trigger());
+
+    const failed = await screen.findByTestId("save-pose-failed");
+    expect(failed.textContent).toContain("refused the seek");
+    expect(screen.queryByTestId("save-pose-sampling")).toBeNull();
+    expect(confirmButton().disabled).toBe(true);
+  });
+});
+
+describe("SavePoseFromPlayhead resampling", () => {
+  it("does not resample the animated scope when a slider moves", async () => {
+    animationState.tracks = [track("jaw_open", [{ time: 0, value: 0.25 }])];
+    poseState.standardInputs = [{ id: "jaw_open" }, { id: "brow_raise" }];
+    poseState.currentValues = { brow_raise: 0.4 };
+
+    const { rerender } = render(<SavePoseFromPlayhead clipName="Wave" />);
+    await openDialog();
+    const calls = sampling.calls;
+
+    poseState.currentValues = { brow_raise: 0.6 };
+    rerender(<SavePoseFromPlayhead clipName="Wave" />);
+    await sampled();
+
+    expect(sampling.calls).toBe(calls);
   });
 });
 

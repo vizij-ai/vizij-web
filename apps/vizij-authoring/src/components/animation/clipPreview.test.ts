@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { AnimationTrack } from "../../state/animationStore";
-import { clipInputValuesAtTime, scrubPreviewValues } from "./clipPreview";
+import {
+  clipInputValuesAtTime,
+  latestScrubPreview,
+  scrubPreviewValues,
+} from "./clipPreview";
 
 function track(
   variableId: string,
@@ -118,5 +122,73 @@ describe("scrubPreviewValues", () => {
         playbackState: "stopped",
       }),
     ).toBeNull();
+  });
+});
+
+describe("latestScrubPreview", () => {
+  /** A sampling whose answer the test releases. */
+  function deferred() {
+    let resolve!: (values: Record<string, number> | null) => void;
+    const promise = new Promise<Record<string, number> | null>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+
+  it("applies only the latest scrub's values when an earlier one answers last", async () => {
+    const answers = [deferred(), deferred()];
+    const applied: Record<string, number>[] = [];
+    const preview = latestScrubPreview({
+      sample: (time) => answers[time]!.promise,
+      apply: (values) => applied.push(values),
+      isPlaying: () => false,
+      onError: (error) => {
+        throw error;
+      },
+    });
+
+    const first = preview(0);
+    const second = preview(1);
+    answers[1]!.resolve({ lids_blink: 1 });
+    await second;
+    answers[0]!.resolve({ lids_blink: 0 });
+    await first;
+
+    expect(applied).toEqual([{ lids_blink: 1 }]);
+  });
+
+  it("applies nothing once playback has started meanwhile", async () => {
+    const answer = deferred();
+    let playing = false;
+    const applied: Record<string, number>[] = [];
+    const preview = latestScrubPreview({
+      sample: () => answer.promise,
+      apply: (values) => applied.push(values),
+      isPlaying: () => playing,
+      onError: (error) => {
+        throw error;
+      },
+    });
+
+    const scrub = preview(0);
+    playing = true;
+    answer.resolve({ lids_blink: 1 });
+    await scrub;
+
+    expect(applied).toEqual([]);
+  });
+
+  it("reports a sampling that fails", async () => {
+    const errors: unknown[] = [];
+    const preview = latestScrubPreview({
+      sample: () => Promise.reject(new Error("refused")),
+      apply: () => {},
+      isPlaying: () => false,
+      onError: (error) => errors.push(error),
+    });
+
+    await preview(0);
+
+    expect(errors).toEqual([new Error("refused")]);
   });
 });
