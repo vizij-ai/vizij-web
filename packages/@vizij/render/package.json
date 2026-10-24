@@ -44,7 +44,7 @@
     "three-stdlib": "^2.35.13"
   },
   "peerDependencies": {
-    "@vizij/runtime": "^8.0.0",
+    "@vizij/runtime": "^8.0.0 || ^9.0.0",
     "react": ">=18",
     "three": "^0.170.0",
     "zustand": "^5.0.2"
@@ -60,7 +60,7 @@
     "tsup": "^8.0.1",
     "typescript": "^5.5.0",
     "prettier": "^3.4.2",
-    "@vizij/runtime": "^8.0.0",
+    "@vizij/runtime": "^9.0.2",
     "react-dom": "^19.2.3",
     "@types/react-dom": "^19.2.3"
   },
