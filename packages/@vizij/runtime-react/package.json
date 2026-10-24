@@ -1,7 +1,7 @@
 {
   "name": "@vizij/runtime-react",
   "description": "One Vizij face's lifecycle in React over @vizij/runtime: the provider, its store-change fan-out, value hooks and a JS tween.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -1,5 +1,15 @@
 # vizij-authoring
 
+## 0.3.3
+
+### Patch Changes
+
+- d31d15e: The app runs on `@vizij/runtime` 9.0.2. A call into the runtime's wasm module runs only that call's code, and `invoke`, `setValue` and `moduleAnimation` cost linearly in the size of the values they carry, so loading a long animation into the animation module, to play it or to sample it for a preview, a pose or a bake, costs linearly in its length.
+- Updated dependencies [d31d15e]
+- Updated dependencies [d31d15e]
+  - @vizij/render@3.0.1
+  - @vizij/runtime-react@1.0.2
+
 ## 0.3.2
 
 ### Patch Changes
