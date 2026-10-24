@@ -18,12 +18,7 @@ const GLB_HEADER_BYTES = 12;
 const GLB_CHUNK_HEADER_BYTES = 8;
 const GLB_JSON_CHUNK_TYPE = 0x4e4f534a;
 
-export class EmptyModelError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "EmptyModelError";
-  }
-}
+export { EmptyModelError } from "./empty-model-error";
 
 type ParserJsonFallbackSource = {
   url?: string;

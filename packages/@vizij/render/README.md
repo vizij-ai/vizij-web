@@ -177,6 +177,11 @@ covers the whole page, and every slot already shows the runtime's stages.
   their `WithBundle` forms return the world, its animatables, the
   `VIZIJ_bundle` and the GLB's animations. A blob is parsed in memory, with
   nothing fetched.
+- The elements are the nodes that carry `RobotData`. With `aggressiveImport`,
+  a GLB in which no node does (a plain Blender export) is imported from its
+  meshes instead, framed on `rootBounds` or, absent, on its geometry's
+  bounds; one with no mesh, ellipse or rectangle either fails with
+  `EmptyModelError`.
 - `buildSceneGraph(world, animatables, rootId)` builds the three.js graph of a
   world element with no renderer; `exportScene(root, { bundle, animations })`
   encodes it as GLB bytes. Every node carries its element's `RobotData`, and
