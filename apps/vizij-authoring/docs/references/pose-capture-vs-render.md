@@ -10,18 +10,16 @@ explanations survive.
 
 ## Three evaluation paths, one of which skips the graph
 
-| path                             | how it evaluates                                                 |
-| -------------------------------- | ---------------------------------------------------------------- |
-| Save frame as pose               | `sampleTrackAt(track, time)` — raw track value, graph never runs |
-| The GLB bake (what Blender sees) | `sampleClipThroughGraph` — steps the graph frame by frame        |
-| What is rendered                 | the live runtime, stepping the graph every frame                 |
+| path                             | how it evaluates                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------------------- |
+| Save frame as pose               | `sampleAnimationTracks(tracks, [time])` — raw track value, graph never runs             |
+| The GLB bake (what Blender sees) | `sampleClipThroughGraph` — the same track values, then the graph stepped frame by frame |
+| What is rendered                 | the live runtime, stepping the graph every frame                                        |
 
 The bake and the render agree with each other. Pose capture is the odd one out.
 
-Note this is _not_ the same defect as the two divergent keyframe samplers
-fixed in `e74c3b8a` — those were two implementations of one function that
-disagreed. Both paths now use one sampler. This is the layer above: one path
-runs the graph and one does not.
+Every path reads track values from one evaluator, Arora's animation module.
+The difference is the layer above: one path runs the graph and one does not.
 
 ## What the graph does to those values, measured
 

@@ -7,7 +7,8 @@ import type {
   AnimationTrackIR,
 } from "../types/animationClipIr";
 import { quaternionFromEulerZYX } from "../utils/transformMath";
-import { sampleTrackAt, unionKeyTimes as unionTimes } from "./sampleTrack";
+import { sampleAnimationTracks } from "../utils/sampleAnimation";
+import { unionKeyTimes as unionTimes } from "./sampleTrack";
 import type { BakeTargetElement, BakeTargetIndex } from "./bakeTargets";
 
 /**
@@ -186,14 +187,32 @@ function groupTracks(
  * Channels that cannot be expressed in glTF — material features, and anything
  * above the node layer that needs graph sampling — are reported in
  * `report.skipped` rather than dropped quietly.
+ *
+ * Each glTF channel keys at the union of its component tracks' key times,
+ * each component's value there read from Arora's animation module
+ * (`sampleAnimationTracks`, one stepping of a player across every time the
+ * channels key at).
  */
-export function bakeClipToTrackSpecs(options: {
+export async function bakeClipToTrackSpecs(options: {
   clip: AnimationClipIR;
   targets: BakeTargetIndex;
-}): BakeClipResult {
+}): Promise<BakeClipResult> {
   const { clip, targets } = options;
   const skipped: BakeSkippedChannel[] = [];
   const groups = groupTracks(clip, targets, skipped);
+
+  // Every grouped track, sampled at every time any channel keys at.
+  const grouped = [...groups.values()].flatMap((group) => [
+    ...group.byIndex.values(),
+  ]);
+  const allTimes = unionTimes(grouped);
+  const column = new Map(allTimes.map((time, index) => [time, index]));
+  const sampled = await sampleAnimationTracks(grouped, allTimes);
+  const samples = new Map(
+    grouped.map((track, index) => [track, sampled[index]!]),
+  );
+  const valueAt = (track: AnimationTrackIR, time: number): number =>
+    samples.get(track)![column.get(time)!]!;
 
   const tracks: ExportAnimationTrack[] = [];
   const bakedChannels: string[] = [];
@@ -225,7 +244,7 @@ export function bakeClipToTrackSpecs(options: {
         property: "morphTargetInfluences",
         elementName: group.element.elementName,
         times,
-        values: times.map((time) => sampleTrackAt(track!, time)),
+        values: times.map((time) => valueAt(track!, time)),
         stride: 1,
       });
       bakedChannels.push(...group.channels);
@@ -243,7 +262,7 @@ export function bakeClipToTrackSpecs(options: {
 
     const componentAt = (componentIndex: number, time: number): number => {
       const track = group.byIndex.get(componentIndex);
-      return track ? sampleTrackAt(track, time) : rest[componentIndex]!;
+      return track ? valueAt(track, time) : rest[componentIndex]!;
     };
 
     if (group.property === "quaternion") {

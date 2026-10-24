@@ -167,12 +167,21 @@ export function TimelineEditor({
       // default instead put a step into every curve that was not already
       // resting there — inserting into a translation curve snapped the face.
       // Only an empty track has no curve to read, and then the default is right.
-      const value =
-        selectedTrack.keyframes.length > 0
-          ? evaluateTrack(selectedTrack, time)
-          : (standardInputsById.get(selectedTrack.variableId)?.defaultValue ??
-            0);
-      addKeyframe(selectedTrackId, time, value);
+      if (selectedTrack.keyframes.length === 0) {
+        addKeyframe(
+          selectedTrackId,
+          time,
+          standardInputsById.get(selectedTrack.variableId)?.defaultValue ?? 0,
+        );
+        return;
+      }
+      // The curve's value comes from the animation module, asynchronously.
+      evaluateTrack(selectedTrack, time).then(
+        (value) => addKeyframe(selectedTrackId, time, value),
+        (error: unknown) => {
+          console.error("[timeline] sampling the curve failed:", error);
+        },
+      );
     },
     [addKeyframe, selectedTrackId, standardInputsById, tracks],
   );

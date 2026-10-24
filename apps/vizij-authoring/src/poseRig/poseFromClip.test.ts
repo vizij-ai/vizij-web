@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
@@ -38,8 +39,8 @@ function clip(...tracks: AnimationTrackIR[]): AnimationClipIR {
 const KNOWN = new Set(["lids_blink", "gaze_left_right", "mouth_open"]);
 
 describe("poseFromClipAtTime", () => {
-  it("samples each animated input at the requested time", () => {
-    const result = poseFromClipAtTime({
+  it("samples each animated input at the requested time", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [
           [0, 0],
@@ -54,14 +55,17 @@ describe("poseFromClipAtTime", () => {
       knownInputIds: KNOWN,
     });
 
-    expect(result.values).toEqual({ lids_blink: 0.5, gaze_left_right: 0 });
+    expect(result.values).toEqual({
+      lids_blink: expect.closeTo(0.5, 12),
+      gaze_left_right: expect.closeTo(0, 12),
+    });
     expect(result.unresolvedChannels).toEqual([]);
   });
 
-  it("takes the pose at a frame without needing playback", () => {
+  it("takes the pose at a frame without needing playback", async () => {
     // The point of sampling rather than reading the runtime: a pose can be
     // taken from a frame the transport has never visited.
-    const result = poseFromClipAtTime({
+    const result = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [
           [0, 0],
@@ -75,7 +79,7 @@ describe("poseFromClipAtTime", () => {
     expect(result.values.lids_blink).toBe(1);
   });
 
-  it("holds flat outside the clip's key range", () => {
+  it("holds flat outside the clip's key range", async () => {
     const source = clip(
       track("lids_blink", [
         [0.5, 0.25],
@@ -83,19 +87,29 @@ describe("poseFromClipAtTime", () => {
       ]),
     );
     expect(
-      poseFromClipAtTime({ clip: source, time: 0, knownInputIds: KNOWN }).values
-        .lids_blink,
+      (
+        await poseFromClipAtTime({
+          clip: source,
+          time: 0,
+          knownInputIds: KNOWN,
+        })
+      ).values.lids_blink,
     ).toBe(0.25);
     expect(
-      poseFromClipAtTime({ clip: source, time: 99, knownInputIds: KNOWN })
-        .values.lids_blink,
+      (
+        await poseFromClipAtTime({
+          clip: source,
+          time: 99,
+          knownInputIds: KNOWN,
+        })
+      ).values.lids_blink,
     ).toBe(0.75);
   });
 
-  it("captures only the animated inputs by default, so the pose composes", () => {
+  it("captures only the animated inputs by default, so the pose composes", async () => {
     // A pose that pinned every input would override things the clip never
     // touched.
-    const result = poseFromClipAtTime({
+    const result = await poseFromClipAtTime({
       clip: clip(track("lids_blink", [[0, 1]])),
       time: 0,
       knownInputIds: KNOWN,
@@ -105,8 +119,8 @@ describe("poseFromClipAtTime", () => {
     expect(result.values).toEqual({ lids_blink: 1 });
   });
 
-  it('overlays onto the current values when scope is "all"', () => {
-    const result = poseFromClipAtTime({
+  it('overlays onto the current values when scope is "all"', async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(track("lids_blink", [[0, 1]])),
       time: 0,
       knownInputIds: KNOWN,
@@ -117,9 +131,9 @@ describe("poseFromClipAtTime", () => {
     expect(result.values).toEqual({ mouth_open: 0.8, lids_blink: 1 });
   });
 
-  it("reports channels with no matching input instead of inventing one", () => {
+  it("reports channels with no matching input instead of inventing one", async () => {
     // A clip authored against another rig, or a renamed input.
-    const result = poseFromClipAtTime({
+    const result = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [[0, 1]]),
         track("not_a_real_input", [[0, 0.5]]),
@@ -132,10 +146,10 @@ describe("poseFromClipAtTime", () => {
     expect(result.unresolvedChannels).toEqual(["/propsrig/not_a_real_input"]);
   });
 
-  it("skips detached tracks without reporting them as unresolved", () => {
+  it("skips detached tracks without reporting them as unresolved", async () => {
     // Detached tracks are deliberately retained for re-attachment; they are
     // not an error, they just cannot contribute a value.
-    const result = poseFromClipAtTime({
+    const result = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [[0, 1]]),
         track("gaze_left_right", [[0, 0.5]], { detached: true }),
@@ -148,8 +162,8 @@ describe("poseFromClipAtTime", () => {
     expect(result.unresolvedChannels).toEqual([]);
   });
 
-  it("skips tracks with no keyframes", () => {
-    const result = poseFromClipAtTime({
+  it("skips tracks with no keyframes", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(track("lids_blink", []), track("mouth_open", [[0, 0.3]])),
       time: 0,
       knownInputIds: KNOWN,
@@ -157,8 +171,8 @@ describe("poseFromClipAtTime", () => {
     expect(result.values).toEqual({ mouth_open: 0.3 });
   });
 
-  it("honours step interpolation", () => {
-    const result = poseFromClipAtTime({
+  it("honours step interpolation", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(
         track(
           "lids_blink",
@@ -175,8 +189,8 @@ describe("poseFromClipAtTime", () => {
     expect(result.values.lids_blink).toBe(0);
   });
 
-  it("returns an empty pose for an empty clip rather than failing", () => {
-    const result = poseFromClipAtTime({
+  it("returns an empty pose for an empty clip rather than failing", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(),
       time: 0,
       knownInputIds: KNOWN,
@@ -193,8 +207,8 @@ describe("poseFromClipAtTime at-neutral filtering", () => {
     mouth_open: 0,
   };
 
-  it("leaves out inputs resting at neutral so the pose does not fight blending", () => {
-    const result = poseFromClipAtTime({
+  it("leaves out inputs resting at neutral so the pose does not fight blending", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [
           [0, 0],
@@ -215,8 +229,8 @@ describe("poseFromClipAtTime at-neutral filtering", () => {
     expect(result.neutralInputIds).toEqual(["gaze_left_right"]);
   });
 
-  it("keeps a non-zero neutral's displaced value and drops the resting one", () => {
-    const result = poseFromClipAtTime({
+  it("keeps a non-zero neutral's displaced value and drops the resting one", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [[0, 0.5]]),
         track("gaze_left_right", [[0, 0.25]]),
@@ -231,8 +245,8 @@ describe("poseFromClipAtTime at-neutral filtering", () => {
     expect(result.neutralInputIds).toEqual(["lids_blink"]);
   });
 
-  it("drops nothing without neutral values, having no basis to judge", () => {
-    const result = poseFromClipAtTime({
+  it("drops nothing without neutral values, having no basis to judge", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(track("lids_blink", [[0, 0]])),
       time: 0,
       knownInputIds: KNOWN,
@@ -242,8 +256,8 @@ describe("poseFromClipAtTime at-neutral filtering", () => {
     expect(result.neutralInputIds).toEqual([]);
   });
 
-  it("keeps an input whose neutral is unknown rather than guessing zero", () => {
-    const result = poseFromClipAtTime({
+  it("keeps an input whose neutral is unknown rather than guessing zero", async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(track("mouth_open", [[0, 0]])),
       time: 0,
       knownInputIds: KNOWN,
@@ -254,8 +268,8 @@ describe("poseFromClipAtTime at-neutral filtering", () => {
     expect(result.neutralInputIds).toEqual([]);
   });
 
-  it('pins at-neutral inputs anyway when scope is "all"', () => {
-    const result = poseFromClipAtTime({
+  it('pins at-neutral inputs anyway when scope is "all"', async () => {
+    const result = await poseFromClipAtTime({
       clip: clip(track("lids_blink", [[0, 0]])),
       time: 0,
       knownInputIds: KNOWN,
@@ -268,10 +282,10 @@ describe("poseFromClipAtTime at-neutral filtering", () => {
     expect(result.neutralInputIds).toEqual([]);
   });
 
-  it("omitting an at-neutral input applies identically to declaring it", () => {
+  it("omitting an at-neutral input applies identically to declaring it", async () => {
     // The reason dropping is safe: `PoseSnapshotService.apply` starts from the
     // neutral values, so an absent input resolves to neutral regardless.
-    const dropped = poseFromClipAtTime({
+    const dropped = await poseFromClipAtTime({
       clip: clip(
         track("lids_blink", [[0, 1]]),
         track("gaze_left_right", [[0, 0]]),

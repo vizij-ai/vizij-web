@@ -10,7 +10,7 @@ import {
   AUTHORED_TIMELINE_CLIP_NAME,
 } from "../types/animationClipIr";
 import { compileAnimationClipIr } from "../utils/animationClipCompiler";
-import { sampleTrackAt } from "../utils/sampleAnimationTrack";
+import { sampleAnimationTrack } from "../utils/sampleAnimation";
 import { ANIMATION_TIMELINE_FPS } from "../utils/animationTimeDisplay";
 import {
   addClipEntry,
@@ -1215,7 +1215,11 @@ export function getCurrentPlayheadTime(): number {
   return useAnimationStore.getState().currentTime;
 }
 
-// Helper to evaluate a track at a specific time
-export function evaluateTrack(track: AnimationTrack, time: number): number {
-  return sampleTrackAt(track, time);
+/** `track`'s value at `time`, as the face plays it (Arora's animation
+ * module, through `sampleAnimationTrack`). */
+export function evaluateTrack(
+  track: AnimationTrack,
+  time: number,
+): Promise<number> {
+  return sampleAnimationTrack(track, time);
 }

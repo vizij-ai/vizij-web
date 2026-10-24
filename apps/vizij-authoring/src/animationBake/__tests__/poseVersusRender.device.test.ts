@@ -2,15 +2,18 @@
 import { describe, expect, it } from "vitest";
 import type { GraphSpec } from "@vizij/node-graph";
 import { createDeviceGraphEvaluator } from "../graphEvaluatorDevice";
-import { sampleTrackAt } from "../../utils/sampleAnimationTrack";
+import {
+  sampleAnimationTrack,
+  sampleAnimationTracks,
+} from "../../utils/sampleAnimation";
 import type { AnimationTrackIR } from "../../types/animationClipIr";
 
 /**
  * Does a pose captured at a frame render the same as the animation at that
  * frame?
  *
- * "Save frame as pose" reads the clip's track value at the playhead
- * (`sampleTrackAt`) and stores it as an input value. The animation, and the
+ * "Save frame as pose" reads the animation's track value at the playhead
+ * (`sampleAnimationTracks`) and stores it as an input value. The animation, and the
  * GLB bake, feed that same input value through the rig graph — stepping it
  * frame by frame. If the graph is stateless the two agree by construction: a
  * pose is input-space, a track is input-space, same number in, same render
@@ -81,10 +84,13 @@ async function renderedAfterPlayback(
   frames: number,
 ): Promise<number | null> {
   const evaluator = await createDeviceGraphEvaluator({ spec });
-  const track = rampTrack();
+  const [values] = await sampleAnimationTracks(
+    [rampTrack()],
+    Array.from({ length: frames + 1 }, (_, frame) => frame / FPS),
+  );
   try {
     for (let frame = 0; frame <= frames; frame += 1) {
-      evaluator.stageInput(IN, sampleTrackAt(track, frame / FPS));
+      evaluator.stageInput(IN, values![frame]!);
       evaluator.step(frame === 0 ? 0 : DT_MS);
     }
     return evaluator.readOutputs([OUT]).get(OUT)?.[0] ?? null;
@@ -100,7 +106,7 @@ async function renderedFromPose(
   settleFrames = 240,
 ): Promise<number | null> {
   const evaluator = await createDeviceGraphEvaluator({ spec });
-  const value = sampleTrackAt(rampTrack(), frames / FPS);
+  const value = await sampleAnimationTrack(rampTrack(), frames / FPS);
   try {
     for (let frame = 0; frame <= settleFrames; frame += 1) {
       evaluator.stageInput(IN, value);
@@ -129,7 +135,7 @@ describe("a pose captured at a frame, against what playback renders", () => {
     expect(played).not.toBeNull();
     expect(posed).not.toBeNull();
 
-    const raw = sampleTrackAt(rampTrack(), frames / FPS);
+    const raw = await sampleAnimationTrack(rampTrack(), frames / FPS);
     // Reported rather than asserted tight: the point is the magnitude, and it
     // is a property of the graph, not of this app's code.
     console.log(

@@ -175,7 +175,7 @@ describe("device graph evaluator", () => {
         ],
       };
 
-      const { clip, report } = sampleClipThroughGraph({
+      const { clip, report } = await sampleClipThroughGraph({
         clip: authored,
         evaluator,
         outputs: [

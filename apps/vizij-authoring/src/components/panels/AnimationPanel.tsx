@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   Pause,
@@ -180,19 +180,37 @@ export function AnimationPanel({
 
   // Scrubbing has to move the face, not just the playhead. While the runtime
   // transport is not driving — which is the whole time playback is stopped —
-  // nothing else writes the rig, so the seek samples the clip and applies its
-  // inputs. `source: "timeline"` because these values come from the clip
-  // rather than from a person moving a slider, and the manual-write lock must
-  // not treat them as a conflict.
+  // nothing else writes the rig, so the seek samples the animation and applies
+  // its inputs. `source: "timeline"` because these values come from the
+  // animation rather than from a person moving a slider, and the manual-write
+  // lock must not treat them as a conflict.
+  //
+  // The values arrive asynchronously, from the animation module. Only the
+  // latest scrub's land, and none once playback has started meanwhile: an
+  // earlier position landing after a later one would move the face backwards.
+  const latestPreview = useRef(0);
+  const playbackStateRef = useRef(effectivePlaybackState);
+  playbackStateRef.current = effectivePlaybackState;
   const previewClipAt = (timeSeconds: number) => {
-    const values = scrubPreviewValues({
+    const request = ++latestPreview.current;
+    void scrubPreviewValues({
       tracks,
       time: timeSeconds,
       playbackState: effectivePlaybackState,
-    });
-    if (values) {
-      applyStandardInputBatch(values, { source: "timeline" });
-    }
+    }).then(
+      (values) => {
+        if (
+          values &&
+          request === latestPreview.current &&
+          playbackStateRef.current !== "playing"
+        ) {
+          applyStandardInputBatch(values, { source: "timeline" });
+        }
+      },
+      (error: unknown) => {
+        console.error("[timeline] the scrub preview failed to sample:", error);
+      },
+    );
   };
 
   // Who owns the clock depends on whether the engine is running it.

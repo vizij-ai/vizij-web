@@ -12,12 +12,14 @@ import {
   type AnimationClipIR,
 } from "../../types/animationClipIr";
 import { clipIrToAnimation } from "../animationClipCompiler";
-import { sampleTrackAt } from "../sampleAnimationTrack";
+import { sampleAnimationTracks } from "../sampleAnimation";
 
 /**
- * The timeline's animation, played by a device's animation module, lands
- * where the timeline draws it (`sampleTrackAt`): cubic segments on the
- * keyframes' tangents, a per-key interpolation override, a step.
+ * The timeline's animation, played by a device's animation module and
+ * written to its keys as a face plays it, lands where authoring reads it
+ * (`sampleAnimationTracks`, a player of its own whose outputs no behavior
+ * writes): cubic segments on the keyframes' tangents, a per-key
+ * interpolation override, a step.
  */
 
 function authoredClip(): AnimationClipIR {
@@ -108,18 +110,19 @@ describe("clipIrToAnimation on a device", () => {
 
   it("plays each track where the timeline samples it", async () => {
     const clip = authoredClip();
-    for (const time of SAMPLE_TIMES) {
+    const sampled = await sampleAnimationTracks(clip.tracks, SAMPLE_TIMES);
+    for (const [column, time] of SAMPLE_TIMES.entries()) {
       await runtime.invoke("seek", {
         player,
         time_ns: { u64: Math.round(time * 1e9) },
       });
       const values = runtime.readValues(clip.tracks.map((t) => t.channel));
-      for (const track of clip.tracks) {
+      clip.tracks.forEach((track, row) => {
         expect(
           valueAsNumber(values[track.channel] as never),
           `${track.channel} at ${time}s`,
-        ).toBeCloseTo(sampleTrackAt(track, time), 5);
-      }
+        ).toBeCloseTo(sampled[row]![column]!, 5);
+      });
     }
   });
 });

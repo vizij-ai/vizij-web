@@ -1,5 +1,20 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { initRuntimeFromDisk } from "../../test/initRuntime";
 import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
 import { TimelineEditor } from "./TimelineEditor";
 
@@ -58,6 +73,9 @@ vi.mock("../../state/bindingAuthoringStore", () => {
 });
 
 const DEFAULT_TRACKS = state.tracks;
+
+// Inserting a key reads the curve from the animation module.
+beforeAll(initRuntimeFromDisk);
 
 beforeEach(() => {
   // `state` is a mutable module-level object the mock reads through, so a test
@@ -126,7 +144,7 @@ describe("TimelineEditor keyframe insert", () => {
     return view;
   }
 
-  it("inserts at the curve's value, so adding a key does not change the motion", () => {
+  it("inserts at the curve's value, so adding a key does not change the motion", async () => {
     // The bug: it wrote the input's *default* instead, putting a step into
     // every curve not already resting there.
     state.tracks = [
@@ -147,7 +165,7 @@ describe("TimelineEditor keyframe insert", () => {
 
     insertAt(0.5);
 
-    expect(state.addKeyframe).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(state.addKeyframe).toHaveBeenCalledTimes(1));
     const [, time, value] = state.addKeyframe.mock.calls[0]!;
     expect(time).toBeCloseTo(0.5, 6);
     expect(value).toBeCloseTo(0.5, 6);
@@ -179,7 +197,7 @@ describe("TimelineEditor toolbar", () => {
     return screen.getByTestId("timeline-current-time") as HTMLInputElement;
   }
 
-  it("adds a key at the playhead from a labelled button", () => {
+  it("adds a key at the playhead from a labelled button", async () => {
     // Double-click was the only way to add a keyframe, and nothing said so.
     state.tracks = [
       {
@@ -203,6 +221,7 @@ describe("TimelineEditor toolbar", () => {
     state.addKeyframe.mockClear();
     fireEvent.click(screen.getByTestId("timeline-add-key"));
 
+    await waitFor(() => expect(state.addKeyframe).toHaveBeenCalledTimes(1));
     const [trackId, time, value] = state.addKeyframe.mock.calls[0]!;
     expect(trackId).toBe("track-1");
     expect(time).toBeCloseTo(0.5, 6);

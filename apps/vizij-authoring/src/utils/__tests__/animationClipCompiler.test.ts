@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  AnimationClipIR,
-  AnimationTrackIR,
-} from "../../types/animationClipIr";
+import type { AnimationClipIR } from "../../types/animationClipIr";
 import {
   AUTHORED_TIMELINE_CLIP_ID,
   AUTHORED_TIMELINE_METADATA_ORIGIN,
@@ -15,7 +12,6 @@ import {
   findCanonicalAuthoredTimelineConflict,
   findAuthoredTimelineBundleAnimation,
 } from "../animationClipCompiler";
-import { sampleTrackAt } from "../sampleAnimationTrack";
 
 describe("compileAnimationClipIr", () => {
   it("sorts tracks by channel then track id and dedupes keyframes by time", () => {
@@ -191,57 +187,6 @@ describe("bundle conversion", () => {
       channel: "controls/jaw/open",
       interpolation: "cubic",
     });
-  });
-});
-
-describe("sampleTrackAt", () => {
-  it("supports linear, step, and cubic semantics", () => {
-    const linearTrack: AnimationTrackIR = {
-      id: "linear-track",
-      variableId: "linear",
-      channel: "controls/linear",
-      interpolation: "linear",
-      keyframes: [
-        { id: "kf-1", time: 0, value: 0, interpolation: "linear" },
-        { id: "kf-2", time: 1, value: 1, interpolation: "linear" },
-      ],
-    };
-    const stepTrack: AnimationTrackIR = {
-      id: "step-track",
-      variableId: "step",
-      channel: "controls/step",
-      interpolation: "step",
-      keyframes: [
-        { id: "kf-1", time: 0, value: 0, interpolation: "step" },
-        { id: "kf-2", time: 1, value: 1, interpolation: "step" },
-      ],
-    };
-    const cubicTrack: AnimationTrackIR = {
-      id: "cubic-track",
-      variableId: "cubic",
-      channel: "controls/cubic",
-      interpolation: "cubic",
-      keyframes: [
-        {
-          id: "kf-1",
-          time: 0,
-          value: 0,
-          interpolation: "cubic",
-          outTangent: 0,
-        },
-        {
-          id: "kf-2",
-          time: 1,
-          value: 1,
-          interpolation: "cubic",
-          inTangent: 0,
-        },
-      ],
-    };
-
-    expect(sampleTrackAt(linearTrack, 0.5)).toBeCloseTo(0.5, 6);
-    expect(sampleTrackAt(stepTrack, 0.75)).toBe(0);
-    expect(sampleTrackAt(cubicTrack, 0.5)).toBeCloseTo(0.5, 6);
   });
 });
 
