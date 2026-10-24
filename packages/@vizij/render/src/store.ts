@@ -52,21 +52,11 @@ export const VizijSlice = (set: VizijStoreSetter, _get: VizijStoreGetter) => ({
       produce((state: VizijData) => {
         const lookupId = getLookup(namespace, id);
         if (typeof value === "function") {
-          const current: RawValue | undefined = state.values.get(lookupId);
-          if (current !== undefined) {
-            if (value(current !== undefined)) {
-              state.values.set(lookupId, value(current));
-            }
-          } else {
-            const animatableLookup = state.animatables[id];
-            const updatedValue = value(
-              animatableLookup !== undefined
-                ? animatableLookup.default
-                : undefined,
-            );
-            if (updatedValue !== undefined) {
-              state.values.set(lookupId, updatedValue);
-            }
+          const current: RawValue | undefined =
+            state.values.get(lookupId) ?? state.animatables[id]?.default;
+          const updatedValue = value(current);
+          if (updatedValue !== undefined) {
+            state.values.set(lookupId, updatedValue);
           }
         } else {
           state.values.set(lookupId, value);
