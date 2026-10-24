@@ -182,6 +182,15 @@ covers the whole page, and every slot already shows the runtime's stages.
   encodes it as GLB bytes. Every node carries its element's `RobotData`, and
   its transform, morph weights and material factors are the element's
   authored defaults.
+- `createExportAnimation({ name, duration, tracks, root })` turns baked
+  tracks — plain data, `ExportAnimationTrack`: a node's name, a
+  `position`, `quaternion`, `scale` or `morphTargetInfluences` property, key
+  times in seconds and flattened values — into one of the `animations`
+  `exportScene` writes. Each track is bound against `root` by node name first,
+  and one that would not bind (no such node, no such morph target, a value
+  count that is not `times × stride`) is left out and returned in `issues`,
+  since the exporter otherwise drops the whole animation or throws.
+  `animation` is `null` when no track binds.
 - An ellipse or a rectangle exports as a node with no mesh, carrying its
   `RobotData` — `type`, `width`, `height`, `fillColor`, `fillOpacity` — from
   which the Bevy view draws it: a unit circle or square scaled by the width
@@ -218,7 +227,8 @@ pnpm --filter "@vizij/render" size
 ```
 
 The tests run on Node (`node --test`): the loader, the headless export round
-trip of the shipped faces and of an ellipse and a rectangle, the canvas's frame
+trip of the shipped faces and of an ellipse and a rectangle, the binding and
+export of baked animations, the canvas's frame
 loop, and the loading view's stages, labels and overrides, against a stand-in of
 `@vizij/runtime` (`tests/runtime-stand-in.mjs`). `size-limit` guards the bundle
 size.
@@ -227,7 +237,8 @@ Faces are drawn by `@vizij/runtime`'s Bevy view, a peer dependency. `three` is
 imported only by the loader (`src/functions/load-gltf.ts`,
 `src/functions/gltf-loading/`) and the exporter
 (`src/functions/build-scene-graph.ts`, `src/functions/export.ts`,
-`src/functions/vizij-bundle.ts`); the rest imports its types at most. An API
+`src/functions/export-animation.ts`, `src/functions/vizij-bundle.ts`); the
+rest imports its types at most. An API
 change updates the apps that use the package and `@vizij/runtime-react` in the
 same change.
 

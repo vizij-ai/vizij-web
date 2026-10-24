@@ -29,8 +29,8 @@ these apps as it does deployed.
   animation frame while the page is visible and on a timer while it is hidden,
   where browsers throttle timers and draw nothing. `run={false}` stops it,
   which is how an offscreen face costs nothing.
-- **three.js draws no face.** It remains in `@vizij/render`'s GLB loader and
-  headless exporter, and in the authoring app's scene maths and animation bake.
+- **three.js draws no face.** It remains only in `@vizij/render`'s GLB loader
+  and headless exporter.
 
 The design of the two packages over it, with every call each app makes, is
 [`packages/@vizij/runtime-react/DESIGN-1.0.md`](packages/@vizij/runtime-react/DESIGN-1.0.md).

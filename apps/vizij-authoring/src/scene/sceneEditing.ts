@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { Euler, Matrix4, Quaternion, Vector3 } from "three";
 import type { BindingMap } from "@vizij/node-graph-authoring";
 import type {
   World,
@@ -16,6 +15,17 @@ import {
   type RawValue,
   type RawVector3,
 } from "@vizij/utils";
+import {
+  IDENTITY_MATRIX,
+  composeMatrix,
+  decomposeMatrix,
+  eulerZYXFromQuaternion,
+  invertMatrix,
+  multiplyMatrices,
+  quaternionFromEulerZYX,
+  type Mat4,
+  type Vec3,
+} from "../utils/transformMath";
 
 const MATERIAL_FEATURE_KEYS = [
   "color",
@@ -101,29 +111,30 @@ function isVector3Like(value: unknown): value is RawVector3 {
   );
 }
 
-function toVector3(value: RawValue | undefined, fallback: Vector3): Vector3 {
+function toVector3(value: RawValue | undefined, fallback: Vec3): Vec3 {
   if (typeof value === "number") {
-    return new Vector3(value, value, value);
+    return { x: value, y: value, z: value };
   }
   if (isVector3Like(value)) {
     const record = value as RawVector3;
     const x = typeof record.x === "number" ? record.x : 0;
     const y = typeof record.y === "number" ? record.y : 0;
     const z = typeof record.z === "number" ? record.z : 0;
-    return new Vector3(x, y, z);
+    return { x, y, z };
   }
-  return fallback.clone();
+  return { ...fallback };
 }
 
-function toEuler(value: RawValue | undefined, fallback: Euler): Euler {
+/** Euler angles in radians, ZYX order (`utils/transformMath`). */
+function toEuler(value: RawValue | undefined, fallback: Vec3): Vec3 {
   if (isVector3Like(value)) {
     const record = value as RawVector3;
     const x = typeof record.x === "number" ? record.x : 0;
     const y = typeof record.y === "number" ? record.y : 0;
     const z = typeof record.z === "number" ? record.z : 0;
-    return new Euler(x, y, z, "ZYX");
+    return { x, y, z };
   }
-  return fallback.clone();
+  return { ...fallback };
 }
 
 function buildParentIndex(world: World): Map<string, string> {
@@ -191,20 +202,22 @@ function buildLocalTransform(
 ) {
   const translation = toVector3(
     readFeatureValue(renderable, "translation", animatables, values, namespace),
-    new Vector3(),
+    { x: 0, y: 0, z: 0 },
   );
   const rotation = toEuler(
     readFeatureValue(renderable, "rotation", animatables, values, namespace),
-    new Euler(0, 0, 0, "ZYX"),
+    { x: 0, y: 0, z: 0 },
   );
   const scale = toVector3(
     readFeatureValue(renderable, "scale", animatables, values, namespace),
-    new Vector3(1, 1, 1),
+    { x: 1, y: 1, z: 1 },
   );
 
-  const matrix = new Matrix4();
-  const quat = new Quaternion().setFromEuler(rotation);
-  matrix.compose(translation, quat, scale);
+  const matrix = composeMatrix(
+    translation,
+    quaternionFromEulerZYX(rotation.x, rotation.y, rotation.z),
+    scale,
+  );
 
   return { translation, rotation, scale, matrix };
 }
@@ -214,14 +227,14 @@ function computeWorldMatrices(
   animatables: Record<string, AnimatableValue>,
   values: Map<string, RawValue | undefined>,
   namespace: string,
-): Map<string, Matrix4> {
+): Map<string, Mat4> {
   const parentIndex = buildParentIndex(world);
   const roots = Object.values(world)
     .filter((entry) => !parentIndex.has(entry.id))
     .map((entry) => entry.id);
-  const matrices = new Map<string, Matrix4>();
+  const matrices = new Map<string, Mat4>();
 
-  const traverse = (id: string, parentMatrix: Matrix4) => {
+  const traverse = (id: string, parentMatrix: Mat4) => {
     const entry = world[id];
     if (!entry) return;
     const { matrix } = buildLocalTransform(
@@ -230,14 +243,13 @@ function computeWorldMatrices(
       values,
       namespace,
     );
-    const worldMatrix = parentMatrix.clone().multiply(matrix);
+    const worldMatrix = multiplyMatrices(parentMatrix, matrix);
     matrices.set(id, worldMatrix);
     const children = (entry as RenderableWithChildren).children ?? [];
     children.forEach((child) => traverse(child, worldMatrix));
   };
 
-  const identity = new Matrix4();
-  roots.forEach((rootId) => traverse(rootId, identity));
+  roots.forEach((rootId) => traverse(rootId, IDENTITY_MATRIX));
   return matrices;
 }
 
@@ -298,9 +310,9 @@ function setTransformFeature(
 function updateTransforms(
   renderable: RenderableWithChildren,
   nextValues: {
-    translation: Vector3;
-    rotation: Euler;
-    scale: Vector3;
+    translation: Vec3;
+    rotation: Vec3;
+    scale: Vec3;
   },
   animatables: Record<string, AnimatableValue>,
   values: Map<string, RawValue | undefined>,
@@ -594,28 +606,28 @@ export function reparentSceneNodeWithPreservedWorld(
   const currentWorldMatrix = matrices.get(nodeId);
   const parentWorldMatrix = newParentId
     ? matrices.get(newParentId)
-    : new Matrix4();
+    : IDENTITY_MATRIX;
   if (!currentWorldMatrix) {
     return null;
   }
-  const parentMatrix = parentWorldMatrix ?? new Matrix4();
+  const parentMatrix = parentWorldMatrix ?? IDENTITY_MATRIX;
 
   const oldParentId = parentIndex.get(nodeId) ?? null;
   const oldParentMatrix =
     oldParentId && matrices.has(oldParentId)
-      ? (matrices.get(oldParentId) as Matrix4)
-      : new Matrix4();
+      ? (matrices.get(oldParentId) as Mat4)
+      : IDENTITY_MATRIX;
 
-  const parentInverse = parentMatrix.clone().invert();
-  const nextLocalMatrix = new Matrix4().multiplyMatrices(
-    parentInverse,
+  const nextLocalMatrix = multiplyMatrices(
+    invertMatrix(parentMatrix),
     currentWorldMatrix,
   );
-  const nextPosition = new Vector3();
-  const nextQuat = new Quaternion();
-  const nextScale = new Vector3();
-  nextLocalMatrix.decompose(nextPosition, nextQuat, nextScale);
-  const nextEuler = new Euler().setFromQuaternion(nextQuat, "ZYX");
+  const {
+    translation: nextPosition,
+    rotation: nextQuat,
+    scale: nextScale,
+  } = decomposeMatrix(nextLocalMatrix);
+  const nextEuler = eulerZYXFromQuaternion(nextQuat);
 
   const entry = world[nodeId] as RenderableWithChildren;
   const {
@@ -630,7 +642,7 @@ export function reparentSceneNodeWithPreservedWorld(
         ? nextEuler
         : toEuler(
             readFeatureValue(entry, "rotation", animatables, values, namespace),
-            new Euler(0, 0, 0, "ZYX"),
+            { x: 0, y: 0, z: 0 },
           ),
       scale: nextScale,
     },
@@ -658,15 +670,8 @@ export function reparentSceneNodeWithPreservedWorld(
     const translationFeature = renderable.features?.translation;
     if (translationFeature?.animated) {
       const animId = translationFeature.value;
-      const oldScale = new Vector3();
-      const oldQuat = new Quaternion();
-      const oldPos = new Vector3();
-      oldParentMatrix.decompose(oldPos, oldQuat, oldScale);
-
-      const newScale = new Vector3();
-      const newQuat2 = new Quaternion();
-      const newPos2 = new Vector3();
-      parentMatrix.decompose(newPos2, newQuat2, newScale);
+      const { scale: oldScale } = decomposeMatrix(oldParentMatrix);
+      const { scale: newScale } = decomposeMatrix(parentMatrix);
 
       const ratios: Record<"x" | "y" | "z", number> = {
         x: safeRatio(oldScale.x, newScale.x),

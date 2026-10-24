@@ -1,17 +1,21 @@
-import { Euler, Quaternion } from "three";
+import type {
+  ExportAnimationProperty,
+  ExportAnimationTrack,
+} from "@vizij/render";
 import type {
   AnimationClipIR,
   AnimationTrackIR,
 } from "../types/animationClipIr";
+import { quaternionFromEulerZYX } from "../utils/transformMath";
 import { sampleTrackAt, unionKeyTimes as unionTimes } from "./sampleTrack";
 import type { BakeTargetElement, BakeTargetIndex } from "./bakeTargets";
 
 /**
  * Baking an authored clip into native glTF animation channels.
  *
- * The output is a list of Three.js keyframe-track descriptions rather than
- * `THREE.KeyframeTrack` instances, so the whole transform stays pure and
- * testable; `toThreeAnimationClip` builds the real objects.
+ * The output is plain track data, `@vizij/render`'s `ExportAnimationTrack`,
+ * so the whole transform stays pure and testable; the exporter's
+ * `createExportAnimation` turns it into the animation `exportScene` writes.
  *
  * Every `GLTFExporter` constraint documented in `docs/ANIMATION_INTEROP.md` is
  * enforced here rather than discovered at export time, because the exporter
@@ -19,25 +23,6 @@ import type { BakeTargetElement, BakeTargetIndex } from "./bakeTargets";
  * others (one unbindable track discards the entire clip after a console
  * warning).
  */
-
-/** glTF-animatable node properties, using Three's property names. */
-export type BakedProperty =
-  | "position"
-  | "quaternion"
-  | "scale"
-  | "morphTargetInfluences";
-
-export interface BakedTrackSpec {
-  /** Three property-binding path, e.g. `L_Eye.scale`. */
-  name: string;
-  property: BakedProperty;
-  /** Element the track drives, for reporting. */
-  elementName: string;
-  times: number[];
-  /** Flattened values, length === times.length * stride. */
-  values: number[];
-  stride: number;
-}
 
 export type BakeSkipReason =
   | "material-channel"
@@ -64,7 +49,7 @@ export interface BakeReport {
 }
 
 export interface BakeClipResult {
-  tracks: BakedTrackSpec[];
+  tracks: ExportAnimationTrack[];
   report: BakeReport;
 }
 
@@ -84,7 +69,7 @@ const MATERIAL_FEATURES = new Set([
   "specular",
 ]);
 
-const TRANSFORM_FEATURES: Record<string, BakedProperty> = {
+const TRANSFORM_FEATURES: Record<string, ExportAnimationProperty> = {
   translation: "position",
   rotation: "quaternion",
   scale: "scale",
@@ -108,7 +93,7 @@ function parsePropsRigChannel(channel: string): ParsedChannel | null {
 
 interface ChannelGroup {
   element: BakeTargetElement;
-  property: BakedProperty;
+  property: ExportAnimationProperty;
   /** Vector component index, or morph target index, → track. */
   byIndex: Map<number, AnimationTrackIR>;
   channels: string[];
@@ -210,7 +195,7 @@ export function bakeClipToTrackSpecs(options: {
   const skipped: BakeSkippedChannel[] = [];
   const groups = groupTracks(clip, targets, skipped);
 
-  const tracks: BakedTrackSpec[] = [];
+  const tracks: ExportAnimationTrack[] = [];
   const bakedChannels: string[] = [];
   const lossy = new Set<BakeLossy>();
 
@@ -234,7 +219,7 @@ export function bakeClipToTrackSpecs(options: {
       }
       const featureKey = parsePropsRigChannel(group.channels[0]!)!.feature;
       tracks.push({
-        // Addressed by morph feature key: that is how the renderer keys
+        // Addressed by morph feature key: that is how `buildSceneGraph` keys
         // morphTargetDictionary, and what the exporter looks up.
         name: `${group.element.elementName}.morphTargetInfluences[${featureKey}]`,
         property: "morphTargetInfluences",
@@ -264,16 +249,12 @@ export function bakeClipToTrackSpecs(options: {
     if (group.property === "quaternion") {
       lossy.add("euler-to-quaternion");
       const values: number[] = [];
-      const quaternion = new Quaternion();
-      const euler = new Euler();
       for (const time of times) {
-        euler.set(
+        const quaternion = quaternionFromEulerZYX(
           componentAt(0, time),
           componentAt(1, time),
           componentAt(2, time),
-          "ZYX",
         );
-        quaternion.setFromEuler(euler);
         values.push(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
       }
       tracks.push({

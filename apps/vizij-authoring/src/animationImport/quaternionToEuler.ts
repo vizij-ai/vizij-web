@@ -2,43 +2,32 @@
  * Quaternion -> euler conversion for imported rotation channels.
  *
  * glTF stores node rotation as a quaternion; Vizij's rotation animatable is an
- * `AnimatableEuler` in radians, applied by the renderer with euler order
- * **ZYX** (`rotation.set(x, y, z, "ZYX")` in every renderable — shape, group,
- * ellipse, rectangle). Converting with any other order produces a rotation
- * that looks right at rest and wrong as soon as two axes move together, so the
- * order is asserted by tests against Three.js rather than assumed.
- *
- * Implemented without importing Three so the whole import path stays
- * dependency-free and testable in plain Node; the tests verify agreement with
- * `THREE.Euler.setFromQuaternion(q, "ZYX")` key by key.
+ * `AnimatableEuler` in radians, applied in euler order **ZYX**
+ * (R = Rz·Ry·Rx, see `utils/transformMath`). Converting with any other order
+ * produces a rotation that looks right at rest and wrong as soon as two axes
+ * move together, so the tests pin the order against rotations composed axis
+ * by axis rather than assume it.
  */
+
+import { eulerZYXFromQuaternion } from "../utils/transformMath";
 
 export interface EulerCurves {
   x: number[];
   y: number[];
   z: number[];
   /**
-   * Keys that landed within `GIMBAL_EPSILON` of the ZYX singularity, where one
-   * angle becomes indeterminate and the decomposition forces `x = 0`. Adjacent
-   * keys straddling it can jump, so callers surface this rather than hide it.
+   * Keys that landed within `eulerZYXFromQuaternion`'s tolerance of the ZYX
+   * singularity, where one angle becomes indeterminate and the decomposition
+   * forces `x = 0`. Adjacent keys straddling it can jump, so callers surface
+   * this rather than hide it.
    */
   gimbalKeyCount: number;
   /** Keys where the quaternion was negated to keep the path continuous. */
   signFlipCount: number;
 }
 
-/** Beyond this, `asin` saturates and the ZYX decomposition degenerates. */
-const GIMBAL_EPSILON = 0.9999999;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
 /**
- * Euler angles (ZYX order, radians) for one normalized quaternion.
- *
- * Mirrors `THREE.Euler.setFromRotationMatrix` for the `ZYX` case, with the
- * rotation matrix expanded directly from the quaternion.
+ * Euler angles (ZYX order, radians) for one quaternion, normalized first.
  */
 export function quaternionToEulerZYX(
   x: number,
@@ -52,51 +41,12 @@ export function quaternionToEulerZYX(
   if (length === 0) {
     return { x: 0, y: 0, z: 0, gimbal: false };
   }
-  const qx = x / length;
-  const qy = y / length;
-  const qz = z / length;
-  const qw = w / length;
-
-  const x2 = qx + qx;
-  const y2 = qy + qy;
-  const z2 = qz + qz;
-  const xx = qx * x2;
-  const xy = qx * y2;
-  const xz = qx * z2;
-  const yy = qy * y2;
-  const yz = qy * z2;
-  const zz = qz * z2;
-  const wx = qw * x2;
-  const wy = qw * y2;
-  const wz = qw * z2;
-
-  // Only the matrix elements the ZYX decomposition reads are expanded; m13 and
-  // m23 belong to other euler orders and would be dead weight here.
-  const m11 = 1 - (yy + zz);
-  const m12 = xy - wz;
-  const m21 = xy + wz;
-  const m22 = 1 - (xx + zz);
-  const m31 = xz - wy;
-  const m32 = yz + wx;
-  const m33 = 1 - (xx + yy);
-
-  // THREE.Euler, order "ZYX".
-  const eulerY = Math.asin(-clamp(m31, -1, 1));
-  const gimbal = Math.abs(m31) >= GIMBAL_EPSILON;
-  if (!gimbal) {
-    return {
-      x: Math.atan2(m32, m33),
-      y: eulerY,
-      z: Math.atan2(m21, m11),
-      gimbal,
-    };
-  }
-  return {
-    x: 0,
-    y: eulerY,
-    z: Math.atan2(-m12, m22),
-    gimbal,
-  };
+  return eulerZYXFromQuaternion({
+    x: x / length,
+    y: y / length,
+    z: z / length,
+    w: w / length,
+  });
 }
 
 /**

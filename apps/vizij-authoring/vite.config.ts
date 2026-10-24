@@ -1,7 +1,6 @@
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -9,9 +8,6 @@ import { defineConfig } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, "..", "..");
-const require = createRequire(import.meta.url);
-const threeEntry = require.resolve("three");
-const threePath = path.resolve(path.dirname(threeEntry), "..");
 /**
  * Where the linked `@vizij/*` wasm packages actually live on disk.
  *
@@ -68,13 +64,11 @@ export default defineConfig(({ mode }) => {
       // `apps/vizij-authoring/node_modules` — fails the build outright with
       // "Rollup failed to resolve import <pkg>".
       //
-      // That is why `@react-three/fiber` is NOT here (a dependency of `@semio/ui`
-      // and a peer of `@vizij/render`, declared by neither), and why
-      // `@base-ui/react` was removed alongside the dependency itself: the app no
-      // longer imports it, and it now exists solely as an internal dependency of
-      // `@semio/ui`. Neither needs deduping — pnpm resolves exactly one instance
-      // of each.
-      dedupe: ["react", "react-dom", "three"],
+      // So `three` (a dependency of `@vizij/render`'s loader and exporter),
+      // `@react-three/fiber` and `@base-ui/react` (internal dependencies of
+      // `@semio/ui`) are not here: the app declares none of them, and none
+      // needs deduping, since pnpm resolves exactly one instance of each.
+      dedupe: ["react", "react-dom"],
       alias: {
         "@vizij/node-graph-authoring": path.resolve(
           workspaceRoot,
@@ -94,7 +88,6 @@ export default defineConfig(({ mode }) => {
         ),
         react: reactPath,
         "react-dom": reactDomPath,
-        three: threePath,
       },
     },
     server: {

@@ -91,6 +91,64 @@ describe("sceneEditing", () => {
     ).toBeCloseTo(1);
   });
 
+  it("reparents under a rotated, scaled parent, keeping the world position", () => {
+    // The parent sits at (1, 0, 0), turned 90° about z and scaled by 2; the
+    // child sits at (3, 0, 0) in the world. Under the parent its local
+    // position is the parent's inverse applied to that point: (3 - 1) / 2
+    // along x, turned back 90°, which is (0, -1, 0), and its scale halves.
+    const world: World = {
+      parent: {
+        id: "parent",
+        name: "Parent",
+        type: "group",
+        tags: [],
+        children: [],
+        features: {
+          translation: { animated: false, value: { x: 1, y: 0, z: 0 } },
+          rotation: { animated: false, value: { x: 0, y: 0, z: Math.PI / 2 } },
+          scale: { animated: false, value: { x: 2, y: 2, z: 2 } },
+        },
+      } as any,
+      child: {
+        id: "child",
+        name: "Child",
+        type: "shape",
+        tags: [],
+        features: {
+          translation: { animated: false, value: { x: 3, y: 0, z: 0 } },
+          rotation: { animated: false, value: { x: 0.2, y: 0, z: 0 } },
+          scale: { animated: false, value: { x: 1, y: 1, z: 1 } },
+        },
+        material: "standard",
+        geometry: {} as any,
+      } as any,
+    } satisfies World;
+
+    const result = reparentSceneNodeWithPreservedWorld(
+      {
+        world,
+        animatables: {},
+        values: new Map(),
+        bindings: {},
+        namespace: DEFAULT_NAMESPACE,
+      },
+      "child",
+      "parent",
+    );
+
+    expect(result).toBeTruthy();
+    expect((result!.world.parent as any).children).toEqual(["child"]);
+    const features = (result!.world.child as any).features;
+    expect(features.translation.value.x).toBeCloseTo(0, 12);
+    expect(features.translation.value.y).toBeCloseTo(-1, 12);
+    expect(features.translation.value.z).toBeCloseTo(0, 12);
+    expect(features.scale.value.x).toBeCloseTo(0.5, 12);
+    expect(features.scale.value.y).toBeCloseTo(0.5, 12);
+    expect(features.scale.value.z).toBeCloseTo(0.5, 12);
+    // Rotation is not compensated: the child keeps its own euler angles.
+    expect(features.rotation.value).toEqual({ x: 0.2, y: 0, z: 0 });
+  });
+
   it("scales translation bindings when parent scale changes", () => {
     if (!TRANSLATION_SCALE_COMPENSATION) {
       // Compensation disabled; skip assertion.

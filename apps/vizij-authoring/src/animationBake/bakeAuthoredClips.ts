@@ -1,4 +1,9 @@
 import type { GraphSpec } from "@vizij/node-graph";
+import {
+  createExportAnimation,
+  type ExportAnimationIssue,
+  type ExportAnimationRoot,
+} from "@vizij/render";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import {
   bakeClipToTrackSpecs,
@@ -26,15 +31,10 @@ import {
   sampleClipThroughGraph,
   type GraphSampleReport,
 } from "./sampleClipThroughGraph";
-import {
-  toThreeAnimationClip,
-  type ThreeClipValidationIssue,
-  type ThreeObject3DLike,
-} from "./toThreeAnimationClip";
 
 /**
- * The whole bake, from authored clips to `THREE.AnimationClip`s that
- * `exportScene` can hand to `GLTFExporter`.
+ * The whole bake, from authored clips to the animations `exportScene` writes
+ * into the GLB.
  *
  * Sequenced as: sample the graph -> decimate -> recombine to glTF track
  * shapes -> validate bindings. Each stage has its own tests; this composes
@@ -50,7 +50,7 @@ export interface ClipBakeOutcome {
   sample: GraphSampleReport;
   decimate: DecimateReport;
   bake: BakeReport;
-  bindingIssues: ThreeClipValidationIssue[];
+  bindingIssues: ExportAnimationIssue[];
   /** Null when nothing survived, so the clip is not exported at all. */
   clip: unknown;
 }
@@ -92,7 +92,7 @@ export interface BakeAuthoredClipsReport {
 }
 
 export interface BakeAuthoredClipsResult {
-  /** `THREE.AnimationClip[]`, ready for `exportScene({ animations })`. */
+  /** `createExportAnimation`'s animations, for `exportScene({ animations })`. */
   animations: unknown[];
   report: BakeAuthoredClipsReport;
 }
@@ -124,7 +124,7 @@ export async function bakeAuthoredClips(options: {
   channelKeys: ReadonlyMap<string, string>;
   targets: BakeTargetIndex;
   /** The tree the clips will be exported against, for binding validation. */
-  root: ThreeObject3DLike;
+  root: ExportAnimationRoot;
   fps?: number;
   tolerance?: number;
   /** Overrides the measured hop cost; measured when omitted. */
@@ -224,7 +224,7 @@ export async function bakeAuthoredClips(options: {
         clip: decimated.clip,
         targets: options.targets,
       });
-      const built = toThreeAnimationClip({
+      const built = createExportAnimation({
         name: authored.name ?? authored.id,
         duration: decimated.clip.duration,
         tracks: baked.tracks,
@@ -237,8 +237,8 @@ export async function bakeAuthoredClips(options: {
         }
       }
 
-      if (built.clip) {
-        animations.push(built.clip);
+      if (built.animation) {
+        animations.push(built.animation);
       }
       outcomes.push({
         clipId: authored.id,
@@ -247,7 +247,7 @@ export async function bakeAuthoredClips(options: {
         decimate: decimated.report,
         bake: baked.report,
         bindingIssues: built.issues,
-        clip: built.clip,
+        clip: built.animation,
       });
     } finally {
       evaluator.dispose();

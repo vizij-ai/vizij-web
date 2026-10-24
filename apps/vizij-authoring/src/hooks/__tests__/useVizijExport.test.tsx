@@ -44,6 +44,18 @@ import { makeSingleChannelGlb } from "../../animationImport/__tests__/makeGlb";
 vi.mock("@vizij/render", () => ({
   // The scene the export writes, built from the document.
   buildSceneGraph: vi.fn(() => ({ traverse: () => {} })),
+  // A baked animation as plain data, every track kept: this file checks that
+  // baked animations reach `exportScene`; binding them against the scene is
+  // covered by `@vizij/render`'s own tests.
+  createExportAnimation: vi.fn(
+    ({ name, tracks }: { name: string; tracks: Array<{ name: string }> }) => ({
+      animation: {
+        name,
+        tracks: tracks.map((track) => ({ name: track.name })),
+      },
+      issues: [],
+    }),
+  ),
   exportScene: vi.fn(),
   // The hook takes the GLB `exportScene` returns, amends its JSON chunk and
   // downloads it itself.
@@ -2172,8 +2184,7 @@ describe("useVizijExport GLB animation baking", () => {
   beforeEach(() => {
     mockedPatchBundleMetadata.mockClear();
     mockedDownloadGlb.mockClear();
-    // The scene the bake validates its targets against: the root and the
-    // lid it animates.
+    // The scene the export writes: the root and the lid the clip animates.
     mockedBuildSceneGraph.mockReturnValue({
       name: "Scene",
       traverse: (callback: (child: { name: string }) => void) => {
