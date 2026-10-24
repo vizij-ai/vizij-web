@@ -1,5 +1,15 @@
 # vizij-authoring
 
+## 0.3.1
+
+### Patch Changes
+
+- fc1cdff: The authoring app no longer depends on `three`. Its baked animations are built by `@vizij/render`'s `createExportAnimation`, and its scene editing and bake compute transforms with their own euler, quaternion and matrix functions, in the ZYX order the Bevy view composes, with the same results.
+- Updated dependencies [452ad89]
+- Updated dependencies [452ad89]
+  - @vizij/render@3.0.0
+  - @vizij/runtime-react@1.0.1
+
 ## 0.3.0
 
 ### Minor Changes

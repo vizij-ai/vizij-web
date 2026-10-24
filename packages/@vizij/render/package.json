@@ -1,7 +1,7 @@
 {
   "name": "@vizij/render",
   "description": "Vizij faces on a page: the shared canvas and face slots over @vizij/runtime's Bevy view, and the GLB loader, exporter and world model.",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
