@@ -34,6 +34,12 @@ type MeshMaterial =
  * them, with the element's `RobotData` in `userData`. No renderer is involved,
  * so this runs in Node.
  *
+ * A compound feature — translation, rotation, scale, a colour — is read whole,
+ * per axis (`translation.x`, `rotation.r`, `color.g`: Semio Studio's form),
+ * or both, a component given per axis standing over the whole value's. A
+ * rotation is an euler `{ x, y, z }` or, as Studio names it, `{ r, p, y }`
+ * (roll, pitch, yaw), applied in ZYX order.
+ *
  * Every feature takes its authored value: a static feature its value, an
  * animated one its animatable's `default` in `animatables`. Node translation,
  * rotation and scale, morph weights and material factors in the exported file
@@ -72,7 +78,10 @@ export function buildSceneGraph(
       const object = new THREE.Group();
       object.name = entry.name;
       object.userData = { gltfExtensions: { RobotData: robotData } };
-      applyFeatures(entry.features, animatables, groupTransform(object));
+      applyFeatures(entry.features, animatables, {
+        ...groupTransform(object),
+        ...perAxisTransform(object, { scale: true }),
+      });
       for (const child of entry.children) {
         object.add(buildSceneGraph(world, animatables, child));
       }
@@ -90,7 +99,9 @@ export function buildSceneGraph(
       object.userData = { gltfExtensions: { RobotData: robotData } };
       applyFeatures(entry.features, animatables, {
         ...shapeTransform(object),
+        ...perAxisTransform(object, { scale: true }),
         ...materialFactors(material),
+        ...perAxisMaterialFactors(material),
         ...morphWeights(object, entry),
       });
       for (const child of entry.children ?? []) {
@@ -107,6 +118,7 @@ export function buildSceneGraph(
       applyFeatures(entry.features, animatables, {
         translation,
         rotation,
+        ...perAxisTransform(object, { scale: false }),
         width: (value) => {
           if (instanceOfRawNumber(value)) object.scale.x = value;
         },
@@ -159,8 +171,9 @@ function groupTransform(object: THREE.Group): FeatureHandlers {
       }
     },
     rotation: (value) => {
-      if (instanceOfRawEuler(value)) {
-        object.rotation.set(value.x, value.y, value.z, "ZYX");
+      const euler = eulerOf(value);
+      if (euler) {
+        object.rotation.set(...euler, "ZYX");
       } else if (instanceOfRawNumber(value)) {
         object.rotation.set(0, 0, 0);
         object.rotateZ(value);
@@ -190,8 +203,9 @@ function shapeTransform(object: THREE.Mesh): FeatureHandlers {
       }
     },
     rotation: (value) => {
-      if (instanceOfRawEuler(value)) {
-        object.rotation.set(value.x, value.y, value.z, "ZYX");
+      const euler = eulerOf(value);
+      if (euler) {
+        object.rotation.set(...euler, "ZYX");
       }
     },
     scale: (value) => {
@@ -203,6 +217,92 @@ function shapeTransform(object: THREE.Mesh): FeatureHandlers {
         object.scale.set(1, 1, 1);
       }
     },
+  };
+}
+
+/**
+ * A rotation's euler angles about X, Y and Z: an euler `{ x, y, z }`, or a
+ * roll, pitch and yaw `{ r, p, y }`, Semio Studio's names for the same
+ * angles. `undefined` for any other value.
+ */
+function eulerOf(value: RawValue): [number, number, number] | undefined {
+  if (instanceOfRawEuler(value)) {
+    return [value.x, value.y, value.z];
+  }
+  const rpy = value as { r?: unknown; p?: unknown; y?: unknown } | null;
+  if (
+    rpy !== null &&
+    typeof rpy === "object" &&
+    typeof rpy.r === "number" &&
+    typeof rpy.p === "number" &&
+    typeof rpy.y === "number"
+  ) {
+    return [rpy.r, rpy.p, rpy.y];
+  }
+  return undefined;
+}
+
+/**
+ * Handlers for the components of `name` named per axis: `<name>.<axis>` sets
+ * component `index` of the value, through `set`, and leaves the others.
+ */
+function perAxis(
+  name: string,
+  axes: readonly string[],
+  set: (index: number, value: number) => void,
+): FeatureHandlers {
+  return Object.fromEntries(
+    axes.map((axis, index) => [
+      `${name}.${axis}`,
+      (value: RawValue) => {
+        if (instanceOfRawNumber(value)) {
+          set(index, value);
+        }
+      },
+    ]),
+  );
+}
+
+/**
+ * The per-axis translation and rotation of `object` and, with `scale`, its
+ * per-axis scale. A rotation component recomposes the euler in ZYX order.
+ */
+function perAxisTransform(
+  object: THREE.Object3D,
+  { scale }: { scale: boolean },
+): FeatureHandlers {
+  return {
+    ...perAxis("translation", ["x", "y", "z"], (index, value) => {
+      object.position.setComponent(index, value);
+    }),
+    ...perAxis("rotation", ["r", "p", "y"], (index, value) => {
+      const euler = [object.rotation.x, object.rotation.y, object.rotation.z];
+      euler[index] = value;
+      object.rotation.set(euler[0], euler[1], euler[2], "ZYX");
+    }),
+    ...(scale
+      ? perAxis("scale", ["x", "y", "z"], (index, value) => {
+          object.scale.setComponent(index, value);
+        })
+      : {}),
+  };
+}
+
+/** The per-axis colour, emissive and specular of `material`. */
+function perAxisMaterialFactors(material: MeshMaterial): FeatureHandlers {
+  const standard = material as THREE.MeshStandardMaterial;
+  const phong = material as THREE.MeshPhongMaterial;
+  const channels = ["r", "g", "b"] as const;
+  const component =
+    (color: THREE.Color | undefined) => (index: number, value: number) => {
+      if (color) {
+        color[channels[index]] = value;
+      }
+    };
+  return {
+    ...perAxis("color", channels, component(standard.color)),
+    ...perAxis("emissive", channels, component(standard.emissive)),
+    ...perAxis("specular", channels, component(phong.specular)),
   };
 }
 

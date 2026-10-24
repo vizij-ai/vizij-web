@@ -252,54 +252,70 @@ function isStoredAnimatedFeature(
   );
 }
 
-function isGroupFeatures(
+/**
+ * A translation and a rotation, each carried whole or by its components
+ * (Semio Studio's per-axis form).
+ */
+const TRANSFORM: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ["translation", ["x", "y", "z"]],
+  ["rotation", ["r", "p", "y"]],
+];
+
+/**
+ * The features every element of a type carries: its transform, and an
+ * ellipse's or a rectangle's width and height.
+ */
+const REQUIRED_FEATURES = {
+  group: TRANSFORM,
+  shape: TRANSFORM,
+  ellipse: [...TRANSFORM, ["width", []], ["height", []]],
+  rectangle: [...TRANSFORM, ["width", []], ["height", []]],
+} as const;
+
+/**
+ * Throws unless `value` carries every feature an element of type `kind`
+ * requires, a compound one whole or by at least one of its components.
+ */
+function assertRequiredFeatures(
+  kind: keyof typeof REQUIRED_FEATURES,
   value: unknown,
-): asserts value is VizijGroup["features"] {
+): void {
   if (!value || typeof value !== "object") {
     throw new Error("Expected object");
   }
-  if (!["translation", "rotation"].every((key) => key in value)) {
-    throw new Error("Expected translation and rotation keys in features");
+  const missing = REQUIRED_FEATURES[kind]
+    .filter(
+      ([name, axes]) =>
+        !(name in value) && !axes.some((axis) => `${name}.${axis}` in value),
+    )
+    .map(([name]) => name);
+  if (missing.length > 0) {
+    throw new Error(
+      `An element of type ${kind} lacks ${missing.join(", ")} in its features`,
+    );
   }
 }
 
+function isGroupFeatures(
+  value: unknown,
+): asserts value is VizijGroup["features"] {
+  assertRequiredFeatures("group", value);
+}
+
 function isShapeFeatures(value: unknown): asserts value is Shape["features"] {
-  if (!value || typeof value !== "object") {
-    throw new Error("Expected object");
-  }
-  if (!["translation", "rotation"].every((key) => key in value)) {
-    throw new Error("Expected translation and rotation keys in features");
-  }
+  assertRequiredFeatures("shape", value);
 }
 
 function isEllipseFeatures(
   value: unknown,
 ): asserts value is Ellipse["features"] {
-  if (!value || typeof value !== "object") {
-    throw new Error("Expected object");
-  }
-  if (
-    !["translation", "rotation", "height", "width"].every((key) => key in value)
-  ) {
-    throw new Error(
-      "Expected translation, rotation, width, and height keys in features",
-    );
-  }
+  assertRequiredFeatures("ellipse", value);
 }
 
 function isRectangleFeatures(
   value: unknown,
 ): asserts value is Rectangle["features"] {
-  if (!value || typeof value !== "object") {
-    throw new Error("Expected object");
-  }
-  if (
-    !["translation", "rotation", "height", "width"].every((key) => key in value)
-  ) {
-    throw new Error(
-      "Expected translation, rotation, width, and height keys in features",
-    );
-  }
+  assertRequiredFeatures("rectangle", value);
 }
 
 /**

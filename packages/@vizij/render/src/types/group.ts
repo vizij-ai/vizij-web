@@ -1,5 +1,5 @@
 import type { RawVector2 } from "@vizij/utils";
-import type { Feature } from "./feature";
+import type { Feature, PerAxisTransformFeatures } from "./feature";
 import type { Stored } from "./stored";
 import type { RenderableBase } from "./renderable-base";
 
@@ -18,11 +18,12 @@ export interface Group extends RenderableBase {
   type: "group";
   root: boolean;
 
+  /** Translation and rotation, each whole or per axis. */
   features: {
-    translation: Feature;
-    rotation: Feature;
+    translation?: Feature;
+    rotation?: Feature;
     scale?: Feature;
-  };
+  } & PerAxisTransformFeatures;
 
   rootBounds?: {
     center: RawVector2;

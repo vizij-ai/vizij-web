@@ -1,6 +1,11 @@
 import type { BufferGeometry, ShapeGeometry } from "three";
 import type { Stored } from "./stored";
-import type { Feature } from "./feature";
+import type {
+  ColorAxis,
+  Feature,
+  PerAxisFeatures,
+  PerAxisTransformFeatures,
+} from "./feature";
 import type { RenderableBase } from "./renderable-base";
 
 /**
@@ -33,10 +38,13 @@ export interface Shape extends RenderableBase {
     emissive?: Feature; // AnimatedColor;
     emissiveIntensity?: Feature; // AnimatedNumber;
     specular?: Feature; // AnimatedColor;
-    translation: Feature; // AnimatedVector3;
-    rotation: Feature; // AnimatedVector3;
+    translation?: Feature; // AnimatedVector3;
+    rotation?: Feature; // AnimatedVector3;
     scale?: Feature; // AnimatedVector3;
-  };
+  } & PerAxisTransformFeatures &
+    PerAxisFeatures<"color", ColorAxis> &
+    PerAxisFeatures<"emissive", ColorAxis> &
+    PerAxisFeatures<"specular", ColorAxis>;
 
   material: ShapeMaterial;
   geometry: BufferGeometry | ShapeGeometry;
