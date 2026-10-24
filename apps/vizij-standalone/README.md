@@ -30,23 +30,25 @@ binary ships installers.
   `[0, 1]`, the type the profile declares, as the device requires). One
   store change sets the new expression's weight to 1 and the previous one's
   to 0; the face's standard adaptation maps the weights onto its own poses.
-- Tells the face what the dialogue is doing: the face standard's
-  conversation state, each `runtime.path("standard/vizij/conversation/<state>")`
-  an `f32`, 1 while it holds and 0 at rest. `speaking` is 1 from the moment
-  the `say` run is spawned until its status reads terminal or the page stops
-  it (`stop`, or the user speaking over the face); `user_speaking` follows
-  Deepgram's voice activity, from its `SpeechStarted` to its `UtteranceEnd`
-  or the microphone closing; `thinking` is 1 while a call to OpenAI is
-  pending. A face reacts as its author chose: the shipped Quori's
-  conversational program takes a listening, a thinking and a speaking
-  posture of its mouth, eyes and brows. Showing another face returns all
-  three to 0 on the face being left.
 
 Without a Deepgram key the microphone is off; without an OpenAI key the text
 box says what you type. Keys come from the shell's flags (`--deepgram-key`,
 `--openai-key`, `--api-url`, `--auto-mic`), the build's `VITE_DEEPGRAM_API_KEY`
 / `VITE_OPENAI_API_KEY` / `VITE_API_URL`, or the page's own settings panel
 (kept in the browser).
+
+The page tells the face what the dialogue is doing through the face
+standard's conversation state, each
+`runtime.path("standard/vizij/conversation/<state>")` an `f32`, 1 while it
+holds and 0 at rest. `speaking` is 1 from the moment
+the `say` run is spawned until its status reads terminal or the page stops
+it (`stop`, or the user speaking over the face); `user_speaking` follows
+Deepgram's voice activity, from its `SpeechStarted` to its `UtteranceEnd`
+or the microphone closing; `thinking` is 1 while a call to OpenAI is
+pending. A face reacts as its author chose: the shipped Quori's
+conversational program takes a listening, a thinking and a speaking
+posture of its mouth, eyes and brows. Showing another face returns all
+three to 0 on the face being left.
 
 ## Run
 
