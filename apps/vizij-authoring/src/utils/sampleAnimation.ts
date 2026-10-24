@@ -128,30 +128,52 @@ function samplerDevice(): Promise<Runtime> {
 import.meta.hot?.dispose(() => {
   void device?.then((runtime) => runtime.dispose()).catch(() => undefined);
   device = undefined;
-  loaded = undefined;
+  loaded = [];
+  playing = undefined;
 });
 /** The sampling in progress. A step advances every player the module
  * holds, so one sampling runs at a time. */
 let pending: Promise<unknown> = Promise.resolve();
 
 /**
- * The animation the module holds, its player, and the positions its outputs
- * come in. `from` is what it was loaded from: each played track, its
- * keyframes and its interpolation, by identity. Authoring replaces a track's
- * keyframes on every edit rather than mutating them, so the same identities
- * mean the same curves, and a scrub across one animation loads it once.
+ * An animation the module holds. `from` is what it was last sampled for:
+ * each played track, its keyframes and its interpolation, by identity.
+ * Authoring replaces a track's keyframes on every edit rather than mutating
+ * them, so the same identities mean the same curves, and a scrub across one
+ * animation loads it once. `content` is the animation handed to
+ * `moduleAnimation`, as JSON: tracks of other identities and the same
+ * content (a dialog compiling the same tracks again) play the same curves.
  */
 interface Loaded {
   from: unknown[];
+  content: string;
   anim: ValueInput;
-  /** Absent until `create_player` has answered. */
-  player?: ValueInput;
+}
+
+/**
+ * The animations the module holds, the most recently sampled first, at most
+ * {@link KEPT}. The callers sample different sets of tracks — the scrub all
+ * of them, a key insert one, a pose its compiled clip's — and loading a long
+ * animation costs far more than switching the player between loaded ones,
+ * so alternating between them reloads none.
+ */
+let loaded: Loaded[] = [];
+const KEPT = 4;
+
+/**
+ * The one player, on one of {@link loaded}: the positions its outputs come
+ * in, and their revision, which every step answers with. One player only,
+ * since a step answers every player's outputs: a second would grow every
+ * step's answer by its tracks.
+ */
+interface Playing {
+  on: Loaded;
+  player: ValueInput;
   /** The track each output position plays, by its index in the sampling. */
   tracks: number[];
-  /** The outputs' revision, which every step answers with. */
   revision: string;
 }
-let loaded: Loaded | undefined;
+let playing: Playing | undefined;
 
 /**
  * Each track's value at each of `times` (seconds), as Arora's animation
@@ -183,60 +205,100 @@ export async function sampleAnimationTrack(
   return values![0]!;
 }
 
-/** Removes the loaded animation and its player from the module. Applied
- * before the next sampling's calls, which queue after these. */
-function unload(runtime: Runtime) {
-  if (loaded) {
-    if (loaded.player) {
-      runtime.invoke("remove_player", { player: loaded.player }).catch(warn);
-    }
-    runtime.invoke("unload_animation", { anim: loaded.anim }).catch(warn);
-    loaded = undefined;
+/** Removes the player from the module. Applied before the next calls,
+ * which queue after it. */
+function stopPlaying(runtime: Runtime) {
+  if (playing) {
+    runtime.invoke("remove_player", { player: playing.player }).catch(warn);
+    playing = undefined;
   }
 }
 
-/** The animation of `played` on the module, loading it unless it is the one
- * already loaded. */
-async function load(
+/** Removes `entry`'s animation from the module, and the player when it
+ * plays it. */
+function unload(runtime: Runtime, entry: Loaded) {
+  if (playing?.on === entry) {
+    stopPlaying(runtime);
+  }
+  runtime.invoke("unload_animation", { anim: entry.anim }).catch(warn);
+  loaded = loaded.filter((kept) => kept !== entry);
+}
+
+/** Removes every animation and the player from the module. */
+function unloadAll(runtime: Runtime) {
+  stopPlaying(runtime);
+  for (const entry of [...loaded].reverse()) {
+    unload(runtime, entry);
+  }
+}
+
+const sameIdentities = (left: unknown[], right: unknown[]) =>
+  left.length === right.length &&
+  left.every((entry, index) => entry === right[index]);
+
+/** The loaded animation of `played`, loading it unless the module holds
+ * it already. */
+async function animationOf(
   runtime: Runtime,
   played: ReadonlyArray<{ track: AnimationTrackIR; index: number }>,
-): Promise<Required<Loaded>> {
+): Promise<Loaded> {
   const from = played.flatMap(({ track, index }) => [
     index,
     track,
     track.keyframes,
     track.interpolation,
   ]);
-  if (
-    loaded &&
-    loaded.from.length === from.length &&
-    loaded.from.every((entry, index) => entry === from[index]) &&
-    loaded.player
-  ) {
-    return { ...loaded, player: loaded.player };
+  const kept = loaded.find((entry) => sameIdentities(entry.from, from));
+  if (kept) {
+    return kept;
   }
-  unload(runtime);
   const animation: Animation = {
     id: "authoring.sample",
     name: null,
     duration: lastKeyTime(played),
     tracks: played.map(({ track, index }) => trackOf(track, String(index))),
   };
+  const content = JSON.stringify(animation);
+  const same = loaded.find((entry) => entry.content === content);
+  if (same) {
+    same.from = from;
+    return same;
+  }
   const { moduleAnimation } = runtime.moduleAnimation(animation);
   const anim = handed(
     await runtime.invoke("load_clip", { clip: moduleAnimation as ValueInput }),
     "the animation",
   );
-  // Recorded before anything below can be refused, so a refusal unloads it.
-  const current: Loaded = { from, anim, tracks: [], revision: "" };
-  loaded = current;
+  const entry: Loaded = { from, content, anim };
+  loaded.unshift(entry);
+  for (const evicted of loaded.slice(KEPT)) {
+    unload(runtime, evicted);
+  }
+  return entry;
+}
+
+/** The player of `played`'s animation, moved onto it unless it plays it
+ * already. */
+async function load(
+  runtime: Runtime,
+  played: ReadonlyArray<{ track: AnimationTrackIR; index: number }>,
+): Promise<Playing> {
+  const entry = await animationOf(runtime, played);
+  // The most recently sampled first, so eviction takes the longest unused.
+  loaded = [entry, ...loaded.filter((kept) => kept !== entry)];
+  if (playing?.on === entry) {
+    return playing;
+  }
+  stopPlaying(runtime);
   const player = handed(
-    await runtime.invoke("create_player", { name: animation.id }),
+    await runtime.invoke("create_player", { name: "authoring.sample" }),
     "a player",
   );
-  current.player = player;
+  // Recorded before anything below can be refused, so a refusal removes it.
+  const current: Playing = { on: entry, player, tracks: [], revision: "" };
+  playing = current;
   handed(
-    await runtime.invoke("add_instance", { player, anim }),
+    await runtime.invoke("add_instance", { player, anim: entry.anim }),
     "the instance",
   );
   // The player ends at its length rather than wrapping.
@@ -255,7 +317,7 @@ async function load(
       throw new Error(`the animation module gave track ${index} no output`);
     }
   }
-  return { ...current, player };
+  return current;
 }
 
 async function sample(
@@ -328,7 +390,7 @@ async function sample(
     return values;
   } catch (error) {
     // The next sampling starts from a fresh load.
-    unload(runtime);
+    unloadAll(runtime);
     throw error;
   }
 }

@@ -61,10 +61,15 @@ looked right from reading the code.
 - **Not superlinear composition.** Composing 15% more nodes costing 9× looked
   like the merge itself was the problem; measuring each source alone shows the
   costs are additive. The pose-driver is simply expensive.
-- **Not a remaining quadratic in the sampler.** `86a3eaac` memoized an O(n)
-  `isSorted` that had made a sampler quadratic; profiling puts the current cost
-  entirely in `evaluator.step()`, with `readOutputs` at ~0.25 ms and input
-  staging free.
+- **Not the sampler.** `sampleClipThroughGraph` reads every frame's track
+  values from Arora's animation module before the first graph step
+  (`sampleAnimationTracks`: one load of the clip's tracks, one `step_values`
+  per frame). For Quori's two clips that is about 3% of the bake's
+  instructions (2 G of 65 G); the rest is `evaluator.step()`, with
+  `readOutputs` at ~0.25 ms and input staging free. Most of the sampler's
+  share is `@vizij/runtime`'s by-name `invoke` converting each answer: the
+  same 601 steps of a 60-track animation take ~0.4 s through `invoke` and
+  ~30 ms through `call`.
 
 ## This is not only an export problem
 
