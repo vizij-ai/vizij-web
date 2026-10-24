@@ -64,7 +64,11 @@ jobs:
         if: steps.cred.outputs.present == 'true'
         run: |
           set -euo pipefail
-          npx --yes firebase-tools@latest hosting:channel:list --project "$PROJECT" --site "$SITE" --json > "$RUNNER_TEMP/channels.json"
+          # The CLI states its error in the JSON it prints, also when it fails.
+          if ! npx --yes firebase-tools@latest hosting:channel:list --project "$PROJECT" --site "$SITE" --json > "$RUNNER_TEMP/channels.json"; then
+            cat "$RUNNER_TEMP/channels.json"
+            exit 1
+          fi
           jq -e '.status == "success"' "$RUNNER_TEMP/channels.json" > /dev/null || { cat "$RUNNER_TEMP/channels.json"; exit 1; }
           jq -r '(.result.channels // .result // [])[] | .name | split("/") | last | select(test("^pr-[0-9]+$"))' "$RUNNER_TEMP/channels.json" > "$RUNNER_TEMP/pr-channels.txt"
           echo "The site has $(jq '(.result.channels // .result // []) | length' "$RUNNER_TEMP/channels.json") channels, $(wc -l < "$RUNNER_TEMP/pr-channels.txt") of them PR previews."
