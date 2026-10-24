@@ -13,6 +13,7 @@ import type {
   Rectangle,
   StoredAnimatedFeature,
 } from "../../types";
+import { EmptyModelError } from "../empty-model-error";
 import { mapFeatures } from "./map-features";
 import { importScene } from "./import-scene";
 
@@ -105,7 +106,10 @@ export function traverseThree(
     const derivedRootBounds = rootBounds ?? deriveRootBounds(group);
 
     if (!derivedRootBounds) {
-      throw new Error("Root bounds are expected if using an aggressive import");
+      // No RobotData and nothing to measure: the file holds no face.
+      throw new EmptyModelError(
+        "The GLB has no RobotData and no mesh, ellipse or rectangle to import",
+      );
     }
 
     const [newWorldData, newAnimatableData] = importScene(

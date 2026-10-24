@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Group } from "three";
 import { GLTFLoader } from "three-stdlib";
 import {
+  EmptyModelError,
   loadGLTFWithBundle,
   loadGLTFFromBlobWithBundle,
   parseGlbJsonChunk,
@@ -95,4 +96,26 @@ test("loadGLTFFromBlobWithBundle parses the blob bytes and recovers parser JSON 
   const asset = await loadGLTFFromBlobWithBundle(blob);
 
   assert.equal(asset.bundle?.metadata?.source, "blob-fallback");
+});
+
+test("an aggressive import of a GLB with no RobotData and nothing to import fails with EmptyModelError", async () => {
+  const blob = new Blob(
+    [
+      createGlbBuffer({
+        asset: { version: "2.0" },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ name: "Empty" }],
+      }),
+    ],
+    { type: "model/gltf-binary" },
+  );
+  await assert.rejects(loadGLTFFromBlobWithBundle(blob, true), (error) => {
+    assert.ok(error instanceof EmptyModelError);
+    assert.equal(
+      error.message,
+      "The GLB has no RobotData and no mesh, ellipse or rectangle to import",
+    );
+    return true;
+  });
 });
