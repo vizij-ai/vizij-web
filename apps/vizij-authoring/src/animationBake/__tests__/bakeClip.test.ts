@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
   bakeClipToTrackSpecs,
@@ -49,8 +50,8 @@ function clipOf(tracks: AnimationTrackIR[], duration = 2): AnimationClipIR {
 const targets = createBakeTargetIndex([element()]);
 
 describe("bakeClipToTrackSpecs", () => {
-  it("recombines per-component tracks into a stride-3 vector track", () => {
-    const result = bakeClipToTrackSpecs({
+  it("recombines per-component tracks into a stride-3 vector track", async () => {
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/scale/x", [
           [0, 10],
@@ -76,10 +77,10 @@ describe("bakeClipToTrackSpecs", () => {
     expect(spec.values).toEqual([10, 30, 50, 20, 40, 60]);
   });
 
-  it("holds un-animated components at the element's current value", () => {
+  it("holds un-animated components at the element's current value", async () => {
     // glTF carries a whole vector per key, so a partially animated channel
     // must fill the rest — leaving them at 0 would collapse the element.
-    const result = bakeClipToTrackSpecs({
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/scale/x", [
           [0, 10],
@@ -93,8 +94,8 @@ describe("bakeClipToTrackSpecs", () => {
     expect(spec.values).toEqual([10, 6, 7, 20, 6, 7]);
   });
 
-  it("unions key times across components and samples the gaps", () => {
-    const result = bakeClipToTrackSpecs({
+  it("unions key times across components and samples the gaps", async () => {
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/scale/x", [
           [0, 0],
@@ -110,12 +111,16 @@ describe("bakeClipToTrackSpecs", () => {
     const spec = result.tracks[0]!;
     expect(spec.times).toEqual([0, 1, 2]);
     // x interpolates to 10 at t=1; y holds its first key before t=1.
-    expect(spec.values).toEqual([0, 100, 7, 10, 100, 7, 20, 200, 7]);
+    expect(spec.values).toEqual(
+      [0, 100, 7, 10, 100, 7, 20, 200, 7].map((value) =>
+        expect.closeTo(value, 10),
+      ),
+    );
   });
 
-  it("converts euler rotation to a stride-4 quaternion track", () => {
+  it("converts euler rotation to a stride-4 quaternion track", async () => {
     const angle = Math.PI / 5;
-    const result = bakeClipToTrackSpecs({
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/rotation/z", [
           [0, 0],
@@ -138,12 +143,12 @@ describe("bakeClipToTrackSpecs", () => {
     ]);
   });
 
-  it("composes the rotation as Rz·Ry·Rx, holding un-animated axes at rest", () => {
+  it("composes the rotation as Rz·Ry·Rx, holding un-animated axes at rest", async () => {
     const angle = 1.1;
     const rested = createBakeTargetIndex([
       element({ rotationEuler: [0.3, -0.5, 0] }),
     ]);
-    const result = bakeClipToTrackSpecs({
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/rotation/z", [
           [0, 0],
@@ -162,8 +167,8 @@ describe("bakeClipToTrackSpecs", () => {
     ]);
   });
 
-  it("names morph tracks by feature key, which is how the dictionary is keyed", () => {
-    const result = bakeClipToTrackSpecs({
+  it("names morph tracks by feature key, which is how the dictionary is keyed", async () => {
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/lid_updn/value", [
           [0, 0],
@@ -178,10 +183,10 @@ describe("bakeClipToTrackSpecs", () => {
     expect(spec.values).toEqual([0, 1]);
   });
 
-  it("marks cubic morph tracks as resampled to linear", () => {
+  it("marks cubic morph tracks as resampled to linear", async () => {
     // GLTFExporter throws on CUBICSPLINE morph tracks, so they must not
     // survive as cubic.
-    const result = bakeClipToTrackSpecs({
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track(
           "propsrig/l_eye/lid_updn/value",
@@ -198,8 +203,8 @@ describe("bakeClipToTrackSpecs", () => {
     expect(result.tracks[0]!.stride).toBe(1);
   });
 
-  it("reports material channels as unbakeable rather than dropping them", () => {
-    const result = bakeClipToTrackSpecs({
+  it("reports material channels as unbakeable rather than dropping them", async () => {
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/opacity/value", [
           [0, 0],
@@ -219,10 +224,10 @@ describe("bakeClipToTrackSpecs", () => {
     ]);
   });
 
-  it("reports semantic channels as needing graph sampling", () => {
+  it("reports semantic channels as needing graph sampling", async () => {
     // These are what real authored clips contain; they only become node
     // motion once the rig and pose graphs run.
-    const result = bakeClipToTrackSpecs({
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("lids_blink", [
           [0, 0],
@@ -247,8 +252,8 @@ describe("bakeClipToTrackSpecs", () => {
     ]);
   });
 
-  it("reports unknown elements and features", () => {
-    const result = bakeClipToTrackSpecs({
+  it("reports unknown elements and features", async () => {
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/not_here/scale/x", [[0, 1]]),
         track("propsrig/l_eye/mystery/value", [[0, 1]]),
@@ -261,8 +266,8 @@ describe("bakeClipToTrackSpecs", () => {
     ]);
   });
 
-  it("excludes detached and empty tracks, with a reason", () => {
-    const result = bakeClipToTrackSpecs({
+  it("excludes detached and empty tracks, with a reason", async () => {
+    const result = await bakeClipToTrackSpecs({
       clip: clipOf([
         track("propsrig/l_eye/scale/x", [[0, 1]], { detached: true }),
         track("propsrig/l_eye/scale/y", []),
@@ -276,14 +281,14 @@ describe("bakeClipToTrackSpecs", () => {
     ]);
   });
 
-  it("lists baked channels so the report accounts for every track", () => {
+  it("lists baked channels so the report accounts for every track", async () => {
     const clip = clipOf([
       track("propsrig/l_eye/scale/x", [[0, 1]]),
       track("propsrig/l_eye/lid_updn/value", [[0, 1]]),
       track("propsrig/l_eye/opacity/value", [[0, 1]]),
       track("lids_blink", [[0, 1]]),
     ]);
-    const result = bakeClipToTrackSpecs({ clip, targets });
+    const result = await bakeClipToTrackSpecs({ clip, targets });
     const accounted =
       result.report.bakedChannels.length + result.report.skipped.length;
     expect(accounted).toBe(clip.tracks.length);

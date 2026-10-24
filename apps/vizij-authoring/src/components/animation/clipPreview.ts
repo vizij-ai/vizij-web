@@ -1,57 +1,88 @@
-import { sampleTrackAt } from "../../utils/sampleAnimationTrack";
+import { sampleAnimationTracks } from "../../utils/sampleAnimation";
 import type { AnimationTrack } from "../../state/animationStore";
 
 /**
- * The input values a clip produces at one time.
+ * The input values an animation produces at one time.
  *
- * Scrubbing used to move the playhead without moving the face: while playback
- * is stopped the seek only wrote `currentTime` to the store, and nothing drove
- * the rig. Binding the scrub to the animation runtime instead would mean
- * loading and pausing a clip mid-drag and would leave the app's own playback
- * state disagreeing with the runtime's, so the preview writes the rig inputs
- * directly — the same path the Inputs sliders use, evaluated with the same
- * function playback evaluates.
+ * Scrubbing moves the face, not only the playhead: while playback is stopped
+ * nothing else drives the rig, so the preview writes the rig inputs directly
+ * — the path the Inputs sliders use — with the values Arora's animation
+ * module plays at that time (`sampleAnimationTracks`), read from a player of
+ * the sampler's own rather than from the face's playback, whose transport
+ * state the app owns.
  *
  * Detached tracks and empty tracks contribute nothing: the first has no input
  * on this face, and the second has no curve to read.
  */
-export function clipInputValuesAtTime(
+export async function clipInputValuesAtTime(
   tracks: ReadonlyArray<AnimationTrack>,
   time: number,
-): Record<string, number> {
-  const values: Record<string, number> = {};
-  for (const track of tracks) {
-    if (track.detached || track.keyframes.length === 0) {
-      continue;
-    }
+): Promise<Record<string, number>> {
+  const played = tracks.flatMap((track) => {
     const inputId = track.variableId?.trim();
-    if (!inputId) {
-      continue;
-    }
-    const value = sampleTrackAt(track, time);
+    return !track.detached && track.keyframes.length > 0 && inputId
+      ? [{ track, inputId }]
+      : [];
+  });
+  const sampled = await sampleAnimationTracks(
+    played.map(({ track }) => track),
+    [time],
+  );
+  const values: Record<string, number> = {};
+  played.forEach(({ inputId }, index) => {
+    const value = sampled[index]![0]!;
     if (Number.isFinite(value)) {
       values[inputId] = value;
     }
-  }
+  });
   return values;
 }
 
 /**
  * The values a scrub should write, or null when it should write nothing.
  *
- * Returns null while playing: the animation runtime is driving the rig then,
- * and a second writer racing it per frame would fight it. Also null when the
- * clip contributes nothing, so a scrub over an empty timeline does not issue
- * an empty batch on every pointer move.
+ * Null while playing: the animation runtime is driving the rig then, and a
+ * second writer racing it per frame would fight it. Also null when the
+ * animation contributes nothing, so a scrub over an empty timeline does not
+ * issue an empty batch on every pointer move.
  */
-export function scrubPreviewValues(options: {
+export async function scrubPreviewValues(options: {
   tracks: ReadonlyArray<AnimationTrack>;
   time: number;
   playbackState: "playing" | "paused" | "stopped";
-}): Record<string, number> | null {
+}): Promise<Record<string, number> | null> {
   if (options.playbackState === "playing") {
     return null;
   }
-  const values = clipInputValuesAtTime(options.tracks, options.time);
+  const values = await clipInputValuesAtTime(options.tracks, options.time);
   return Object.keys(values).length > 0 ? values : null;
+}
+
+/**
+ * A scrub preview: `preview(time)` samples the animation at `time` and
+ * applies the values, unless a later `preview` was asked for meanwhile or
+ * playback has started. The values arrive asynchronously, from the animation
+ * module, so an earlier position landing after a later one would move the
+ * face backwards.
+ */
+export function latestScrubPreview(options: {
+  /** The values to show at `time`, or null for none. */
+  sample: (time: number) => Promise<Record<string, number> | null>;
+  apply: (values: Record<string, number>) => void;
+  /** Read when the values arrive. */
+  isPlaying: () => boolean;
+  onError: (error: unknown) => void;
+}): (time: number) => Promise<void> {
+  let latest = 0;
+  return async (time) => {
+    const request = ++latest;
+    try {
+      const values = await options.sample(time);
+      if (values && request === latest && !options.isPlaying()) {
+        options.apply(values);
+      }
+    } catch (error) {
+      options.onError(error);
+    }
+  };
 }

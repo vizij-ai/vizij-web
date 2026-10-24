@@ -1,6 +1,22 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { initRuntimeFromDisk } from "../../test/initRuntime";
 import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
+import { sampleAnimationTrack } from "../../utils/sampleAnimation";
 import { TimelineEditor } from "./TimelineEditor";
 
 /**
@@ -45,8 +61,11 @@ vi.mock("../../state/animationStore", async () => {
   >("../../state/animationStore");
   return {
     evaluateTrack: actual.evaluateTrack,
-    useAnimationStore: (selector?: (s: typeof state) => unknown) =>
-      selector ? selector(state) : state,
+    useAnimationStore: Object.assign(
+      (selector?: (s: typeof state) => unknown) =>
+        selector ? selector(state) : state,
+      { getState: () => state },
+    ),
   };
 });
 
@@ -58,6 +77,9 @@ vi.mock("../../state/bindingAuthoringStore", () => {
 });
 
 const DEFAULT_TRACKS = state.tracks;
+
+// Inserting a key reads the curve from the animation module.
+beforeAll(initRuntimeFromDisk);
 
 beforeEach(() => {
   // `state` is a mutable module-level object the mock reads through, so a test
@@ -126,7 +148,7 @@ describe("TimelineEditor keyframe insert", () => {
     return view;
   }
 
-  it("inserts at the curve's value, so adding a key does not change the motion", () => {
+  it("inserts at the curve's value, so adding a key does not change the motion", async () => {
     // The bug: it wrote the input's *default* instead, putting a step into
     // every curve not already resting there.
     state.tracks = [
@@ -147,10 +169,37 @@ describe("TimelineEditor keyframe insert", () => {
 
     insertAt(0.5);
 
-    expect(state.addKeyframe).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(state.addKeyframe).toHaveBeenCalledTimes(1));
     const [, time, value] = state.addKeyframe.mock.calls[0]!;
     expect(time).toBeCloseTo(0.5, 6);
     expect(value).toBeCloseTo(0.5, 6);
+  });
+
+  it("drops an insert whose curve was edited while its value was read", async () => {
+    const keyframes = [
+      { id: "kf-1", time: 0, value: 0.2 },
+      { id: "kf-2", time: 1, value: 0.8 },
+    ];
+    const jaw = {
+      id: "track-1",
+      label: "Jaw Open",
+      variableId: "jaw.open",
+      channel: "/propsrig/jaw/open",
+      color: "#fff",
+      interpolation: "linear" as const,
+      keyframes,
+    };
+    state.tracks = [jaw];
+    state.duration = 1;
+
+    insertAt(0.5);
+    // The curve changes before the module answers.
+    state.tracks = [{ ...jaw, keyframes: [...keyframes] }];
+    // Samplings run in order, so this one answers after the insert's.
+    await sampleAnimationTrack(jaw, 0);
+    await Promise.resolve();
+
+    expect(state.addKeyframe).not.toHaveBeenCalled();
   });
 
   it("falls back to the input default on a track with no curve yet", () => {
@@ -179,7 +228,7 @@ describe("TimelineEditor toolbar", () => {
     return screen.getByTestId("timeline-current-time") as HTMLInputElement;
   }
 
-  it("adds a key at the playhead from a labelled button", () => {
+  it("adds a key at the playhead from a labelled button", async () => {
     // Double-click was the only way to add a keyframe, and nothing said so.
     state.tracks = [
       {
@@ -203,6 +252,7 @@ describe("TimelineEditor toolbar", () => {
     state.addKeyframe.mockClear();
     fireEvent.click(screen.getByTestId("timeline-add-key"));
 
+    await waitFor(() => expect(state.addKeyframe).toHaveBeenCalledTimes(1));
     const [trackId, time, value] = state.addKeyframe.mock.calls[0]!;
     expect(trackId).toBe("track-1");
     expect(time).toBeCloseTo(0.5, 6);

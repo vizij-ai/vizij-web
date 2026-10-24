@@ -1,3 +1,4 @@
+// @vitest-environment node
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -78,7 +79,7 @@ const available = FILES.every((file) => existsSync(assetPath(file)));
  * produces is held to the same standard.
  */
 describe.runIf(available)("import -> bake", () => {
-  it.each(FILES)("%s bakes every imported channel", (file) => {
+  it.each(FILES)("%s bakes every imported channel", async (file) => {
     const json = readGlbJson(assetPath(file));
     const catalog = createPropsRigTargetCatalog(
       modelGeometryDerivedInputPaths(json),
@@ -88,7 +89,7 @@ describe.runIf(available)("import -> bake", () => {
       catalog,
     }).clips[0]!;
 
-    const { tracks, report } = bakeClipToTrackSpecs({
+    const { tracks, report } = await bakeClipToTrackSpecs({
       clip,
       targets: bakeTargetsFor(json),
     });
@@ -107,7 +108,7 @@ describe.runIf(available)("import -> bake", () => {
     }
   });
 
-  it("collapses Quori's 37 scalar channels into per-node glTF channels", () => {
+  it("collapses Quori's 37 scalar channels into per-node glTF channels", async () => {
     const file = "Quori_Latest_Blender_Export.glb";
     const json = readGlbJson(assetPath(file));
     const catalog = createPropsRigTargetCatalog(
@@ -117,7 +118,7 @@ describe.runIf(available)("import -> bake", () => {
       glb: readArrayBuffer(file),
       catalog,
     }).clips[0]!;
-    const { tracks } = bakeClipToTrackSpecs({
+    const { tracks } = await bakeClipToTrackSpecs({
       clip,
       targets: bakeTargetsFor(json),
     });
@@ -137,7 +138,7 @@ describe.runIf(available)("import -> bake", () => {
     expect(tracks.filter((t) => t.stride === 4)).toHaveLength(2);
   });
 
-  it("bakes Toasty's morph channels by feature key", () => {
+  it("bakes Toasty's morph channels by feature key", async () => {
     const file = "Toasty_Latest_Blender_Export.glb";
     const json = readGlbJson(assetPath(file));
     const catalog = createPropsRigTargetCatalog(
@@ -147,7 +148,7 @@ describe.runIf(available)("import -> bake", () => {
       glb: readArrayBuffer(file),
       catalog,
     }).clips[0]!;
-    const { tracks } = bakeClipToTrackSpecs({
+    const { tracks } = await bakeClipToTrackSpecs({
       clip,
       targets: bakeTargetsFor(json),
     });
@@ -170,7 +171,7 @@ describe.runIf(available)("import -> bake", () => {
     expect(Math.min(...blink.values)).toBeCloseTo(0, 6);
   });
 
-  it("reports euler-to-quaternion as lossy on rotation", () => {
+  it("reports euler-to-quaternion as lossy on rotation", async () => {
     const file = "Quori_Latest_Blender_Export.glb";
     const json = readGlbJson(assetPath(file));
     const catalog = createPropsRigTargetCatalog(
@@ -180,7 +181,7 @@ describe.runIf(available)("import -> bake", () => {
       glb: readArrayBuffer(file),
       catalog,
     }).clips[0]!;
-    const { report } = bakeClipToTrackSpecs({
+    const { report } = await bakeClipToTrackSpecs({
       clip,
       targets: bakeTargetsFor(json),
     });

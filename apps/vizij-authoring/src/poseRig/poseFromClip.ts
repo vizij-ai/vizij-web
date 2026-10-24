@@ -1,17 +1,19 @@
-import { sampleTrackAt } from "../animationBake/sampleTrack";
+import { sampleAnimationTracks } from "../utils/sampleAnimation";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import type { StandardInputId } from "./types";
 
 /**
  * A pose taken from a clip at a moment in time.
  *
- * Computed by sampling the clip rather than by reading the runtime, for two
- * reasons. It works while stopped — you can take a pose from a frame without
- * playing to it — and it is a pure function of the clip, so it is testable
- * without a device. The alternative, reading live values, cannot work for this
- * purpose. `capturePose` snapshots the pose store's `currentValues`, which is
- * a filtered mirror of the binding store's `inputValues` — see the effect in
- * `PoseRigProvider` that assigns `currentValues: filteredCurrent`, keyed on
+ * Computed by sampling the animation, on Arora's animation module
+ * (`sampleAnimationTracks`), rather than by reading the face's runtime. It
+ * works while stopped — you can take a pose from a frame without playing to
+ * it — and its values come from the animation, not from the face's state
+ * (scope `all` starts from the `baseValues` it is given).
+ * Reading live values cannot work for this purpose. `capturePose` snapshots
+ * the pose store's `currentValues`, which is a filtered mirror of the
+ * binding store's `inputValues` — see the effect in `PoseRigProvider` that
+ * assigns `currentValues: filteredCurrent`, keyed on
  * `inputValues`. So the Inputs sliders do reach it, but a playing or scrubbed
  * clip does not: the animation drives the runtime directly and nothing mirrors
  * the runtime back into `inputValues` (the only animation-driven write in
@@ -51,7 +53,7 @@ export interface PoseFromClipResult {
 const NEUTRAL_EPSILON = 1e-8;
 
 /**
- * Sample `clip` at `time` into pose input values.
+ * Sample `clip` at `time` into pose input values, as the face plays it.
  *
  * `knownInputIds` is the catalog to validate against: a clip can carry tracks
  * for inputs the loaded face does not have — a detached track, or a clip
@@ -68,7 +70,7 @@ const NEUTRAL_EPSILON = 1e-8;
  * actually displaces, so without this nearly every saved frame would fight the
  * poses it is blended with.
  */
-export function poseFromClipAtTime(options: {
+export async function poseFromClipAtTime(options: {
   clip: AnimationClipIR;
   /** Seconds, matching `AnimationClipIR`'s own unit. */
   time: number;
@@ -82,7 +84,7 @@ export function poseFromClipAtTime(options: {
    */
   neutralValues?: Readonly<Record<StandardInputId, number>>;
   scope?: PoseCaptureScope;
-}): PoseFromClipResult {
+}): Promise<PoseFromClipResult> {
   const { clip, time, knownInputIds } = options;
   const scope = options.scope ?? "animated";
   const neutralValues = options.neutralValues;
@@ -92,22 +94,24 @@ export function poseFromClipAtTime(options: {
   const unresolvedChannels: string[] = [];
   const neutralInputIds: string[] = [];
 
-  for (const track of clip.tracks) {
+  const sampled = clip.tracks.filter((track) => {
     // A detached track's channel no longer exists on the loaded face, so it
     // cannot contribute a value — but it is not an error either, since the
     // keyframes are deliberately retained for re-attachment.
-    if (track.detached) {
-      continue;
+    if (track.detached || track.keyframes.length === 0) {
+      return false;
     }
-    if (track.keyframes.length === 0) {
-      continue;
-    }
-    const inputId = track.variableId;
-    if (!knownInputIds.has(inputId)) {
+    if (!knownInputIds.has(track.variableId)) {
       unresolvedChannels.push(track.channel);
-      continue;
+      return false;
     }
-    const value = sampleTrackAt(track, time);
+    return true;
+  });
+  const samples = await sampleAnimationTracks(sampled, [time]);
+
+  sampled.forEach((track, index) => {
+    const inputId = track.variableId;
+    const value = samples[index]![0]!;
 
     // `all` scope exists precisely to pin every input, including the ones
     // resting at neutral, so it never drops.
@@ -118,11 +122,11 @@ export function poseFromClipAtTime(options: {
         Math.abs(value - neutral) < NEUTRAL_EPSILON
       ) {
         neutralInputIds.push(inputId);
-        continue;
+        return;
       }
     }
     values[inputId] = value;
-  }
+  });
 
   return { values, unresolvedChannels, neutralInputIds };
 }

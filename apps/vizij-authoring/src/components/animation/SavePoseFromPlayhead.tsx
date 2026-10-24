@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bookmark } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
@@ -11,6 +11,7 @@ import { usePoseRigStore } from "../../poseRig/store";
 import {
   poseFromClipAtTime,
   type PoseCaptureScope,
+  type PoseFromClipResult,
 } from "../../poseRig/poseFromClip";
 import { compileAnimationClipIr } from "../../utils/animationClipCompiler";
 import {
@@ -22,7 +23,8 @@ import { formatKeyframeTime } from "../../utils/animationTimeDisplay";
 /**
  * Saves the clip's value at the playhead as a pose.
  *
- * The values are sampled from the clip rather than read from the runtime.
+ * The values are sampled from the animation, on Arora's animation module,
+ * rather than read from the face's runtime.
  * `capturePose` snapshots the pose store's `currentValues`, which no authoring
  * surface writes as you work — so wiring this button to it would record the
  * last applied pose instead of the frame, and look like it had worked. See
@@ -102,39 +104,64 @@ export function SavePoseFromPlayhead({
   // to whichever clip happened to be selected when it ran.
   const [capturedTime, setCapturedTime] = useState(0);
 
-  const preview = useMemo(() => {
-    if (!open) {
-      return null;
+  // Compiled the same way export and playback compile it, so the pose holds
+  // the values the animation actually produces: compilation normalizes
+  // keyframes and drops tracks whose channel never resolved.
+  const clip = useMemo(
+    () =>
+      open
+        ? compileAnimationClipIr({
+            clip: {
+              schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
+              id: AUTHORED_TIMELINE_CLIP_ID,
+              duration,
+              tracks,
+            },
+          })
+        : null,
+    [open, duration, tracks],
+  );
+
+  // The pose starts from the current values only when it pins every input,
+  // so a slider moving underneath the dialog resamples nothing otherwise.
+  const baseValues = scope === "all" ? allInputValues : undefined;
+
+  // The animation module answers asynchronously; until it has, the dialog
+  // shows the pose as not yet sampled rather than as empty, and a sampling
+  // that fails says so rather than waiting for good.
+  const [preview, setPreview] = useState<PoseFromClipResult | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => {
+    setPreview(null);
+    setFailure(null);
+    if (!clip) {
+      return;
     }
-    // Compiled the same way export and playback compile it, so the pose holds
-    // the values the clip actually produces: compilation normalizes keyframes
-    // and drops tracks whose channel never resolved.
-    const clip = compileAnimationClipIr({
-      clip: {
-        schemaVersion: ANIMATION_CLIP_IR_SCHEMA_VERSION,
-        id: AUTHORED_TIMELINE_CLIP_ID,
-        duration,
-        tracks,
-      },
-    });
-    return poseFromClipAtTime({
+    let current = true;
+    poseFromClipAtTime({
       clip,
       time: capturedTime,
       knownInputIds,
-      baseValues: allInputValues,
+      baseValues,
       neutralValues,
       scope,
-    });
-  }, [
-    open,
-    allInputValues,
-    capturedTime,
-    duration,
-    knownInputIds,
-    neutralValues,
-    scope,
-    tracks,
-  ]);
+    }).then(
+      (result) => {
+        if (current) {
+          setPreview(result);
+        }
+      },
+      (error: unknown) => {
+        console.error("[save pose] sampling the animation failed:", error);
+        if (current) {
+          setFailure(error instanceof Error ? error.message : String(error));
+        }
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [baseValues, capturedTime, clip, knownInputIds, neutralValues, scope]);
 
   const animatedCount = useMemo(
     () =>
@@ -294,7 +321,22 @@ export function SavePoseFromPlayhead({
             </p>
           ) : null}
 
-          {valueCount === 0 ? (
+          {failure !== null ? (
+            <p
+              className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-200"
+              data-testid="save-pose-failed"
+              role="alert"
+            >
+              The animation could not be sampled at this frame: {failure}
+            </p>
+          ) : preview === null ? (
+            <p
+              className="text-[11px] text-text-muted"
+              data-testid="save-pose-sampling"
+            >
+              Sampling the animation…
+            </p>
+          ) : valueCount === 0 ? (
             <p className="text-[11px] text-text-muted">
               Nothing to save — no track at this playhead resolves to a known
               input.

@@ -26,6 +26,7 @@ import { normalizeGraphSpec } from "@vizij/node-graph";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
 import { downloadJsonFile } from "@vizij/authoring-shared";
 import { downloadBlob } from "../../utils/download";
+import { initRuntimeFromDisk } from "../../test/initRuntime";
 import { useVizijExport } from "../useVizijExport";
 import { PoseGraphService } from "../../poseRig/services/poseGraphService";
 import {
@@ -123,7 +124,10 @@ vi.mock("../../poseRig/services/poseGraphService", () => ({
 const BAKE_ANIMATABLE_ID = "anim-l-lid-translation";
 /** The graph input path the clip's channel resolves to. */
 const BAKE_INPUT_PATH = "rig/face/propsrig/l_lid/translation/y";
-vi.mock("@vizij/runtime", () => ({
+vi.mock("@vizij/runtime", async () => ({
+  // The real runtime for the animation module: the bake reads the
+  // animation's values from it, on a device with no graph of its own.
+  ...(await vi.importActual<typeof import("@vizij/runtime")>("@vizij/runtime")),
   // The face's composition, reduced to its rig graph.
   composeVizij: vi.fn(
     async (document: {
@@ -140,7 +144,14 @@ vi.mock("@vizij/runtime", () => ({
   channelKeys: vi.fn(async (_document: unknown, channels: string[]) =>
     channels.map((channel) => `rig/face/${channel}`),
   ),
-  startRuntime: vi.fn(async () => {
+  startRuntime: vi.fn(async (graph?: unknown) => {
+    if (graph === undefined) {
+      const actual =
+        await vi.importActual<typeof import("@vizij/runtime")>(
+          "@vizij/runtime",
+        );
+      return actual.startRuntime();
+    }
     let staged = 0;
     let output = 0;
     return {
@@ -313,10 +324,12 @@ function createOptions(
   };
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   (
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  // The bake reads animations from the animation module.
+  await initRuntimeFromDisk();
 });
 
 beforeEach(() => {

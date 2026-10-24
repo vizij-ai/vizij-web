@@ -14,9 +14,20 @@ import {
   AUTHORED_TIMELINE_CLIP_ID,
   LEGACY_AUTHORED_TIMELINE_CLIP_ID,
 } from "../types/animationClipIr";
-import { normalizeInterpolation } from "./sampleAnimationTrack";
 
 const DECIMAL_PRECISION = 6;
+
+/** Normalizes an authored interpolation name: `smooth` reads as `cubic`, and
+ * anything unknown as `linear`. */
+export function normalizeInterpolation(value: unknown): AnimationInterpolation {
+  if (value === "linear" || value === "step" || value === "cubic") {
+    return value;
+  }
+  if (value === "smooth") {
+    return "cubic";
+  }
+  return "linear";
+}
 
 function quantize(value: number): number {
   if (!Number.isFinite(value)) {
@@ -251,7 +262,7 @@ export function clipIrToBundleAnimationEntry(
  * resolves it to). Detached and keyframe-less tracks are left out, as from the
  * bundle entry. Each keyframe carries its tangents, in value units per second:
  * the module plays a `cubic` segment as glTF's `CUBICSPLINE` Hermite on them,
- * on the chord slope where one is absent, as `sampleTrackAt` samples it.
+ * on the chord slope where one is absent.
  */
 export function clipIrToAnimation(
   clip: AnimationClipIR,

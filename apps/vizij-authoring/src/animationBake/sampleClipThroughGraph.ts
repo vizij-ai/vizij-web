@@ -3,8 +3,8 @@ import {
   type AnimationClipIR,
   type AnimationTrackIR,
 } from "../types/animationClipIr";
+import { sampleAnimationTracks } from "../utils/sampleAnimation";
 import type { SampledOutputSpec } from "./bakeChannelIndex";
-import { sampleTrackAt } from "./sampleTrack";
 
 /**
  * Baking authored clips is not a track-reformatting problem.
@@ -90,14 +90,21 @@ const CONSTANT_EPSILON = 1e-6;
  * Drive `clip`'s tracks into the graph frame by frame and record every
  * animatable output, returning a node-channel clip.
  *
- * Time advances by a fixed `1/fps` step from zero rather than by seeking.
+ * The tracks' values at every frame come first, from Arora's animation
+ * module (`sampleAnimationTracks`): a player of the animation is stepped
+ * across the frames and its outputs collected, so the graph is driven with
+ * what the face plays. They are staged as the rig inputs the tracks resolve
+ * to, on the evaluator's own device.
+ *
+ * The graph's time advances by a fixed `1/fps` step from zero rather than by
+ * seeking.
  * Seeking would be cheaper, but any graph node with memory (a slew limiter,
  * a filter, an integrator) depends on the sequence of steps it has seen, so a
  * seeking sampler silently bakes a different animation than the one that
  * plays. Fixed stepping reproduces playback; it does not make a stateful
  * graph rate-independent, which is why `detectStatefulNodes` exists.
  */
-export function sampleClipThroughGraph(options: {
+export async function sampleClipThroughGraph(options: {
   clip: AnimationClipIR;
   evaluator: GraphEvaluator;
   /**
@@ -108,7 +115,7 @@ export function sampleClipThroughGraph(options: {
   fps: number;
   /** Maps a clip track to the rig input path it drives. */
   resolveInputPath?: (track: AnimationTrackIR) => string | null;
-}): GraphSampleResult {
+}): Promise<GraphSampleResult> {
   const { clip, evaluator, outputs, fps } = options;
   const resolveInputPath =
     options.resolveInputPath ?? ((track: AnimationTrackIR) => track.channel);
@@ -159,11 +166,18 @@ export function sampleClipThroughGraph(options: {
     );
   }
 
+  const frameTimes = Array.from({ length: frameCount }, (_, frame) =>
+    Math.min(duration, frame / fps),
+  );
+  const driving = await sampleAnimationTracks(
+    driven.map((entry) => entry.track),
+    frameTimes,
+  );
+
   for (let frame = 0; frame < frameCount; frame += 1) {
-    const time = Math.min(duration, frame / fps);
-    for (const entry of driven) {
-      evaluator.stageInput(entry.path, sampleTrackAt(entry.track, time));
-    }
+    driven.forEach((entry, index) => {
+      evaluator.stageInput(entry.path, driving[index]![frame]!);
+    });
     evaluator.step(frame === 0 ? 0 : dtMs);
 
     if (evaluator.behaviorError) {

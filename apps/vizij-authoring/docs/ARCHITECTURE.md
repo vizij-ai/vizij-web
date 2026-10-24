@@ -42,11 +42,18 @@ there is no second evaluator to drift from the device. What that takes:
    that into Arora's animation module's `Clip`, which loads on the timeline's
    player: `load_clip` once, `reload_clip` on each edit, so the playhead and
    the playback state stay (`src/hooks/useAnimationTransport.ts`). Play,
-   pause, stop, seek, loop and speed are the module's transport. The module
-   interpolates as the timeline draws (`sampleTrackAt`): a `cubic` segment is
-   glTF's `CUBICSPLINE` Hermite on the keyframes' tangents, the chord slope
-   where one is absent. The panel shows the player state the device reports
-   (`decodePlayerStates`).
+   pause, stop, seek, loop and speed are the module's transport. A `cubic`
+   segment is glTF's `CUBICSPLINE` Hermite on the keyframes' tangents, the
+   chord slope where one is absent. The panel shows the player state the
+   device reports (`decodePlayerStates`).
+   Everything else that reads an animation's values — the scrub preview,
+   inserting a key on the curve, saving a frame as a pose, the GLB bake —
+   reads them from the same module, on a device of its own with no graph
+   that writes them anywhere (`sampleAnimationTracks`,
+   `src/utils/sampleAnimation.ts`): a player of the animation is stepped
+   across the times asked for and its outputs collected. Nothing it does
+   writes the face's inputs; the scrub preview then writes the values it
+   read, as the Inputs sliders do.
    With no face loaded the transport plays nothing. The bridge is mounted with
    the viewport, not with the timeline panel, so showing or hiding the panel
    leaves the device and its player as they are.

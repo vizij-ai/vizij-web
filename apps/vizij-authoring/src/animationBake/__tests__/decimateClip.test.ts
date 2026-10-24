@@ -1,6 +1,7 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { decimateClip, DEFAULT_DECIMATE_TOLERANCE } from "../decimateClip";
-import { sampleTrackAt } from "../sampleTrack";
+import { sampleAnimationTracks } from "../../utils/sampleAnimation";
 import {
   ANIMATION_CLIP_IR_SCHEMA_VERSION,
   type AnimationClipIR,
@@ -35,26 +36,28 @@ function clipFrom(track: AnimationTrackIR): AnimationClipIR {
 }
 
 /**
- * Largest error a linear sampler makes reading the decimated track at each
- * of the original key times. This is the property that matters: decimation is
- * only correct if what plays back still matches what was sampled.
+ * Largest error the animation module makes reading the decimated track at
+ * each of the original key times. This is the property that matters:
+ * decimation is only correct if what plays back still matches what was
+ * sampled.
  */
-function maxReconstructionError(
+async function maxReconstructionError(
   original: AnimationTrackIR,
   decimated: AnimationTrackIR,
-): number {
+): Promise<number> {
+  const [played] = await sampleAnimationTracks(
+    [decimated],
+    original.keyframes.map((keyframe) => keyframe.time),
+  );
   let worst = 0;
-  for (const keyframe of original.keyframes) {
-    const error = Math.abs(
-      sampleTrackAt(decimated, keyframe.time) - keyframe.value,
-    );
-    worst = Math.max(worst, error);
-  }
+  original.keyframes.forEach((keyframe, index) => {
+    worst = Math.max(worst, Math.abs(played![index]! - keyframe.value));
+  });
   return worst;
 }
 
 describe("decimateClip", () => {
-  it("collapses a straight ramp to its endpoints", () => {
+  it("collapses a straight ramp to its endpoints", async () => {
     const values = Array.from({ length: 61 }, (_, index) => index / 60);
     const { clip, report } = decimateClip({
       clip: clipFrom(trackFrom(values)),
@@ -68,7 +71,7 @@ describe("decimateClip", () => {
     ]);
   });
 
-  it("keeps a curve within tolerance everywhere, not just at kept keys", () => {
+  it("keeps a curve within tolerance everywhere, not just at kept keys", async () => {
     // A sine is the honest case: every key is slightly off the chord through
     // its neighbours, so a scheme that drops keys pairwise passes its own
     // local check while the curve as a whole drifts. Asserting the error at
@@ -81,13 +84,13 @@ describe("decimateClip", () => {
     const decimated = clip.tracks[0]!;
 
     expect(decimated.keyframes.length).toBeLessThan(values.length);
-    expect(maxReconstructionError(original, decimated)).toBeLessThanOrEqual(
-      DEFAULT_DECIMATE_TOLERANCE,
-    );
+    expect(
+      await maxReconstructionError(original, decimated),
+    ).toBeLessThanOrEqual(DEFAULT_DECIMATE_TOLERANCE);
     expect(report.keyframesAfter).toBe(decimated.keyframes.length);
   });
 
-  it("honours a loose tolerance by dropping more, still within bound", () => {
+  it("honours a loose tolerance by dropping more, still within bound", async () => {
     const values = Array.from({ length: 241 }, (_, index) =>
       Math.sin((index / 240) * Math.PI * 4),
     );
@@ -99,11 +102,11 @@ describe("decimateClip", () => {
       tight.clip.tracks[0]!.keyframes.length,
     );
     expect(
-      maxReconstructionError(original, loose.clip.tracks[0]!),
+      await maxReconstructionError(original, loose.clip.tracks[0]!),
     ).toBeLessThanOrEqual(1e-2);
   });
 
-  it("always keeps the first and last keyframe", () => {
+  it("always keeps the first and last keyframe", async () => {
     // They carry the clip's start and end pose; dropping either shifts the
     // whole clip's rest position.
     const values = Array.from({ length: 61 }, () => 0.25);
@@ -115,7 +118,7 @@ describe("decimateClip", () => {
     expect(keyframes[1]!.time).toBeCloseTo(1, 6);
   });
 
-  it("leaves step and cubic tracks alone", () => {
+  it("leaves step and cubic tracks alone", async () => {
     // A step track's keys *are* the signal, and a cubic track's shape lives
     // in tangents this linear error metric cannot see.
     for (const interpolation of ["step", "cubic"] as const) {
@@ -137,8 +140,8 @@ describe("decimateClip", () => {
     );
     const original = trackFrom(values);
     const { clip } = decimateClip({ clip: clipFrom(original) });
-    expect(
-      maxReconstructionError(original, clip.tracks[0]!),
-    ).toBeLessThanOrEqual(DEFAULT_DECIMATE_TOLERANCE);
+    // Every key of an alternating curve is a turn the curve needs, so all of
+    // them stay: what plays back is the original.
+    expect(clip.tracks[0]!.keyframes.map((key) => key.value)).toEqual(values);
   });
 });

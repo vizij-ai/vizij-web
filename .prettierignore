@@ -9,3 +9,4 @@ pnpm-lock.yaml
 apps/**/src-tauri/target
 test-results
 playwright-report
+apps/vizij-authoring/src/**/__tests__/golden

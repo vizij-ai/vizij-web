@@ -1,7 +1,5 @@
 import type { AnimationTrackIR } from "../types/animationClipIr";
 
-export { sampleTrackAt } from "../utils/sampleAnimationTrack";
-
 /** Sorted union of every track's key times. */
 export function unionKeyTimes(
   tracks: ReadonlyArray<AnimationTrackIR>,

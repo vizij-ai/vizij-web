@@ -212,7 +212,7 @@ export async function bakeAuthoredClips(options: {
     });
 
     try {
-      const sampled = sampleClipThroughGraph({
+      const sampled = await sampleClipThroughGraph({
         clip: authored,
         evaluator,
         outputs: options.outputs,
@@ -220,7 +220,7 @@ export async function bakeAuthoredClips(options: {
         resolveInputPath,
       });
       const decimated = decimateClip({ clip: sampled.clip, tolerance });
-      const baked = bakeClipToTrackSpecs({
+      const baked = await bakeClipToTrackSpecs({
         clip: decimated.clip,
         targets: options.targets,
       });

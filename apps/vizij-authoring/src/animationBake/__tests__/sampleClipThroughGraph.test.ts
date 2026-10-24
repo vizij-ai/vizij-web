@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
   sampleClipThroughGraph,
@@ -96,9 +97,9 @@ function fakeGraph(options?: {
 }
 
 describe("sampleClipThroughGraph", () => {
-  it("bakes semantic inputs into the node channels the graph writes", () => {
+  it("bakes semantic inputs into the node channels the graph writes", async () => {
     const evaluator = fakeGraph();
-    const { clip: sampled, report } = sampleClipThroughGraph({
+    const { clip: sampled, report } = await sampleClipThroughGraph({
       clip: clip(),
       evaluator,
       outputs: outputsFor(OUT_A, OUT_B),
@@ -127,14 +128,14 @@ describe("sampleClipThroughGraph", () => {
     expect(trackA.keyframes[5]!.value).toBeCloseTo(1, 6);
   });
 
-  it("advances by a fixed frame step instead of seeking", () => {
+  it("advances by a fixed frame step instead of seeking", async () => {
     // A graph node with memory integrates the values it is stepped through,
     // so the recorded curve is only right if the sampler walks every frame.
     // Seeking (or skipping steps) would produce a different, wrong curve.
     const evaluator = fakeGraph({
       transform: (_input, state) => [state.sum, state.sum],
     });
-    const { clip: sampled } = sampleClipThroughGraph({
+    const { clip: sampled } = await sampleClipThroughGraph({
       clip: clip(),
       evaluator,
       outputs: outputsFor(OUT_A),
@@ -154,11 +155,11 @@ describe("sampleClipThroughGraph", () => {
     expect(values[values.length - 1]!).toBeCloseTo(5.5, 6);
   });
 
-  it("drops channels the graph writes but never varies", () => {
+  it("drops channels the graph writes but never varies", async () => {
     // A constant channel is what the rest pose already says. Emitting it
     // would pin the node and override any other clip that does animate it.
     const evaluator = fakeGraph({ transform: (input) => [input * 2, 0.5] });
-    const { clip: sampled, report } = sampleClipThroughGraph({
+    const { clip: sampled, report } = await sampleClipThroughGraph({
       clip: clip(),
       evaluator,
       outputs: outputsFor(OUT_A, OUT_B),
@@ -170,11 +171,11 @@ describe("sampleClipThroughGraph", () => {
     expect(sampled.tracks.map((track) => track.channel)).toEqual([OUT_A]);
   });
 
-  it("stops and reports when a graph tick fails", () => {
+  it("stops and reports when a graph tick fails", async () => {
     // A failing tick stops every node, so continuing would record a whole
     // clip of stale values that looks like a successful bake.
     const evaluator = fakeGraph({ failAtFrame: 4 });
-    const { report } = sampleClipThroughGraph({
+    const { report } = await sampleClipThroughGraph({
       clip: clip(),
       evaluator,
       outputs: outputsFor(OUT_A),
@@ -188,9 +189,9 @@ describe("sampleClipThroughGraph", () => {
     expect(evaluator.steps).toHaveLength(5);
   });
 
-  it("reports outputs the graph never wrote instead of baking zeros", () => {
+  it("reports outputs the graph never wrote instead of baking zeros", async () => {
     const evaluator = fakeGraph({ neverWrite: [OUT_B] });
-    const { clip: sampled, report } = sampleClipThroughGraph({
+    const { clip: sampled, report } = await sampleClipThroughGraph({
       clip: clip(),
       evaluator,
       outputs: outputsFor(OUT_A, OUT_B),
@@ -205,9 +206,9 @@ describe("sampleClipThroughGraph", () => {
     ).toMatchObject({ paths: [OUT_B] });
   });
 
-  it("skips detached tracks and says so when nothing is left to drive", () => {
+  it("skips detached tracks and says so when nothing is left to drive", async () => {
     const evaluator = fakeGraph();
-    const { report } = sampleClipThroughGraph({
+    const { report } = await sampleClipThroughGraph({
       clip: clip({
         tracks: [
           {
@@ -230,14 +231,14 @@ describe("sampleClipThroughGraph", () => {
     expect(evaluator.staged).toEqual([]);
   });
 
-  it("rejects a non-positive fps rather than emitting an empty bake", () => {
-    expect(() =>
+  it("rejects a non-positive fps rather than emitting an empty bake", async () => {
+    await expect(
       sampleClipThroughGraph({
         clip: clip(),
         evaluator: fakeGraph(),
         outputs: outputsFor(OUT_A),
         fps: 0,
       }),
-    ).toThrow(/fps must be positive/);
+    ).rejects.toThrow(/fps must be positive/);
   });
 });
