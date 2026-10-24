@@ -86,8 +86,10 @@ jobs:
           # now only because the missing service account skipped the step.
           entryPoint: apps/vizij-authoring
           channelId: pr-${{ github.event.number }}
-          # Long enough to outlive a slow review. Channels auto-delete, so this
-          # is the whole cleanup story.
-          expires: 30d
+          # A push redeploys the channel and restarts its expiry, so a week
+          # outlives any review that is still moving. Closing the PR deletes the
+          # channel (preview-authoring-cleanup.yml): the site holds a bounded
+          # number of live channels, and a full site fails every new preview.
+          expires: 7d
         env:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
