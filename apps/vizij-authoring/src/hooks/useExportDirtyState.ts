@@ -11,6 +11,7 @@ import type { PoseRigConfigFile } from "../poseRig/types";
 import type { AnimationClipIR } from "../types/animationClipIr";
 import type { VizijPipelineMetadataV1 } from "../utils/graphImport";
 import { stableStringify } from "../utils/hash";
+import { faceVersionsMetadata, type FaceVersions } from "../utils/faceVersions";
 
 interface AuthoredMotionGraphDirtyEntry {
   id: string;
@@ -27,6 +28,8 @@ export interface GlbExportDirtySnapshotOptions {
   featureLabelOverrides: Record<string, string>;
   rootBounds: unknown;
   toneMapping: ToneMappingMode | undefined;
+  /** The face's versions, which the bundle carries. */
+  faceVersions?: FaceVersions;
   standardInputs: StandardRigInput[];
   bindings: BindingMap;
   inputBindings: InputBindingMap;
@@ -70,6 +73,7 @@ export function buildGlbExportDirtySnapshot(
     ...baseSnapshot,
     includeVizijBundle: true,
     includeImportedAnimations: options.includeImportedAnimations,
+    faceVersions: faceVersionsMetadata(options.faceVersions),
     standardInputs: options.standardInputs,
     bindings: options.bindings,
     inputBindings: options.inputBindings,

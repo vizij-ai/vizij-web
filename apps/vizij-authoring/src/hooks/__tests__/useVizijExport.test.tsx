@@ -21,6 +21,7 @@ import {
   buildSceneGraph,
   exportScene,
   patchVizijBundleMetadata,
+  type VizijBundleExtension,
 } from "@vizij/render";
 import { normalizeGraphSpec } from "@vizij/node-graph";
 import { buildRigGraphSpec } from "@vizij/node-graph-authoring";
@@ -41,6 +42,11 @@ import { auditBundleGraphs } from "../../utils/bundleAudit";
 import { useAnimationStore } from "../../state/animationStore";
 import { DEFAULT_NAMESPACE } from "../../utils/constants";
 import { makeSingleChannelGlb } from "../../animationImport/__tests__/makeGlb";
+import {
+  NO_FACE_VERSIONS,
+  readFaceVersions,
+  type FaceVersions,
+} from "../../utils/faceVersions";
 
 vi.mock("@vizij/render", () => ({
   // The scene the export writes, built from the document.
@@ -440,6 +446,75 @@ describe("useVizijExport", () => {
       },
     });
     hook.unmount();
+  });
+
+  it("exports the face's versions into the bundle, which reads them back", async () => {
+    mockedBuildRigGraphSpec.mockReturnValue({
+      spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
+      summary: { faceId: "face", inputs: [], outputs: [], bindings: [] },
+      issues: { fatal: [], warnings: [], info: [] },
+      ir: { graph: { nodes: [{ id: "ir1" }] } },
+    } as unknown as ReturnType<typeof buildRigGraphSpec>);
+    mockedNormalizeGraphSpec.mockResolvedValue({
+      nodes: [{ id: "n1", type: "input" }],
+    } as GraphSpec);
+    const { extractVizijBundle } =
+      await vi.importActual<typeof import("@vizij/render")>("@vizij/render");
+    // The bundle `exportScene` writes, read back as a loader reads it from
+    // the GLB's JSON: on a node's `VIZIJ_bundle` extension.
+    const exportedAndReadBack = async (
+      faceVersions: FaceVersions,
+      loadedBundle: VizijBundleExtension | null = null,
+    ) => {
+      mockedExportScene.mockClear();
+      const hook = renderHook(createOptions({ faceVersions, loadedBundle }));
+      await act(async () => {
+        await hook.result.current?.exportGlb();
+      });
+      hook.unmount();
+      expect(mockedExportScene).toHaveBeenCalledTimes(1);
+      const bundle = mockedExportScene.mock.calls[0]?.[1]?.bundle;
+      // Written as the GLB's JSON chunk holds it, then parsed as a loader
+      // parses that chunk.
+      const jsonChunk = JSON.stringify({
+        nodes: [{ extensions: { VIZIJ_bundle: bundle } }],
+      });
+      const gltfJson: unknown = JSON.parse(jsonChunk);
+      const readBack = extractVizijBundle(
+        { userData: {}, children: [] } as never,
+        gltfJson,
+      );
+      return { metadata: bundle?.metadata, readBack };
+    };
+
+    const authored = await exportedAndReadBack({
+      hardwareVersion: " quori-1.3 ",
+      softwareVersion: "2.0-ros4hri",
+    });
+    expect(authored.metadata).toMatchObject({
+      faceId: "face",
+      hardwareVersion: "quori-1.3",
+      softwareVersion: "2.0-ros4hri",
+    });
+    expect(readFaceVersions(authored.readBack)).toEqual({
+      hardwareVersion: "quori-1.3",
+      softwareVersion: "2.0-ros4hri",
+    });
+
+    // Re-exporting the face read back, its versions unedited, keeps them.
+    const reexported = await exportedAndReadBack(
+      readFaceVersions(authored.readBack),
+      authored.readBack,
+    );
+    expect(readFaceVersions(reexported.readBack)).toEqual(
+      readFaceVersions(authored.readBack),
+    );
+
+    // A face without versions states none: a device falls back to its id.
+    const unversioned = await exportedAndReadBack(NO_FACE_VERSIONS);
+    expect(unversioned.metadata).not.toHaveProperty("hardwareVersion");
+    expect(unversioned.metadata).not.toHaveProperty("softwareVersion");
+    expect(readFaceVersions(unversioned.readBack)).toEqual(NO_FACE_VERSIONS);
   });
 
   it("notifies when GLB export completes successfully", async () => {

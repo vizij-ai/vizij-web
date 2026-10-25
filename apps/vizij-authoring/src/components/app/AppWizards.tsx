@@ -5,6 +5,7 @@ import { PoseGraphRemapWizard } from "../poseRig/PoseGraphRemapWizard";
 import { useGraphRuntime } from "../../state/RigControllerProvider";
 import { useBindingAuthoring } from "../../state/RigControllerProvider";
 import type { AnimationClipIR } from "../../types/animationClipIr";
+import type { FaceVersions } from "../../utils/faceVersions";
 import { ExportDialog } from "./ExportDialog";
 
 interface AuthoredMotionGraphExportEntry {
@@ -20,6 +21,8 @@ interface AppWizardsProps {
   sourceName: string | null;
   loadedBundle: any;
   toneMapping?: ToneMappingMode;
+  faceVersions: FaceVersions;
+  onFaceVersionsChange: (versions: FaceVersions) => void;
   authoredAnimationClips: AnimationClipIR[];
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   activeMotionGraphId?: string | null;
@@ -40,6 +43,8 @@ export function AppWizards({
   sourceName,
   loadedBundle,
   toneMapping,
+  faceVersions,
+  onFaceVersionsChange,
   authoredAnimationClips,
   authoredProceduralPrograms,
   activeMotionGraphId,
@@ -85,6 +90,8 @@ export function AppWizards({
         sourceName={sourceName}
         loadedBundle={loadedBundle}
         toneMapping={toneMapping}
+        faceVersions={faceVersions}
+        onFaceVersionsChange={onFaceVersionsChange}
         authoredAnimationClips={authoredAnimationClips}
         authoredProceduralPrograms={authoredProceduralPrograms}
         activeMotionGraphId={activeMotionGraphId}

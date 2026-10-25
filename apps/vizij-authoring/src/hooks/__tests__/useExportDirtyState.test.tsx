@@ -156,6 +156,27 @@ describe("buildGlbExportDirtySnapshot", () => {
     expect(first).not.toEqual(second);
   });
 
+  it("tracks the face's versions, as the export writes them", () => {
+    const base = createSnapshotOptions({
+      faceVersions: { hardwareVersion: "quori-1.3", softwareVersion: "" },
+    });
+    const first = buildGlbExportDirtySnapshot(base);
+
+    expect(
+      buildGlbExportDirtySnapshot({
+        ...base,
+        faceVersions: { hardwareVersion: "quori-1.4", softwareVersion: "" },
+      }),
+    ).not.toEqual(first);
+    // Surrounding blanks are not exported, so they change nothing.
+    expect(
+      buildGlbExportDirtySnapshot({
+        ...base,
+        faceVersions: { hardwareVersion: " quori-1.3 ", softwareVersion: " " },
+      }),
+    ).toEqual(first);
+  });
+
   it("tracks face bounds changes even when bundle export is disabled", () => {
     const base = createSnapshotOptions({ includeVizijBundle: false });
     const first = buildGlbExportDirtySnapshot(base);

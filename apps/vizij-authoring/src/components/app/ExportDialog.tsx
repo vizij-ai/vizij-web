@@ -18,6 +18,7 @@ import {
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
 import type { AnimationClipIR } from "../../types/animationClipIr";
+import type { FaceVersions } from "../../utils/faceVersions";
 import { ExportPanel } from "./ExportPanel";
 import { RigGraphExportPanel } from "./RigGraphExportPanel";
 import { PoseRigExportPanel, PoseRigImportPanel } from "./PoseRigPanels";
@@ -44,6 +45,9 @@ interface ExportDialogProps {
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
   toneMapping?: ToneMappingMode;
+  /** The face's versions, edited here and exported into its bundle. */
+  faceVersions: FaceVersions;
+  onFaceVersionsChange: (versions: FaceVersions) => void;
   authoredAnimationClips: AnimationClipIR[];
   authoredProceduralPrograms: AuthoredMotionGraphExportEntry[];
   activeMotionGraphId?: string | null;
@@ -62,6 +66,8 @@ export function ExportDialog({
   sourceName,
   loadedBundle,
   toneMapping,
+  faceVersions,
+  onFaceVersionsChange,
   authoredAnimationClips,
   authoredProceduralPrograms,
   activeMotionGraphId,
@@ -151,6 +157,7 @@ export function ExportDialog({
     includeImportedAnimations,
     loadedBundle,
     toneMapping,
+    faceVersions,
     authoredAnimationClips,
     animatableComponents,
     animatables,
@@ -273,6 +280,9 @@ export function ExportDialog({
             onBlendModeChange={poseRig.setBlendMode}
             crossGroupBlendMode={poseRig.crossGroupBlendMode}
             onCrossGroupBlendModeChange={poseRig.setCrossGroupBlendMode}
+            faceId={faceId}
+            faceVersions={faceVersions}
+            onFaceVersionsChange={onFaceVersionsChange}
           />
         </div>
 

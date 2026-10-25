@@ -8,6 +8,7 @@ import {
   FieldRow,
   useDisabledReason,
 } from "../ui";
+import type { FaceVersions } from "../../utils/faceVersions";
 
 interface ExportPanelProps {
   exportFileName: string;
@@ -25,6 +26,10 @@ interface ExportPanelProps {
   onBlendModeChange: (mode: "average" | "additive") => void;
   crossGroupBlendMode: "average" | "additive";
   onCrossGroupBlendModeChange: (mode: "average" | "additive") => void;
+  /** The face's id, what a device reports without a hardware version. */
+  faceId: string | null;
+  faceVersions: FaceVersions;
+  onFaceVersionsChange: (versions: FaceVersions) => void;
 }
 
 export function ExportPanel({
@@ -42,6 +47,9 @@ export function ExportPanel({
   onBlendModeChange,
   crossGroupBlendMode,
   onCrossGroupBlendModeChange,
+  faceId,
+  faceVersions,
+  onFaceVersionsChange,
 }: ExportPanelProps) {
   const animationsAvailable = animationCount > 0;
   const exportReason = useDisabledReason(
@@ -104,6 +112,48 @@ export function ExportPanel({
           Embeds runtime graphs, pose configs, and stored Vizij clips for
           round-tripping while still producing standard glTF animations.
         </p>
+        <FieldRow
+          label="Hardware version"
+          hint="The face itself: its shapes, what moves in them and their layout. Without one, a device reports the face ID."
+          control={
+            <Input
+              data-testid="export-hardware-version"
+              id="vizij-export-hardware-version"
+              type="text"
+              value={faceVersions.hardwareVersion}
+              placeholder={faceId?.trim() || "quori-1.3"}
+              onChange={(event) =>
+                onFaceVersionsChange({
+                  ...faceVersions,
+                  hardwareVersion: event.target.value,
+                })
+              }
+              disabled={!includeBundle || !canExport}
+              spellCheck={false}
+            />
+          }
+        />
+        <FieldRow
+          label="Software version"
+          hint="What the face runs: its profiles, exposed inputs, programs, extra rigs and animations."
+          control={
+            <Input
+              data-testid="export-software-version"
+              id="vizij-export-software-version"
+              type="text"
+              value={faceVersions.softwareVersion}
+              placeholder="1.0"
+              onChange={(event) =>
+                onFaceVersionsChange({
+                  ...faceVersions,
+                  softwareVersion: event.target.value,
+                })
+              }
+              disabled={!includeBundle || !canExport}
+              spellCheck={false}
+            />
+          }
+        />
         <FieldRow
           label="Pose group blend mode"
           hint="Controls how poses blend within each pose group."

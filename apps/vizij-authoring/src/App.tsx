@@ -42,6 +42,11 @@ import {
   type FacePresetAssetOption,
 } from "./components/app/facePresetAssets";
 import { DEFAULT_NAMESPACE } from "./utils/constants";
+import {
+  NO_FACE_VERSIONS,
+  readFaceVersions,
+  type FaceVersions,
+} from "./utils/faceVersions";
 import { nextClipOrdinal } from "./utils/animationClipIds";
 import type { AnimationClipEntry } from "./state/animationClipsStore";
 import { buildImportedClipEntries } from "./state/importedClipEntries";
@@ -685,6 +690,16 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   // unrelated re-syncs of the same face.
   useEffect(() => {
     setToneMapping(normalizeToneMappingMode(loadedBundle?.toneMapping));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faceLoadSessionToken]);
+
+  // The face's hardware and software versions, read from the loaded face's
+  // bundle and exported back into it; edited in the export dialog. Re-synced
+  // per face-load session, as the tone mapping is.
+  const [faceVersions, setFaceVersions] =
+    useState<FaceVersions>(NO_FACE_VERSIONS);
+  useEffect(() => {
+    setFaceVersions(readFaceVersions(loadedBundle));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [faceLoadSessionToken]);
 
@@ -3381,6 +3396,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         featureLabelOverrides,
         rootBounds: rootBoundsForExport,
         toneMapping,
+        faceVersions,
         standardInputs,
         bindings,
         inputBindings,
@@ -3416,6 +3432,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       poseRig.poseIrDraft,
       rootBoundsForExport,
       toneMapping,
+      faceVersions,
       standardInputs,
     ],
   );
@@ -5385,6 +5402,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           sourceName={sourceName}
           loadedBundle={loadedBundle}
           toneMapping={toneMapping}
+          faceVersions={faceVersions}
+          onFaceVersionsChange={setFaceVersions}
           authoredAnimationClips={authoredAnimationClipsForExport}
           authoredProceduralPrograms={authoredProceduralProgramsForExport}
           activeMotionGraphId={activeMotionGraphIdForExport}
