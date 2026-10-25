@@ -172,6 +172,29 @@ export interface VizijSpeechConfig {
   autoActivateMic?: boolean;
 }
 
+/**
+ * The bundle's metadata: open-ended, with the face-level fields readers rely
+ * on typed.
+ */
+export interface VizijBundleMetadata {
+  /** The face's id, the namespace of its rig's input paths (`rig/<faceId>/`). */
+  faceId?: string | null;
+  /**
+   * The version of the face itself: its shapes, what can move in them, and the
+   * layout that gives those movements their meaning (a mouth, eyes). The
+   * face's identity with an optional suffix, such as `quori-1.3` or
+   * `emy-2026-10-13`. A device showing a face that states none reports its
+   * `faceId` as its hardware version.
+   */
+  hardwareVersion?: string;
+  /**
+   * The version of what the face runs: its profiles, exposed inputs, programs,
+   * extra rigs and animations, such as `1.2` or `2.0-ros4hri`.
+   */
+  softwareVersion?: string;
+  [key: string]: unknown;
+}
+
 export interface VizijBundleExtension {
   version: VizijBundleVersion;
   exportedAt?: string;
@@ -193,8 +216,9 @@ export interface VizijBundleExtension {
    */
   starred?: VizijBundleStarredSection | null;
   /**
-   * Bundle-level metadata. May include `speechConfig: VizijSpeechConfig`
-   * for configuring the STT/LLM/TTS speech pipeline.
+   * Bundle-level metadata (see {@link VizijBundleMetadata}). May include
+   * `speechConfig: VizijSpeechConfig` for configuring the STT/LLM/TTS speech
+   * pipeline.
    */
-  metadata?: Record<string, unknown>;
+  metadata?: VizijBundleMetadata;
 }

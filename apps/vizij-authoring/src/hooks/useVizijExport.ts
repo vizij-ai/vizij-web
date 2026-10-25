@@ -65,6 +65,7 @@ import { getStarredForFace, useStarredStore } from "../state/starredStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
 import { auditBundleGraphs } from "../utils/bundleAudit";
+import { faceVersionsMetadata, type FaceVersions } from "../utils/faceVersions";
 import {
   bundleAnimationEntryToClipIr,
   clipIrToBundleAnimationEntry,
@@ -108,6 +109,8 @@ interface UseVizijExportOptions {
   includeImportedAnimations: boolean;
   loadedBundle: VizijBundleExtension | null;
   toneMapping?: ToneMappingMode;
+  /** The face's versions, exported into the bundle's metadata. */
+  faceVersions?: FaceVersions;
   authoredAnimationClips?: AnimationClipIR[];
   animatableComponents: AnimatableComponent[];
   animatables: Record<string, AnimatableValue>;
@@ -563,6 +566,7 @@ export function useVizijExport(
     includeImportedAnimations,
     loadedBundle,
     toneMapping,
+    faceVersions,
     authoredAnimationClips,
     animatableComponents,
     animatables,
@@ -837,6 +841,7 @@ export function useVizijExport(
           sourceName,
           loadedBundle,
           toneMapping,
+          faceVersions,
           poseRig,
           animatablesForExport,
           animatableComponents,
@@ -1184,6 +1189,7 @@ export function useVizijExport(
     standardInputsById,
     standardInputMetadataById,
     toneMapping,
+    faceVersions,
     validOutputTargets,
     values,
     // Read by the bake, and previously absent: a stale closure here would
@@ -1396,6 +1402,7 @@ interface BuildVizijBundleOptions {
   sourceName: string | null;
   loadedBundle: VizijBundleExtension | null;
   toneMapping?: ToneMappingMode;
+  faceVersions?: FaceVersions;
   poseRig: PoseRigExportState;
   animatablesForExport: Record<string, AnimatableValue>;
   animatableComponents: AnimatableComponent[];
@@ -1718,6 +1725,7 @@ function buildVizijBundle(
 
   const bundleMetadata: Record<string, unknown> = {
     faceId: exportFaceId,
+    ...faceVersionsMetadata(options.faceVersions),
     source: sourceName ?? null,
     exporter: "vizij-authoring",
   };
