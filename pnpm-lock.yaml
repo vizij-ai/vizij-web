@@ -85,8 +85,8 @@ importers:
         specifier: 0.4.0
         version: 0.4.0
       '@vizij/node-graph':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.13.0
+        version: 0.13.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-authoring
@@ -137,8 +137,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -183,8 +183,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/minimal-demo-ui
       '@vizij/node-graph':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.13.0
+        version: 0.13.0
       '@vizij/node-graph-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-react
@@ -238,8 +238,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -272,8 +272,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -315,8 +315,8 @@ importers:
         specifier: ^3.46.0
         version: 3.46.0(react@19.2.3)
       '@vizij/node-graph':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.13.0
+        version: 0.13.0
       '@vizij/node-graph-authoring':
         specifier: workspace:*
         version: link:../../packages/@vizij/node-graph-authoring
@@ -327,8 +327,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -421,8 +421,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/@vizij/render
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       '@vizij/runtime-react':
         specifier: workspace:*
         version: link:../../packages/@vizij/runtime-react
@@ -458,8 +458,8 @@ importers:
         specifier: 2.10.1
         version: 2.10.1
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       react:
         specifier: ^19.2.3
         version: 19.2.3
@@ -531,8 +531,8 @@ importers:
   packages/@vizij/node-graph-authoring:
     dependencies:
       '@vizij/node-graph':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.13.0
+        version: 0.13.0
       '@vizij/utils':
         specifier: workspace:^
         version: link:../utils
@@ -556,8 +556,8 @@ importers:
   packages/@vizij/node-graph-react:
     dependencies:
       '@vizij/node-graph':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.13.0
+        version: 0.13.0
       '@vizij/value-json':
         specifier: ^0.2.0
         version: 0.2.0
@@ -618,8 +618,8 @@ importers:
         specifier: ^0.170.0
         version: 0.170.0
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       prettier:
         specifier: ^3.4.2
         version: 3.6.2
@@ -663,8 +663,8 @@ importers:
         specifier: workspace:^
         version: link:../render
       '@vizij/runtime':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.2.0
+        version: 9.2.0
       jsdom:
         specifier: ^24.1.3
         version: 24.1.3
@@ -3253,20 +3253,17 @@ packages:
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
 
-  '@vizij/node-graph@0.9.0':
-    resolution: {integrity: sha512-rO3KXqWg8GSE03vM77QG7JhksWlm3z120QlRfxvMlD6Ehotjf7iYmCy4DEBJAvMaoJKRBbE1CXeAcNE0zLne4w==}
+  '@vizij/node-graph@0.13.0':
+    resolution: {integrity: sha512-qWdIuXbzvYmharAZEmuoJb4VsdqGAb7qBS78I63LUM9Q3QHMP7N+cmabiiefjEZz6/hZ7UJxPK5qUy8tAH3xOA==}
 
-  '@vizij/runtime@9.0.2':
-    resolution: {integrity: sha512-SezZs8tqQcCNk6xTysLYr2XytgrLvmZyJF6FerB0iDNWacKNrI0JpL2T4+C64OgcRoPzZyP/UWOnz6mgFi844Q==}
+  '@vizij/runtime@9.2.0':
+    resolution: {integrity: sha512-g9yVRnMhkbQxjClJZjw+aXke0g6tBDn3/pylKji/WoQldKlN4ihqSk1eUtxw1D/c5BjIvP9l7w5uPz23jo83Sw==}
 
   '@vizij/value-json@0.2.0':
     resolution: {integrity: sha512-1wNxYLm4DPBnkcciIY4YClweIfIQinefMPsE8pQeacv1u8/0ls/Y3+GNCb3Rwa1yvdvKodRFhIf69JE2LsUC1Q==}
 
   '@vizij/value-json@0.2.1':
     resolution: {integrity: sha512-XB9Nv7nH7ygmGNaKJldj+wzRT7NlkMcYeOcy+IlMpgEfQU6J7jyJUiolLUTg2TQHLkLto5QNX6yt8a+9rIHp0Q==}
-
-  '@vizij/wasm-loader@0.1.5':
-    resolution: {integrity: sha512-YQR1wOUmyHfEU44/ZnBr47FY/d4OsE0ceMHbS9zHQKOCBR7HTCOBWKavbFeSQUdsqiHtuYfJCyccv6J0v7Bpfw==}
 
   '@vizij/wasm-loader@0.1.6':
     resolution: {integrity: sha512-4AsVNfHnZUddkbM/66cMjFbM1EW7qGNr/T/KROhywmFooflwzE6mzHrQOBP9c2uyEt5cmuZM7dmZU6wx6r74EA==}
@@ -8609,12 +8606,12 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@vizij/node-graph@0.9.0':
+  '@vizij/node-graph@0.13.0':
     dependencies:
-      '@vizij/value-json': 0.2.0
-      '@vizij/wasm-loader': 0.1.5
+      '@vizij/value-json': 0.2.1
+      '@vizij/wasm-loader': 0.1.6
 
-  '@vizij/runtime@9.0.2':
+  '@vizij/runtime@9.2.0':
     dependencies:
       '@vizij/value-json': 0.2.1
       '@vizij/wasm-loader': 0.1.6
@@ -8622,8 +8619,6 @@ snapshots:
   '@vizij/value-json@0.2.0': {}
 
   '@vizij/value-json@0.2.1': {}
-
-  '@vizij/wasm-loader@0.1.5': {}
 
   '@vizij/wasm-loader@0.1.6': {}
 
