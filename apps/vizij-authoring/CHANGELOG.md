@@ -1,5 +1,13 @@
 # vizij-authoring
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [8bbc547]
+  - @vizij/node-graph-react@0.3.0
+  - @vizij/node-graph-authoring@0.3.0
+
 ## 0.4.0
 
 ### Minor Changes
