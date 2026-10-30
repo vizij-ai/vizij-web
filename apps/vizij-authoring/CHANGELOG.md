@@ -1,5 +1,20 @@
 # vizij-authoring
 
+## 0.4.2
+
+### Patch Changes
+
+- 8ef2bc1: Runs on @semio/ui 0.4: cards separate from their surroundings by elevation, with no drawn edge, and the semio controls take that release's design. Leaving the page with unsaved changes still asks for confirmation, through `preventDefault()` alone.
+- Updated dependencies [8ef2bc1]
+- Updated dependencies [8ef2bc1]
+- Updated dependencies [8ef2bc1]
+- Updated dependencies [8ef2bc1]
+  - @vizij/node-graph-authoring@0.3.1
+  - @vizij/node-graph-react@0.3.1
+  - @vizij/render@3.1.1
+  - @vizij/utils@0.2.2
+  - @vizij/runtime-react@1.0.3
+
 ## 0.4.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @vizij/node-graph-react
 
+## 0.3.1
+
+### Patch Changes
+
+- 8ef2bc1: Requires @vizij/value-json 0.2.1 or later within 0.2.
+- 8ef2bc1: Built with TypeScript 6 and tsup 9. The published code and declarations keep their ES2020 target and their exports.
+
 ## 0.3.0
 
 ### Minor Changes

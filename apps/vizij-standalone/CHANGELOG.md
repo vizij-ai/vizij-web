@@ -1,5 +1,11 @@
 # vizij-standalone
 
+## 0.4.2
+
+### Patch Changes
+
+- 8ef2bc1: Runs on Tauri 2.12 and its 2.x plugins.
+
 ## 0.4.1
 
 ### Patch Changes
