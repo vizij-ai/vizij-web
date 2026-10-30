@@ -10,10 +10,10 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
  * Card surface, built on `@semio/ui`'s `.card`.
  *
  * `.card` supplies the surface colour (`--color-layout-{light,dark}-inset`,
- * rebranded to Vizij in styles.css), a token-driven border colour
- * (`--card-border-color`) and elevation. `.responsive` must sit on the same
- * element — it is what seeds those custom properties, and without it the border
- * colour resolves to nothing.
+ * rebranded to Vizij in styles.css) and elevation; it draws no edge, so a card
+ * separates from its surroundings by elevation alone. `.variant-scope` on the
+ * same element declares the variant custom properties (`--accent-color` and the
+ * text colours) that semio styling beneath it reads.
  *
  * `rounded-xl` deliberately overrides semio's `rounded-sm`: the 2px radius is
  * inconsistent with both this app's shape language and Semio's own Figma
@@ -28,7 +28,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, children, compact, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("responsive card rounded-xl p-3", className)}
+      className={cn("variant-scope card rounded-xl p-3", className)}
       {...props}
     >
       {compact ? (

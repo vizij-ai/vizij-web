@@ -1,9 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  CollapsibleRoot,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from "@semio/ui";
+import { Collapsible } from "radix-ui";
 import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
 import { cn } from "../../utils/cn";
 
@@ -25,23 +21,12 @@ export interface CollapsibleGroupProps {
 }
 
 /**
- * Titled, collapsible section, built on the raw Collapsible primitives
- * `@semio/ui` re-exports (Radix, not semio's own `Collapse`, which has no
- * `actions` slot or `subtitle`).
+ * Titled, collapsible section, built on Radix's Collapsible primitives rather
+ * than `@semio/ui`'s `Collapse`, which has no `actions` slot or `subtitle`.
  *
- * This fixes a whole layer of dead styling. The previous implementation used
- * Radix-flavoured `data-[state=open]` / `group-data-[state=open]` selectors while
- * running on Base UI, which emits `data-open` / `data-closed` / `data-panel-open`
- * instead — so the chevron never swapped, the title never brightened, and the
- * open-state shadow and border never appeared. Radix does emit `data-state`, so
- * the selectors now do what they always claimed to.
- *
- * The `group` marker also moved onto the Collapsible root. It used to sit on an
- * inner `div` that never carried `data-state` at all, which is the other half of
- * why the group selectors were inert.
- *
- * Hardcoded `zinc-*` surfaces and a `text-blue-400` chevron were replaced with
- * tokens; the old values were invisible or off-palette in light mode.
+ * The open-state styling uses `data-[state=open]` / `group-data-[state=open]`
+ * selectors, which Radix's `data-state` attribute drives; the `group` marker
+ * sits on the Collapsible root, the element that carries it.
  */
 export function CollapsibleGroup({
   title,
@@ -54,7 +39,7 @@ export function CollapsibleGroup({
   icon,
 }: CollapsibleGroupProps) {
   return (
-    <CollapsibleRoot
+    <Collapsible.Root
       defaultOpen={!defaultCollapsed}
       className={cn(
         "group block w-full bg-bg-secondary/40 border border-border-default/60 rounded-xl overflow-hidden mb-2 transition-all duration-200",
@@ -62,7 +47,7 @@ export function CollapsibleGroup({
         className,
       )}
     >
-      <CollapsibleTrigger
+      <Collapsible.Trigger
         className={cn(
           "flex w-full items-center justify-between px-3 py-2 bg-bg-hover/30 cursor-pointer select-none transition-all duration-150 hover:bg-bg-hover/60 focus:outline-none focus-visible:outline-none",
           "group-data-[state=open]:border-b group-data-[state=open]:border-border-default/60",
@@ -112,10 +97,10 @@ export function CollapsibleGroup({
             )}
           </div>
         )}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="p-3 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200">
+      </Collapsible.Trigger>
+      <Collapsible.Content className="p-3 data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-top-1 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-top-1 duration-200">
         {children}
-      </CollapsibleContent>
-    </CollapsibleRoot>
+      </Collapsible.Content>
+    </Collapsible.Root>
   );
 }

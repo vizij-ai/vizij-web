@@ -258,7 +258,7 @@
 /* ---------------------------------------------------------------------------
    @semio/ui palette rebrand
    ---------------------------------------------------------------------------
-   Semio components style themselves from `.responsive` + `variant-*` classes
+   Semio components style themselves from `.variant-scope` + `variant-*` classes
    that read the eight semantic ramps below, plus a separate set of layout
    surface tokens. We adopt semio's STRUCTURE (variant/size cascade, spacing,
    radius) but keep Vizij's PALETTE, so `Variant.Primary` is Vizij blue rather

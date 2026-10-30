@@ -1,6 +1,6 @@
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef } from "react";
 import type { InputHTMLAttributes } from "react";
-import { TextField, Size } from "@semio/ui";
+import { TextField, Size, type IconValue } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
 export interface InputProps extends Omit<
@@ -8,7 +8,7 @@ export interface InputProps extends Omit<
   "size"
 > {
   size?: "sm" | "md";
-  startContent?: ReactNode;
+  startContent?: IconValue;
 }
 
 const SIZES: Record<"sm" | "md", Size> = {
