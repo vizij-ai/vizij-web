@@ -1,8 +1,9 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
+import { defineConfig } from "eslint/config";
 import globals from "globals";
-import importPlugin from "eslint-plugin-import";
+import { importX } from "eslint-plugin-import-x";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
@@ -33,7 +34,7 @@ const NO_FEATURE_CODE = [
   "**/motiongraph/**",
 ];
 
-export default tseslint.config(
+export default defineConfig(
   {
     ignores: [
       "**/dist/**",
@@ -47,7 +48,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["**/*.{js,cjs,mjs,jsx,ts,tsx}"],
+    files: ["**/*.{js,cjs,mjs,jsx,ts,mts,cts,tsx}"],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: "module",
@@ -63,12 +64,14 @@ export default tseslint.config(
       reportUnusedDisableDirectives: "off",
     },
     plugins: {
-      import: importPlugin,
+      "import-x": importX,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // The plugin's other recommended rules check code for the React
+      // Compiler, which no app here builds with.
+      "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "react-refresh/only-export-components": "off",
       "no-console": [
@@ -77,15 +80,15 @@ export default tseslint.config(
           allow: ["warn", "error", "log"],
         },
       ],
-      "import/no-cycle": "off",
-      "import/order": [
+      "import-x/no-cycle": "off",
+      "import-x/order": [
         "error",
         {
           distinctGroup: false,
           "newlines-between": "never",
         },
       ],
-      "import/newline-after-import": [
+      "import-x/newline-after-import": [
         "error",
         {
           count: 1,

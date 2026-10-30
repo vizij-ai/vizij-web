@@ -1,4 +1,4 @@
-/* eslint-disable import/order */
+/* eslint-disable import-x/order */
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { URL, fileURLToPath, pathToFileURL } from "node:url";

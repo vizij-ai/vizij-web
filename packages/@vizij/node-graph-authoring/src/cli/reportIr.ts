@@ -293,7 +293,9 @@ function loadMachineDump(path: string): MachineReport {
     return parsed;
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error("Failed to parse machine-readable report JSON.");
+      throw new Error("Failed to parse machine-readable report JSON.", {
+        cause: error,
+      });
     }
     throw error;
   }

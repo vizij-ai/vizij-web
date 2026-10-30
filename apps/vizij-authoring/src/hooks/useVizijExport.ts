@@ -1311,7 +1311,7 @@ export function useVizijExport(
   const canImportPoseIr = typeof poseRig.importPoseIr === "function";
 
   const exportPoseIrFile = useCallback(async () => {
-    let poseIrPayload: unknown = null;
+    let poseIrPayload: unknown;
     if (typeof poseRig.exportPoseIrData === "function") {
       try {
         poseIrPayload = await poseRig.exportPoseIrData();
@@ -1494,9 +1494,7 @@ function collectSpeechConfigFromLocalStorage(): VizijSpeechConfig | null {
     const agentName = localStorage.getItem("vizij_agent_name");
     const voice = localStorage.getItem("vizij_speech_voice");
     const mode = localStorage.getItem("vizij_speech_mode") as
-      | "echo"
-      | "conversation"
-      | null;
+      "echo" | "conversation" | null;
     const systemPrompt = localStorage.getItem("vizij_speech_system_prompt");
     const autoActivateMic =
       localStorage.getItem("vizij_speech_auto_activate_mic") === "true";

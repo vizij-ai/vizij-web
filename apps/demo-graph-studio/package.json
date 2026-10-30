@@ -19,24 +19,23 @@
     "reset:hard": "pnpm run reset && rm -f pnpm-lock.yaml package-lock.json yarn.lock"
   },
   "dependencies": {
-    "@eslint/plugin-kit": "0.4.0",
+    "@vizij/node-graph": "^0.13.0",
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
-    "@vizij/node-graph": "^0.13.0",
-    "@vizij/value-json": "^0.2.0",
     "@vizij/utils": "workspace:*",
+    "@vizij/value-json": "^0.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "reactflow": "11.x",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "eslint": "^9.19.0",
+    "@vitejs/plugin-react-swc": "^4.2.2",
+    "eslint": "^10.13.0",
+    "prettier": "^3.9.10",
     "typescript": "^5.0.0",
     "vite": "^6.4.3",
-    "vitest": "^3.2.7",
-    "prettier": "^3.4.2",
-    "@vitejs/plugin-react-swc": "^4.2.2"
+    "vitest": "^3.2.7"
   },
   "keywords": [
     "vizij",

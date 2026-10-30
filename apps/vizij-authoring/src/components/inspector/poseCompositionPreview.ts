@@ -730,7 +730,7 @@ function evaluateGroupTarget(args: {
       (contribution) => contribution.hasAuthoredValue,
     );
 
-    let effectiveValue = neutralValue;
+    let effectiveValue: number;
     if (group.blendMode === "additive") {
       effectiveValue = neutralValue + weightedDeltaSum;
     } else {

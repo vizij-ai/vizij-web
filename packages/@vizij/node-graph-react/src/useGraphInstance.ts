@@ -125,7 +125,7 @@ export function useGraphInstance(
           : graphSpec;
       const moduleAny = module as any;
       const GraphCtor = moduleAny.Graph ?? null;
-      let g: Graph | null = null;
+      let g: Graph | null;
       try {
         if (typeof moduleAny.createGraph === "function") {
           g = await moduleAny.createGraph(normalized);

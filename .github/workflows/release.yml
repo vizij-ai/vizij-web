@@ -56,15 +56,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # No `publish:` input, so the action stops after versioning: it opens (or
-      # updates) the PR and leaves npm to publish-npm.yml. `ci:version` runs
+      # No `publish-script` input, so the action stops after versioning: it
+      # opens (or updates) the PR and leaves npm to publish-npm.yml. `ci:version` runs
       # `changeset version` and then the repo formatters, because generated
       # CHANGELOG.md files are covered by `format:check` and an unformatted one
       # would turn main red the moment the PR merged.
-      - uses: changesets/action@v1
+      - uses: changesets/action@v2
         with:
-          version: pnpm run ci:version
-          title: "chore(release): version packages"
-          commit: "chore(release): version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm run ci:version
+          pr-title: "chore(release): version packages"
+          commit-message: "chore(release): version packages"
+          github-token: ${{ secrets.GITHUB_TOKEN }}

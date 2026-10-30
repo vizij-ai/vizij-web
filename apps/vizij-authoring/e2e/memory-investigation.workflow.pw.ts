@@ -428,7 +428,7 @@ async function runMeasuredScenario(
 
   let allocationProfilePath: string | null = null;
   let heapSnapshotPath: string | null = null;
-  let leakLikely = false;
+  let leakLikely: boolean;
 
   try {
     await runner(record);

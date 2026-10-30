@@ -50,19 +50,19 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
-    "@types/react": "^19.2.7",
-    "@types/three": "^0.170.0",
     "@size-limit/file": "^11.2.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.170.0",
+    "@vizij/runtime": "^9.2.0",
+    "prettier": "^3.9.10",
     "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "size-limit": "^11.1.7",
     "three": "^0.170.0",
-    "zustand": "^5.0.2",
     "tsup": "^8.0.1",
     "typescript": "^5.5.0",
-    "prettier": "^3.4.2",
-    "@vizij/runtime": "^9.2.0",
-    "react-dom": "^19.2.3",
-    "@types/react-dom": "^19.2.3"
+    "zustand": "^5.0.2"
   },
   "size-limit": [
     {
