@@ -19,11 +19,7 @@ const result = spawnSync(
   },
 );
 
-if (result.status !== 0) {
-  console.warn(
-    "[utils:test] Vitest exited with",
-    result.status,
-    "— skipping because suite has no runnable tests yet.",
-  );
+if (result.error) {
+  console.error("[utils:test] Vitest did not start:", result.error.message);
 }
-process.exit(0);
+process.exit(result.status ?? 1);

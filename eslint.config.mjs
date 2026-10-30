@@ -69,10 +69,16 @@ export default defineConfig(
       "react-refresh": reactRefresh,
     },
     rules: {
-      // The plugin's other recommended rules check code for the React
-      // Compiler, which no app here builds with.
+      // Of the plugin's recommended rules, those that flag ordinary render
+      // bugs are on. `refs`, `immutability`, `set-state-in-effect` and
+      // `globals` are off: they enforce what the React Compiler assumes, and
+      // the existing code breaks them in a few hundred places.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/static-components": "error",
+      "react-hooks/set-state-in-render": "error",
+      "react-hooks/error-boundaries": "error",
+      "react-hooks/purity": "error",
       "react-refresh/only-export-components": "off",
       "no-console": [
         "warn",
