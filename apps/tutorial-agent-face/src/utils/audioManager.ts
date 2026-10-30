@@ -79,6 +79,7 @@ export class AudioManager {
       await this.closeInput();
     }
 
+    let context: AudioContext | null = null;
     try {
       assertMicrophoneSupport();
 
@@ -93,23 +94,26 @@ export class AudioManager {
         },
       });
 
-      this.inputContext = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )({
-        sampleRate: INPUT_SAMPLE_RATE,
-      });
+      context = new (window.AudioContext || (window as any).webkitAudioContext)(
+        {
+          sampleRate: INPUT_SAMPLE_RATE,
+        },
+      );
+      this.inputContext = context;
 
-      if (this.inputContext.state === "suspended") {
-        await this.inputContext.resume();
+      if (context.state === "suspended") {
+        await context.resume();
       }
 
-      this.inputSource = this.inputContext.createMediaStreamSource(
-        this.inputStream,
-      );
+      this.inputSource = context.createMediaStreamSource(this.inputStream);
 
       // Raw PCM arrives from an audio worklet, in blocks of 4096 frames.
-      await this.inputContext.audioWorklet.addModule(pcmCaptureProcessorUrl);
-      this.processor = new AudioWorkletNode(this.inputContext, "pcm-capture", {
+      await context.audioWorklet.addModule(pcmCaptureProcessorUrl);
+      // A close, or a newer initialization, during the load owns the input.
+      if (this.inputContext !== context) {
+        return;
+      }
+      this.processor = new AudioWorkletNode(context, "pcm-capture", {
         numberOfInputs: 1,
         numberOfOutputs: 1,
         channelCount: 1,
@@ -142,8 +146,12 @@ export class AudioManager {
       };
 
       this.inputSource.connect(this.processor);
-      this.processor.connect(this.inputContext.destination);
+      this.processor.connect(context.destination);
     } catch (error) {
+      if (context && this.inputContext !== context) {
+        // Superseded by a close or a newer initialization: nothing to report.
+        return;
+      }
       await this.closeInput();
       throw toMicrophoneInputError(error);
     }
