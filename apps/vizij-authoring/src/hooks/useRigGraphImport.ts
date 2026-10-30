@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
   buildRigGraphSpec,
   type AnimatableBinding,
@@ -72,11 +72,9 @@ interface UseRigGraphImportOptions {
   >;
   poseConfig: PoseConfigSnapshot | null;
   setFaceId: Dispatch<SetStateAction<string>>;
-  skipPersistRef: MutableRefObject<boolean>;
-  persistedAutoInputsRef: MutableRefObject<
-    Map<string, PersistedAutoStandardInput>
-  >;
-  lastLoadedFaceIdRef: MutableRefObject<string | null>;
+  skipPersistRef: RefObject<boolean>;
+  persistedAutoInputsRef: RefObject<Map<string, PersistedAutoStandardInput>>;
+  lastLoadedFaceIdRef: RefObject<string | null>;
   openDiscrepancyReview: (payload: {
     faceId: string;
     importedFaceId: string | null;
@@ -89,7 +87,7 @@ interface UseRigGraphImportOptions {
   /** Records that an import's inputs were applied; returns the new revision. */
   markRigImportApplied: () => number;
   /** The current revision, returned by an import that applies nothing. */
-  rigImportRevisionRef: MutableRefObject<number>;
+  rigImportRevisionRef: RefObject<number>;
   onImportPhaseChange?: (update: FaceLoadPhaseUpdate) => void;
 }
 
@@ -376,7 +374,7 @@ export function useRigGraphImport({
   rigImportRevisionRef,
   onImportPhaseChange,
 }: UseRigGraphImportOptions & {
-  pendingFaceRenameRef: MutableRefObject<string | null>;
+  pendingFaceRenameRef: RefObject<string | null>;
 }) {
   const pendingReviewRef = useRef<Promise<DiscrepancyResolutionResult> | null>(
     null,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
   bindingToDefinition,
   createDefaultBindings,
@@ -78,15 +78,13 @@ interface UseRigPersistenceOptions {
   updateInputValues: (
     updater: (prev: StandardInputValues) => StandardInputValues,
   ) => void;
-  pendingInputBindingDefinitionsRef: MutableRefObject<Record<
+  pendingInputBindingDefinitionsRef: RefObject<Record<
     string,
     RigBindingDefinition
   > | null>;
-  persistedAutoInputsRef: MutableRefObject<
-    Map<string, PersistedAutoStandardInput>
-  >;
-  skipPersistRef: MutableRefObject<boolean>;
-  lastLoadedFaceIdRef: MutableRefObject<string | null>;
+  persistedAutoInputsRef: RefObject<Map<string, PersistedAutoStandardInput>>;
+  skipPersistRef: RefObject<boolean>;
+  lastLoadedFaceIdRef: RefObject<string | null>;
   rebuildAutoInputs: () => void;
   alertDialog: (message: string) => void;
 }
@@ -132,7 +130,7 @@ export function useRigPersistence({
   alertDialog,
   pendingFaceRenameRef,
 }: UseRigPersistenceOptions & {
-  pendingFaceRenameRef?: MutableRefObject<string | null>;
+  pendingFaceRenameRef?: RefObject<string | null>;
 }) {
   const rigStateSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,

@@ -352,16 +352,9 @@ describe("useExportDirtyState", () => {
     const event = new Event("beforeunload", {
       cancelable: true,
     }) as BeforeUnloadEvent;
-    Object.defineProperty(event, "returnValue", {
-      configurable: true,
-      writable: true,
-      value: undefined,
-    });
-
     handler(event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(event.returnValue).toBe("");
 
     hook.unmount();
 

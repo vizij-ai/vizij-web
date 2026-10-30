@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { MutableRefObject, Dispatch, SetStateAction } from "react";
+import type { RefObject, Dispatch, SetStateAction } from "react";
 import { normalizeStandardRigGroup } from "@vizij/utils";
 import type { Selection, World } from "@vizij/render";
 
@@ -14,7 +14,7 @@ interface Options {
   selectedSubgroups: string[];
   setSelectedSubgroups: Dispatch<SetStateAction<string[]>>;
   allStandardInputSubgroups: Set<string>;
-  viewerSelectionActiveRef: MutableRefObject<boolean>;
+  viewerSelectionActiveRef: RefObject<boolean>;
 }
 
 export function useStandardInputSelectionSync({

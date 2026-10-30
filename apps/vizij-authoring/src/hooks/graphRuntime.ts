@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import {
   valueAsColorRgba,
   valueAsNumber,
@@ -98,7 +98,7 @@ export interface ApplyGraphOutputsOptions {
     ns: string,
     value: RawValue | ((current: RawValue | undefined) => RawValue | undefined),
   ) => void;
-  drivenAnimatablesRef: MutableRefObject<Set<string>>;
+  drivenAnimatablesRef: RefObject<Set<string>>;
   resetDrivenAnimatables: () => void;
 }
 
