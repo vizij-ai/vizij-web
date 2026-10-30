@@ -19,9 +19,7 @@ export type PoseInputComposeModeMap = Partial<
   Record<StandardInputId, PoseInputComposeMode>
 >;
 export type PoseScopedNeutralSourceType =
-  | "inherit"
-  | "pose-reference"
-  | "direct-values";
+  "inherit" | "pose-reference" | "direct-values";
 
 export interface PoseScopedNeutralInheritDefinition {
   sourceType: "inherit";

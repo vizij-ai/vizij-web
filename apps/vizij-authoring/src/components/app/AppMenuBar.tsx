@@ -22,12 +22,7 @@ import type {
 import { cn } from "../../utils/cn";
 
 type AuthoringSurfaceMenuTarget =
-  | "starred"
-  | "variables"
-  | "poses"
-  | "pose-groups"
-  | "animations"
-  | "programs";
+  "starred" | "variables" | "poses" | "pose-groups" | "animations" | "programs";
 
 interface AppMenuBarProps {
   onNew: () => void;

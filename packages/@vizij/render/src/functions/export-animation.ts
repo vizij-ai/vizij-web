@@ -8,10 +8,7 @@ import {
 
 /** A glTF-animatable node property, under three.js's property name. */
 export type ExportAnimationProperty =
-  | "position"
-  | "quaternion"
-  | "scale"
-  | "morphTargetInfluences";
+  "position" | "quaternion" | "scale" | "morphTargetInfluences";
 
 /** One node property's keys, to export as a glTF animation channel. */
 export interface ExportAnimationTrack {

@@ -35,12 +35,7 @@ type SelectionRange = {
 };
 
 type FlowNodeAccent =
-  | "output"
-  | "function"
-  | "operator"
-  | "reference"
-  | "literal"
-  | "vector";
+  "output" | "function" | "operator" | "reference" | "literal" | "vector";
 
 interface FlowRenderableNode {
   id: string;

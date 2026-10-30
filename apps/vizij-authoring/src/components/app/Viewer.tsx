@@ -512,8 +512,7 @@ export function Viewer({
       return undefined;
     }
     const entry = state.world[rootId] as
-      | { type?: string; rootBounds?: FaceBounds }
-      | undefined;
+      { type?: string; rootBounds?: FaceBounds } | undefined;
     return entry?.type === "group" ? entry.rootBounds : undefined;
   });
 

@@ -293,8 +293,7 @@ export function useBundleSynchronizer({
       }
 
       const bundleGraphs = loadedBundle.graphs as
-        | BundleGraphWithIr[]
-        | undefined;
+        BundleGraphWithIr[] | undefined;
       const rigEntry =
         bundleGraphs?.find((entry) => entry.kind?.toLowerCase?.() === "rig") ??
         bundleGraphs?.[0];

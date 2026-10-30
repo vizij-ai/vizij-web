@@ -54,13 +54,7 @@ type EditorState = {
 };
 
 type InputDefaultValue =
-  | ValueJSON
-  | number
-  | boolean
-  | string
-  | number[]
-  | null
-  | undefined;
+  ValueJSON | number | boolean | string | number[] | null | undefined;
 
 type InputDefaultEntry = {
   value: InputDefaultValue;
@@ -932,8 +926,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Legacy support: NodeSpec.inputs map
       nodeSpecs.forEach((ns) => {
         const inputs = (ns as any).inputs as
-          | Record<string, { node_id: string; output_key?: string }>
-          | undefined;
+          Record<string, { node_id: string; output_key?: string }> | undefined;
         if (!inputs) return;
 
         Object.entries(inputs).forEach(([inputKey]) => {

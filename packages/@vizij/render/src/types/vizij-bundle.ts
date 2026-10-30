@@ -3,12 +3,7 @@ import type { ToneMappingMode } from "./tone-mapping";
 export type VizijBundleVersion = 1;
 
 export type VizijBundleGraphKind =
-  | "rig"
-  | "pose"
-  | "pose-driver"
-  | "animation-bridge"
-  | "low-level"
-  | string;
+  "rig" | "pose" | "pose-driver" | "animation-bridge" | "low-level" | string;
 
 export type VizijPoseId = string;
 export type VizijAnimationId = string;

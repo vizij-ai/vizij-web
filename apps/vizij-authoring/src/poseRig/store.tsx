@@ -542,8 +542,7 @@ interface PoseStateProjectionOptions {
   blendMode?: "average" | "additive";
   crossGroupBlendMode?: "average" | "additive";
   crossGroupChannelOverrides?:
-    | PoseRigConfigFile["crossGroupChannelOverrides"]
-    | null;
+    PoseRigConfigFile["crossGroupChannelOverrides"] | null;
   blendStages?: PoseRigConfigFile["blendStages"] | null;
   standardInputSchema?: { id: string; version: string } | null;
   poseGroups?: ConfiguredPoseGroup[];
@@ -884,17 +883,17 @@ export function createPoseRigStore(
     // Auto-update pose IR/config/graph drafts when authoring fields change.
     const shouldRebuildPoseDrafts = Boolean(
       patch.poseIrDraft ||
-        patch.poses ||
-        patch.neutralInputs ||
-        patch.neutralMode ||
-        patch.rigName ||
-        patch.faceId ||
-        patch.rigKind ||
-        patch.standardInputs ||
-        patch.standardInputSchema ||
-        patch.blendMode ||
-        patch.crossGroupBlendMode ||
-        patch.poseConfigDraft,
+      patch.poses ||
+      patch.neutralInputs ||
+      patch.neutralMode ||
+      patch.rigName ||
+      patch.faceId ||
+      patch.rigKind ||
+      patch.standardInputs ||
+      patch.standardInputSchema ||
+      patch.blendMode ||
+      patch.crossGroupBlendMode ||
+      patch.poseConfigDraft,
     );
 
     if (shouldRebuildPoseDrafts) {

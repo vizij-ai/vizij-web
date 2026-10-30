@@ -186,8 +186,7 @@ function buildGraphSpecInternal(
       if (!type) continue;
 
       const rawParams = node.data?.params as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const params =
         rawParams && Object.keys(rawParams).length > 0
           ? coerceParams(rawParams)
@@ -255,8 +254,7 @@ function buildGraphSpecInternal(
   for (const node of nodes) {
     if (!specNodeIds.has(node.id)) continue;
     const rawDefaults = node.data?.inputDefaults as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     if (!rawDefaults) continue;
 
     const connectedHandles = connectedHandlesMap.get(node.id);

@@ -7,10 +7,7 @@ import { waitForNextFrame } from "../utils/frame";
 type VizijLoader = () => Promise<LoadedVizijAsset>;
 export type FaceLoadStepStatus = "pending" | "active" | "complete" | "error";
 export type FaceLoadMilestoneName =
-  | "asset-loaded"
-  | "bundle-synced"
-  | "graph-ready"
-  | "runtime-ready";
+  "asset-loaded" | "bundle-synced" | "graph-ready" | "runtime-ready";
 export type FaceLoadMilestones = Record<FaceLoadMilestoneName, number | null>;
 
 const FACE_LOAD_MILESTONE_ORDER: FaceLoadMilestoneName[] = [

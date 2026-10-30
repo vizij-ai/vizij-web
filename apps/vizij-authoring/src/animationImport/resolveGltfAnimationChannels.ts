@@ -14,9 +14,7 @@ const FEATURE_KEY_BY_CHANNEL_PATH = {
 } as const;
 
 export type ChannelResolutionFailure =
-  | "unnamed-node"
-  | "no-morph-targets"
-  | "no-matching-input";
+  "unnamed-node" | "no-morph-targets" | "no-matching-input";
 
 export interface ResolvedScalarChannel {
   target: GltfScalarChannelTarget;

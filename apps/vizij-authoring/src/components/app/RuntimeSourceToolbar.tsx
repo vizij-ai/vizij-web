@@ -7,10 +7,7 @@ import { WorkbenchPanel } from "../editor/molecules/WorkbenchPanel";
 import type { RuntimeAuthoringSource } from "../../state/AuthoringUiProvider";
 
 export type RuntimeSourceToolbarMode =
-  | "procedural-animation-programming"
-  | "animation"
-  | "reference-face"
-  | "none";
+  "procedural-animation-programming" | "animation" | "reference-face" | "none";
 
 interface RuntimeSourceOption {
   value: RuntimeAuthoringSource;

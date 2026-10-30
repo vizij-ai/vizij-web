@@ -17,10 +17,7 @@ export interface RigDriverSource {
 }
 
 export type RigDriverTargetType =
-  | "animatable"
-  | "rig-input"
-  | "graph-node"
-  | "pose-channel";
+  "animatable" | "rig-input" | "graph-node" | "pose-channel";
 
 export interface RigDriverTarget {
   type: RigDriverTargetType;
@@ -68,9 +65,7 @@ export interface PoseDeltaTransform {
 }
 
 export type RigDriverTransform =
-  | CenteredRemapTransform
-  | LinearRemapTransform
-  | PoseDeltaTransform;
+  CenteredRemapTransform | LinearRemapTransform | PoseDeltaTransform;
 
 export interface RigDriverOutput {
   target: RigDriverTarget;

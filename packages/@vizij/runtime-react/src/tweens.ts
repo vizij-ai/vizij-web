@@ -3,11 +3,7 @@ import type { Runtime, ValueJSON } from "@vizij/runtime";
 import { useVizijRuntime } from "./hooks";
 
 export type Easing =
-  | "linear"
-  | "easeIn"
-  | "easeOut"
-  | "easeInOut"
-  | ((t: number) => number);
+  "linear" | "easeIn" | "easeOut" | "easeInOut" | ((t: number) => number);
 
 export interface AnimateValueOptions {
   /** Seconds; default 0.35. `0` writes the target at once. */

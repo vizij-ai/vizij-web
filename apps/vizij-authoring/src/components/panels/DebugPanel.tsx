@@ -33,11 +33,7 @@ import { assessLegacyBindingMigration } from "../inspector/pipelineStages";
 import { collectGlobalUnmatchedPoseOutputs } from "../inspector/rigConnections";
 
 type HealthTabId =
-  | "playback"
-  | "robot-audit"
-  | "bundle-audit"
-  | "diagnostics"
-  | "maintenance";
+  "playback" | "robot-audit" | "bundle-audit" | "diagnostics" | "maintenance";
 
 const HEALTH_TABS: ReadonlyArray<{ id: HealthTabId; label: string }> = [
   { id: "playback", label: "Playback" },

@@ -3104,8 +3104,7 @@ export function useRigController(
             createDefaultParentBinding(bindingTargetFromInput(sourceInput));
           const nextMetadata = mergePipelineMetadata(
             (existingBinding.metadata ?? undefined) as
-              | Record<string, unknown>
-              | undefined,
+              Record<string, unknown> | undefined,
             {
               directInputEnabled: enabled,
             },
@@ -3185,8 +3184,7 @@ export function useRigController(
         });
         const nextMetadata = mergePipelineMetadata(
           (existingBinding.metadata ?? undefined) as
-            | Record<string, unknown>
-            | undefined,
+            Record<string, unknown> | undefined,
           {
             directInputEnabled: true,
             overrideEnabled: false,
@@ -4157,8 +4155,7 @@ export function useRigController(
           createDefaultParentBinding(bindingTargetFromInput(childInput));
         const nextMetadata = mergePipelineMetadata(
           (existingBinding.metadata ?? undefined) as
-            | Record<string, unknown>
-            | undefined,
+            Record<string, unknown> | undefined,
           {
             directInputEnabled: true,
             linkUpserts: {

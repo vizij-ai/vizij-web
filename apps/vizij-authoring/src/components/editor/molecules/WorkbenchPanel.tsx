@@ -5,8 +5,10 @@ import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { Tooltip } from "../../ui/Tooltip";
 
-export interface WorkbenchPanelProps
-  extends Omit<ComponentPropsWithoutRef<"section">, "title"> {
+export interface WorkbenchPanelProps extends Omit<
+  ComponentPropsWithoutRef<"section">,
+  "title"
+> {
   /** Panel heading. With no title/description/badge/actions/onClose, no header renders. */
   title?: ReactNode;
   /** Rendered as a hoverable info icon beside the title, never as inline text. */

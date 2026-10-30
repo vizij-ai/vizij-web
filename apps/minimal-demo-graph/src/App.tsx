@@ -532,8 +532,7 @@ function GraphUI({
             const displayValue = (stateEntry?.value ??
               defaultValue) as ValueJSON;
             const displayDeclared = (stateEntry?.declared ?? declared) as
-              | ShapeJSON
-              | undefined;
+              ShapeJSON | undefined;
 
             return (
               <div

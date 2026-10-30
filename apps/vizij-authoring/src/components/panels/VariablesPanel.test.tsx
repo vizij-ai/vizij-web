@@ -3302,8 +3302,7 @@ describe("VariablesPanel", () => {
     fireEvent.click(within(view.container).getAllByTitle("Apply Pose")[0]!);
 
     const updates = bindingState.applyStandardInputBatch.mock.calls[0]?.[0] as
-      | Record<string, number>
-      | undefined;
+      Record<string, number> | undefined;
     expect(updates).toBeDefined();
     expect(Object.keys(updates ?? {}).sort()).toEqual(["w_frown", "w_smile"]);
     expect(Object.values(updates ?? {}).sort()).toEqual([0, 1]);

@@ -11,11 +11,7 @@ import type { InputCatalogRow } from "./inputCatalog";
 
 export type NodeType = "folder" | "pose" | "rig" | "input";
 export type RigNodeSource =
-  | "auto"
-  | "preset"
-  | "custom"
-  | "reference"
-  | "shared";
+  "auto" | "preset" | "custom" | "reference" | "shared";
 export type FaceOwnershipScope = "main" | "reference" | "shared" | "none";
 
 export interface FaceOwnershipSummary {
@@ -44,10 +40,7 @@ export interface PoseNodeData {
 }
 
 export type TreeNodeData =
-  | PoseNodeData
-  | RigNodeData
-  | PoseGroupNodeData
-  | InputCatalogRow;
+  PoseNodeData | RigNodeData | PoseGroupNodeData | InputCatalogRow;
 
 export interface TreeNode {
   id: string;

@@ -23,10 +23,7 @@ import { useBindingAuthoring } from "../../state/RigControllerProvider";
  */
 export function useInspectorTargetLock(
   targetIds:
-    | ReadonlyArray<string | null | undefined>
-    | string
-    | null
-    | undefined,
+    ReadonlyArray<string | null | undefined> | string | null | undefined,
 ): RowLockState {
   const lockedInspectorTargetIds = useBindingAuthoring(
     (state) => state.lockedInspectorTargetIds,
