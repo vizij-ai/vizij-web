@@ -334,7 +334,7 @@ function evaluateBinding({
     if (reserved.available === false) {
       return;
     }
-    let nodeId: string | null = null;
+    let nodeId: string | null;
     if (reserved.name === "self") {
       nodeId = selfNodeId ?? null;
     } else {
@@ -1936,7 +1936,7 @@ export function buildRigGraphSpec({
     );
 
     const composeMode = composeModeByInputId.get(input.id) ?? "add";
-    let composeOutputNodeId = composeAddNodeId;
+    let composeOutputNodeId: string;
     if (composeMode === "average") {
       composeOutputNodeId = `input_compose_average_${safeInputId}`;
       nodes.push({

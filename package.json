@@ -54,19 +54,19 @@
     "e2e:heavy": "pnpm --filter vizij-e2e run e2e:heavy"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.7",
-    "@eslint/js": "^9.19.0",
-    "eslint": "^9.19.0",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.18",
-    "globals": "^15.14.0",
-    "lint-staged": "^15.2.10",
-    "markdownlint-cli": "^0.48.0",
-    "prettier": "^3.4.2",
+    "@changesets/cli": "^3.0.3",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "lint-staged": "^17.6.0",
+    "markdownlint-cli": "^0.50.0",
+    "prettier": "^3.9.10",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.22.0",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^3.2.7",
-    "ws": "^8.21.1"
+    "ws": "^8.22.0"
   }
 }

@@ -458,7 +458,7 @@ export function GraphProvider({
         graphRef.current = null;
       }
       // WASM runtime: create a Graph instance using the public API surface
-      let g: Graph | null = null;
+      let g: Graph | null;
       try {
         if (typeof (module as any).createGraph === "function") {
           // Preferred: async factory that accepts a spec

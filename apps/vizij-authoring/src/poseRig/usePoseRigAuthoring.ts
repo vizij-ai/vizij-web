@@ -488,7 +488,7 @@ export function usePoseRigAuthoring(
             },
           ],
         });
-        throw new Error(message);
+        throw new Error(message, { cause: error });
       }
     },
     [store],
@@ -518,7 +518,7 @@ export function usePoseRigAuthoring(
             },
           ],
         });
-        throw new Error(message);
+        throw new Error(message, { cause: error });
       }
     },
     [store],
@@ -597,7 +597,7 @@ export function usePoseRigAuthoring(
             },
           ],
         });
-        throw new Error(message);
+        throw new Error(message, { cause: error });
       }
     },
     [store, visibleStandardInputs, neutralInputs],

@@ -17,7 +17,7 @@ const DEP_FIELDS = [
 ];
 
 async function listPackageJsonPaths() {
-  let entries = [];
+  let entries;
   try {
     entries = await fs.readdir(PACKAGES_ROOT, { withFileTypes: true });
   } catch (error) {

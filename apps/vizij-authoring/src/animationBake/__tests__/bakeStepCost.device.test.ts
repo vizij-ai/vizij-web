@@ -123,7 +123,7 @@ describe("the cost of one bake step on the real rig graph", () => {
     const nodeCount = spec.nodes?.length ?? 0;
 
     const runtime = await startRuntime(spec);
-    let perStep = 0;
+    let perStep: number;
     try {
       for (let i = 0; i < 5; i += 1) {
         runtime.step(16);
@@ -159,7 +159,7 @@ describe("the cost of one bake step on the real rig graph", () => {
     for (const source of sources) {
       const spec = source.spec as GraphSpec & { nodes?: unknown[] };
       const runtime = await startRuntime(spec);
-      let perStep = 0;
+      let perStep: number;
       try {
         for (let i = 0; i < 5; i += 1) {
           runtime.step(16);

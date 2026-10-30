@@ -1,20 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const js = require("@eslint/js");
+const { defineConfig } = require("eslint/config");
 const globals = require("globals");
 const reactHooks = require("eslint-plugin-react-hooks");
-const reactRefresh = require("eslint-plugin-react-refresh");
-const importPlugin = require("eslint-plugin-import");
+const { reactRefresh } = require("eslint-plugin-react-refresh");
+const { importX } = require("eslint-plugin-import-x");
 const tseslint = require("typescript-eslint");
 
-const recommendedHookRules =
-  reactHooks &&
-  reactHooks.configs &&
-  reactHooks.configs.recommended &&
-  reactHooks.configs.recommended.rules
-    ? reactHooks.configs.recommended.rules
-    : {};
-
-module.exports = tseslint.config(
+module.exports = defineConfig(
   { ignores: ["dist", "eslint.config.js"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -28,19 +21,22 @@ module.exports = tseslint.config(
     },
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh,
-      import: importPlugin,
+      "react-refresh": reactRefresh.plugin,
+      "import-x": importX,
     },
     rules: {
-      ...recommendedHookRules,
-      "import/order": [
+      // The plugin's other recommended rules check code for the React
+      // Compiler, which this app does not build with.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "import-x/order": [
         "error",
         {
           distinctGroup: false,
           "newlines-between": "never",
         },
       ],
-      "import/newline-after-import": [
+      "import-x/newline-after-import": [
         "error",
         {
           count: 1,

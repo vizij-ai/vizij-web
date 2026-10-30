@@ -533,10 +533,7 @@ function computeWeightedFaceLoadProgress(steps: FaceLoadStep[]): number {
 }
 
 type CenterAuthoringMode =
-  | "procedural-animation-programming"
-  | "animation"
-  | "reference-face"
-  | "none";
+  "procedural-animation-programming" | "animation" | "reference-face" | "none";
 type AuthoringSurface = Extract<
   SurfaceTab,
   "starred" | "variables" | "poses" | "pose-groups" | "animations" | "programs"
@@ -1807,8 +1804,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       const authoredClipId = parseAuthoredAnimationTargetValue(
         selectedAnimationTargetId,
       );
-      let clip: AnimationClipIR | null = null;
-      let targetName = "Untitled Clip";
+      let clip: AnimationClipIR | null;
+      let targetName: string;
       let source: "authored" | "imported" = "imported";
 
       if (authoredClipId) {
@@ -1891,8 +1888,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         return null;
       }
 
-      let snapshot: ProceduralProgramSnapshot | null = null;
-      let targetName = "Untitled Program";
+      let snapshot: ProceduralProgramSnapshot | null;
+      let targetName: string;
       let source: "authored" | "imported" = "imported";
 
       const authoredProgramId = parseAuthoredProceduralTargetValue(
@@ -2411,8 +2408,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           bakedRecords: readBakedAnimationRecords(
             (
               loadedBundle?.metadata as
-                | { bakedAnimations?: unknown }
-                | undefined
+                { bakedAnimations?: unknown } | undefined
             )?.bakedAnimations,
           ),
           clipIdPrefix: `authoring.timeline.clip.${nextOrdinal}`,
@@ -5171,7 +5167,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
                   }
                   playbackAvailable={Boolean(
                     resolvedSelectedProceduralTargetId &&
-                      selectedProgramRuntimeSnapshot,
+                    selectedProgramRuntimeSnapshot,
                   )}
                   statusMessage={programPanelStatusMessage}
                   splitVertical={motionGraphSplitVertical}
