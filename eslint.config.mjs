@@ -146,7 +146,7 @@ export default defineConfig(
   // Each block below carries its COMPLETE pattern list. Flat config resolves a
   // rule's options last-wins rather than merging them, so a second block scoped
   // to `ui/` would silently discard a shared block's patterns instead of adding
-  // to them. (Found by planting two violations and seeing only one reported.)
+  // to them.
   {
     files: ["apps/vizij-authoring/src/components/editor/**/*.{ts,tsx}"],
     ignores: ["**/*.stories.tsx", "**/*.test.{ts,tsx}"],

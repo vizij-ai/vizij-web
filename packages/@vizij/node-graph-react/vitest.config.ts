@@ -7,7 +7,7 @@ export default defineConfig({
     pool: "forks",
   },
   optimizeDeps: {
-    exclude: ["@vizij/node-graph"], // ← important
+    exclude: ["@vizij/node-graph"], // its wasm loads itself by a relative URL
   },
   assetsInclude: ["**/*.wasm"],
 });
