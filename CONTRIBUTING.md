@@ -103,8 +103,8 @@ Rebuild a package after changing it (`pnpm run build:packages`, or
 
 The base of `validate` is the branch's upstream, else `origin/main`. On a
 branch whose pull request targets the staging branch, set
-`PNPM_BASE_REF=origin/integration/bevy-view` so it compares against staging,
-not `main`; the pre-push hook reads the same variable.
+`PNPM_BASE_REF=origin/<staging>` so it compares against staging, not
+`main`; the pre-push hook reads the same variable.
 
 CI runs on every pull request: `ci.yml` checks formatting, `lint:all`,
 `typecheck:all`, `test:all` and `build`, runs the workspace e2e suite and the
@@ -154,9 +154,8 @@ Two variables keep a run on servers it started itself:
 
 `main` is what deploys and publishes. A change too large to land green in one
 step, such as a migration, goes through a staging branch: one pull request per
-step into it, then one pull request from it to `main`.
-`integration/bevy-view` is the current staging branch: the move of every app
-onto the Bevy view. Keep it up to date with `main`.
+step into it, then one pull request from it to `main`. Keep it up to date with
+`main`.
 
 - **Each pull request is green on its own, and staging stays green.** An app
   whose port has not landed yet keeps the published npm versions of the
@@ -167,15 +166,15 @@ onto the Bevy view. Keep it up to date with `main`.
   (`github/gh-stack`), bottom first:
 
   ```bash
-  gh stack link --base integration/bevy-view <bottom> <next> <top>
+  gh stack link --base <staging> <bottom> <next> <top>
   ```
 
   Always pass `--base`: without it the bottom pull request targets `main`. A
-  single pull request takes `gh pr create --base integration/bevy-view`. Check
+  single pull request takes `gh pr create --base <staging>`. Check
   the base once it is created.
 
 - **Merging the top of a stack lands every pull request below it.** Afterwards,
-  `git cherry origin/integration/bevy-view origin/<branch>` marks with `+` the
+  `git cherry origin/<staging> origin/<branch>` marks with `+` the
   commits of a lower branch that are not in yet (it compares patches, so it
   sees through a rebase-merge's new hashes); close the lower pull requests that
   landed, with a note saying where.
@@ -197,6 +196,22 @@ onto the Bevy view. Keep it up to date with `main`.
 
   After any merge, check that the commit reached the branch you meant:
   `git merge-base --is-ancestor <commit> origin/<base>`.
+
+### Opening and reviewing
+
+- **A finished pull request is ready, not draft**: draft reads as "not ready
+  for review". Draft is for work with a known gap.
+- **The body opens with an Intent paragraph**: what the change is for and what
+  it deliberately does not do. Review suggestions are measured against it: a
+  correction of what the pull request claims or does is applied and the
+  thread answered with the fixing commit; a suggestion adding a capability
+  beyond the intent is declined on the thread, and a real problem it names
+  gets a Linear ticket.
+- **Read `git diff --cached --stat` before committing**, and stage by path or
+  with `git add -u`: in a shared checkout, `git add -A` commits content lost
+  under you as a revert. Squash onto the branch's merge base, never with
+  `git reset --soft origin/main`, which reverts whatever `main` gained since
+  the branch was cut.
 
 ### Merging
 
@@ -243,6 +258,8 @@ package has a trusted publisher configured on npm against this repository and
 `publish-npm.yml`, and publishes are signed with provenance. **Don't rename
 `publish-npm.yml`**: the trusted-publisher configs reference it by name, and
 renaming it breaks publishing until every one is reconfigured.
+
+New packages are licensed `Apache-2.0`.
 
 ### Releasing a change
 
@@ -348,13 +365,69 @@ comment, a docstring) follows these rules.
   `[#191](https://github.com/vizij-ai/vizij-web/pull/191)`,
   `[VIZ-147](https://linear.app/semio-ai/issue/VIZ-147)`. Issues are tracked in
   Linear, where a bare `#191` links to the wrong repository's pull request.
+- **Write a comment for the code's client**: what the item does, its effects,
+  and the "why" that stops a reader from deleting something that looks dead.
+  An item defines itself by what it does, never by its callers. Public API is
+  documented exhaustively; internal comments stay lean.
+- **Something awkward to explain is a design smell.** Raise it instead of
+  writing around it.
+- **Vocabulary.** A keyframed asset is an "animation", never a "clip". A
+  module's name has no `-module` suffix (the module `@vizij/animation`); the
+  package shipping it does (`@vizij/animation-module`). Before naming a public
+  item, search the existing vocabulary across Vizij, Arora and Studio and
+  reuse it.
 - **The face standard is described on its own terms.** Docs, comments,
   changesets and pull requests state the vizij standard's behaviour plainly.
   ROS4HRI is named only where it is the subject (its mapping, turning it on or
   off, a feature it brings), because it is a profile for ROS robots, not the
   apps' default.
 
+## Design and code rules
+
+These constrain every change; each carries its reason so it applies to cases
+it does not name.
+
+- **Apps drive a face through its Arora API**: its methods (`say`, `look_at`,
+  `play_viseme`, `reset`, behavior runs, the animation module) and its data
+  store, on the vizij standard (`standard/vizij/…`) by default. A function
+  Arora already provides needs a written reason to exist in a Vizij package:
+  each wrapper is a second API that remote clients lack, and it drifts.
+- **Features go through a module's declared functions.** What a face holds
+  (animations, programs) is loaded and unloaded through the calls any client
+  sends, at any time: a real device gains resources from clients that never
+  saw its build.
+- **A module never writes keys.** A call has in and out parameters; a
+  behavior or the app chooses where to write the outputs.
+- **An Arora key is a `/`-separated path**; a trailing `.attribute` is a
+  naming convention only.
+- **No runtime client writes the authoring rig's override paths.** The
+  override stage is an inspector control inside the compiled graph, on
+  internal runtime paths; Studio, apps and ROS drive a face through its
+  standard inputs. More generally, trace a design's docs, history and author
+  before proposing to remove or bypass part of it.
+- **Private by default.** Export an item when a real caller needs it, never
+  to test it: a published export is a contract whose removal is a major.
+- **DRY, without factoring ahead of need.** Extract on real redundancy; name an
+  extracted function for what it does, and keep logic one function uses inside
+  it.
+- **Generic means indifferent**: a type parameter depends on the minimal
+  interface the code needs.
+- **Fix a cross-platform problem at the layer that makes platforms uniform.**
+  A browser- or OS-specific mitigation is a labelled stopgap, agreed before it
+  lands, because per-platform patches multiply and entrench the wrong design.
+- **Measure performance in instructions, not wall time** (`time -l`'s
+  "instructions retired" on the Node process, wasmtime fuel for a guest):
+  builds and agents share the machines, so timings there are noise.
+
 ## Troubleshooting
+
+- **A hook or a pnpm command fails with `pnpm.cjs` not found.** The `pnpm`
+  on `PATH` is corepack's shim, which cannot start pnpm 12: its package ships
+  no `pnpm.cjs`. Put first on `PATH` a Node 24 whose `pnpm` is pnpm 12 itself
+  (`npm install --global pnpm@12.16.1`).
+- **`adaptations:check` fails on a GLB under `test-results/`.** It walks
+  every directory but build output, Playwright's ignored ones included:
+  delete `test-results/` after an e2e run.
 
 - **A blank page with `_jsxDEV is not a function` in a dev server.** The shell
   exports `NODE_ENV=production`, and Vite pre-bundles React from
