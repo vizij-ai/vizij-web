@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { StandardInputValues } from "@vizij/node-graph-authoring";
 import {
   createStandardRigInput,
@@ -14,7 +14,7 @@ import type { AutoInputState } from "../types/autoInputs";
 
 export interface CreateCustomStandardInputParams {
   path: string;
-  autoInputsRef: MutableRefObject<Map<string, AutoInputState>>;
+  autoInputsRef: RefObject<Map<string, AutoInputState>>;
   setCustomInputs: Dispatch<SetStateAction<StandardRigInput[]>>;
   updateInputValues: (
     updater: (prev: StandardInputValues) => StandardInputValues,
@@ -79,13 +79,11 @@ export interface UpdateStandardInputParams {
     defaultValue?: number;
     range?: { min?: number; max?: number };
   };
-  autoInputsRef: MutableRefObject<Map<string, AutoInputState>>;
-  customInputsRef: MutableRefObject<StandardRigInput[]>;
+  autoInputsRef: RefObject<Map<string, AutoInputState>>;
+  customInputsRef: RefObject<StandardRigInput[]>;
   setAutoInputs: Dispatch<SetStateAction<Map<string, AutoInputState>>>;
   setCustomInputs: Dispatch<SetStateAction<StandardRigInput[]>>;
-  persistedAutoInputsRef: MutableRefObject<
-    Map<string, PersistedAutoStandardInput>
-  >;
+  persistedAutoInputsRef: RefObject<Map<string, PersistedAutoStandardInput>>;
   resolvePersistedAutoKey: (
     sourceId?: string | null,
     sourcePath?: string | null,

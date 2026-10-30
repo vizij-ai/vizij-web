@@ -13,6 +13,7 @@ import {
   assertMicrophoneSupport,
   toMicrophoneInputError,
 } from "./microphoneSupport";
+import pcmCaptureProcessorUrl from "./pcmCaptureProcessor.js?worker&url";
 
 type ChunkSchedule = {
   startTime: number; // absolute AudioContext time when chunk starts
@@ -29,7 +30,7 @@ export class AudioManager {
   private outputContext: AudioContext | null = null;
   private inputStream: MediaStream | null = null;
   private inputSource: MediaStreamAudioSourceNode | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private processor: AudioWorkletNode | null = null;
   private outputAnalyser: AnalyserNode | null = null;
   private outputGain: GainNode | null = null;
 
@@ -106,11 +107,17 @@ export class AudioManager {
         this.inputStream,
       );
 
-      // Use ScriptProcessor for raw PCM access
-      this.processor = this.inputContext.createScriptProcessor(4096, 1, 1);
+      // Raw PCM arrives from an audio worklet, in blocks of 4096 frames.
+      await this.inputContext.audioWorklet.addModule(pcmCaptureProcessorUrl);
+      this.processor = new AudioWorkletNode(this.inputContext, "pcm-capture", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        channelCount: 1,
+        processorOptions: { blockSize: 4096 },
+      });
 
-      this.processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
+      this.processor.port.onmessage = (e: MessageEvent<Float32Array>) => {
+        const inputData = e.data;
         const rms = this.computeRms(inputData);
         const volume = normalizeVolume(rms);
         const now = performance.now();
@@ -474,7 +481,10 @@ export class AudioManager {
       this.inputStream.getTracks().forEach((track) => track.stop());
       this.inputStream = null;
     }
-    this.processor?.disconnect();
+    if (this.processor) {
+      this.processor.port.onmessage = null;
+      this.processor.disconnect();
+    }
     this.inputSource?.disconnect();
     this.processor = null;
     this.inputSource = null;

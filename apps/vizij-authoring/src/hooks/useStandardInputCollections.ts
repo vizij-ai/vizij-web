@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import {
   normalizeStandardRigInputPath,
   stripStandardInputPathPrefix,
@@ -11,8 +11,8 @@ import { extractStandardInputSubgroups } from "../utils/standardInputs";
 export interface StandardInputCollectionsOptions {
   managedStandardInputs: ManagedStandardInput[];
   groupFallback: string;
-  allStandardInputsRef: MutableRefObject<Map<string, StandardRigInput>>;
-  standardInputsByIdRef: MutableRefObject<Map<string, StandardRigInput>>;
+  allStandardInputsRef: RefObject<Map<string, StandardRigInput>>;
+  standardInputsByIdRef: RefObject<Map<string, StandardRigInput>>;
 }
 
 export interface StandardInputCollectionsResult {

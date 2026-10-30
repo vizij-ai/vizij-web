@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import {
   addBindingSlot,
   bindingTargetFromInput,
@@ -23,8 +23,8 @@ export type BindingUpdater = (
 ) => void;
 
 interface StandardInputRefs {
-  standardInputsByIdRef: MutableRefObject<Map<string, StandardRigInput>>;
-  allStandardInputsRef: MutableRefObject<Map<string, StandardRigInput>>;
+  standardInputsByIdRef: RefObject<Map<string, StandardRigInput>>;
+  allStandardInputsRef: RefObject<Map<string, StandardRigInput>>;
 }
 
 export interface LinkChildInputOptions extends StandardInputRefs {

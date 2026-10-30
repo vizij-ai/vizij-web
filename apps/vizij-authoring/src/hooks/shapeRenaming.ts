@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import {
   bindingFromDefinition,
   bindingTargetFromComponent,
@@ -41,28 +41,24 @@ export interface ShapeRenameParams {
   newSlug: string;
   shapeName: string;
   previousName: string;
-  autoInputsRef: MutableRefObject<Map<string, AutoInputState>>;
-  customInputsRef: MutableRefObject<StandardRigInput[]>;
+  autoInputsRef: RefObject<Map<string, AutoInputState>>;
+  customInputsRef: RefObject<StandardRigInput[]>;
   setCustomInputs: Dispatch<SetStateAction<StandardRigInput[]>>;
   setAutoInputs: Dispatch<SetStateAction<Map<string, AutoInputState>>>;
-  allStandardInputsRef: MutableRefObject<Map<string, StandardRigInput>>;
+  allStandardInputsRef: RefObject<Map<string, StandardRigInput>>;
   setDisabledStandardInputIds: Dispatch<SetStateAction<string[]>>;
-  disabledInputBindingCacheRef: MutableRefObject<
-    Map<string, RigBindingDefinition>
-  >;
+  disabledInputBindingCacheRef: RefObject<Map<string, RigBindingDefinition>>;
   updateInputValues: (
     updater: (prev: StandardInputValues) => StandardInputValues,
   ) => void;
   setBindings: Dispatch<SetStateAction<BindingMap>>;
-  componentsByIdRef: MutableRefObject<Map<string, AnimatableComponent>>;
+  componentsByIdRef: RefObject<Map<string, AnimatableComponent>>;
   setInputBindings: Dispatch<SetStateAction<InputBindingMap>>;
-  pendingInputBindingDefinitionsRef: MutableRefObject<Record<
+  pendingInputBindingDefinitionsRef: RefObject<Record<
     string,
     RigBindingDefinition
   > | null>;
-  persistedAutoInputsRef: MutableRefObject<
-    Map<string, PersistedAutoStandardInput>
-  >;
+  persistedAutoInputsRef: RefObject<Map<string, PersistedAutoStandardInput>>;
   refreshAutoMetadataForShape: (shapeId: string, shapeName: string) => void;
   setSelectedStandardInputRoots: Dispatch<SetStateAction<string[]>>;
   setSelectedStandardInputSubgroups: Dispatch<SetStateAction<string[]>>;

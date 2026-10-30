@@ -150,8 +150,6 @@ export function useExportDirtyState({
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = "";
-      return "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {

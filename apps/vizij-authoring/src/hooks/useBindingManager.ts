@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import type { AnimatableComponent } from "@vizij/utils";
 import { type StandardRigInput } from "@vizij/utils";
 import {
@@ -31,8 +31,8 @@ import { ensureLinkedSlotActiveInExpression } from "../utils/bindingExpressions"
 
 interface BindingManagerOptions {
   componentsById: Map<string, AnimatableComponent>;
-  standardInputsByIdRef: MutableRefObject<Map<string, StandardRigInput>>;
-  allStandardInputsRef: MutableRefObject<Map<string, StandardRigInput>>;
+  standardInputsByIdRef: RefObject<Map<string, StandardRigInput>>;
+  allStandardInputsRef: RefObject<Map<string, StandardRigInput>>;
   maybeAutoAliasSlot: (
     binding: AnimatableBinding,
     target: BindingTarget,
