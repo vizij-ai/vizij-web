@@ -40,8 +40,8 @@
   },
   "dependencies": {
     "@vizij/utils": "workspace:^",
-    "immer": "^10.0.3",
-    "three-stdlib": "^2.35.13"
+    "immer": "^11.2.9",
+    "three-stdlib": "^2.36.1"
   },
   "peerDependencies": {
     "@vizij/runtime": "^8.0.0 || ^9.0.0",
@@ -51,18 +51,18 @@
   },
   "devDependencies": {
     "@size-limit/file": "^14.3.0",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/three": "^0.170.0",
     "@vizij/runtime": "^9.2.0",
     "prettier": "^3.9.10",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "size-limit": "^14.3.0",
     "three": "^0.170.0",
     "tsup": "^9.0.0",
     "typescript": "^6.0.3",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.16"
   },
   "size-limit": [
     {

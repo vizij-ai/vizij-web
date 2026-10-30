@@ -3,7 +3,7 @@
   "version": "0.1.5",
   "private": true,
   "type": "module",
-  "description": "Demo Node Graph Editor app \u2014 built on @vizij/node-graph-react and node-graph",
+  "description": "Demo Node Graph Editor app — built on @vizij/node-graph-react and node-graph",
   "main": "src/main.tsx",
   "scripts": {
     "dev": "vite",
@@ -24,11 +24,11 @@
     "@vizij/node-graph-authoring": "workspace:*",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/utils": "workspace:*",
-    "@vizij/value-json": "^0.2.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "@vizij/value-json": "^0.2.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "reactflow": "11.x",
-    "zustand": "^5.0.9"
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
