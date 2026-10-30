@@ -64,7 +64,7 @@
     "lint-staged": "^17.6.0",
     "markdownlint-cli": "^0.50.0",
     "prettier": "^3.9.10",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^3.2.7",
     "ws": "^8.22.0"

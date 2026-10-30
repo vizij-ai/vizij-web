@@ -4,11 +4,11 @@
     "module": "ES2020",
     "declaration": true,
     "outDir": "dist",
+    "rootDir": "..",
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "Bundler",
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@vizij/utils": ["../utils/src"],
       "@vizij/utils/*": ["../utils/src/*"]

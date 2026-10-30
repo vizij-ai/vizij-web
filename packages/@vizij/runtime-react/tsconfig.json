@@ -1,14 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES2020",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ES2020",
     "declaration": true,
     "outDir": "dist",
+    "rootDir": "..",
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "Bundler",
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@vizij/render": ["../render/src"],
       "@vizij/render/*": ["../render/src/*"],
