@@ -15,7 +15,7 @@
 use std::env;
 
 use futures_util::StreamExt;
-use ros2_client::ros2::{policy::Reliability, Duration as DdsDuration, QosPolicyBuilder};
+use ros2_client::qos::WhenFull;
 use ros2_client::{
     Context, ContextOptions, MessageTypeName, Name, NodeName, NodeOptions, DEFAULT_SUBSCRIPTION_QOS,
 };
@@ -72,13 +72,7 @@ async fn main() {
     // `--reliable` keeps the subscription defaults and switches only the
     // reliability policy — the publisher defaults differ on more than that.
     let qos = if reliable {
-        DEFAULT_SUBSCRIPTION_QOS.modify_by(
-            &QosPolicyBuilder::new()
-                .reliability(Reliability::Reliable {
-                    max_blocking_time: DdsDuration::from_millis(100),
-                })
-                .build(),
-        )
+        DEFAULT_SUBSCRIPTION_QOS.reliability_reliable(WhenFull::DEFAULT)
     } else {
         DEFAULT_SUBSCRIPTION_QOS.clone()
     };
@@ -99,7 +93,7 @@ async fn main() {
             let topics: Vec<_> = ctx_clone
                 .discovered_topics()
                 .iter()
-                .map(|t| t.topic_name().clone())
+                .map(|t| t.name.clone())
                 .collect();
             println!("[discovery] {} topics visible", topics.len());
         }

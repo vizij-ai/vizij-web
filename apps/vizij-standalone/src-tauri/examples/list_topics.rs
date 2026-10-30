@@ -140,11 +140,11 @@ fn main() {
     loop {
         // Poll discovered topics and merge into our map.
         for dt in ctx.discovered_topics() {
-            let dds_name = dt.topic_name().clone();
+            let dds_name = dt.name.clone();
             topics.entry(dds_name.clone()).or_insert_with(|| {
                 last_new_topic = Some(Instant::now());
                 TopicEntry {
-                    type_name: dds_type_to_ros(dt.type_name()),
+                    type_name: dds_type_to_ros(&dt.type_name),
                     kind: topic_kind(&dds_name),
                 }
             });

@@ -11,7 +11,7 @@ name = "vizij_standalone_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.6", features = [] }
+tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
 # The device the shell runs beside the page, on plain stable: one
@@ -59,24 +59,24 @@ async-trait = { version = "0.1", optional = true }
 # Encrypt the persisted anonymous refresh token at rest (XSalsa20Poly1305), the
 # same mechanism arora uses for its saved token. Only needed with studio-bridge.
 crypto_secretbox = { version = "0.1.1", optional = true }
-tauri = { version = "2.10.3", features = [] }
-tauri-plugin-dialog = "2.6.0"
-tauri-plugin-fs = "2.4.5"
-tauri-plugin-log = "2.8.0"
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-fs = "2.7"
+tauri-plugin-log = "2.10"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync"] }
 tokio-util = "0.7"
 log = "0.4"
 clap = { version = "4", features = ["derive"] }
 dotenvy = "0.15"
-base64 = "0.22"
+base64 = "0.23"
 
 # `tao` (windowing) is desktop-only — used solely by `list_displays()` behind
 # `#[cfg(desktop)]`. Excluding it from Android keeps the mobile build lean.
 [target.'cfg(not(target_os = "android"))'.dependencies]
-tao = "0.30"
+tao = "0.37"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_System_Console"] }
+windows = { version = "0.62", features = ["Win32_System_Console"] }
 
 [features]
 default = []
@@ -120,10 +120,10 @@ studio-bridge = [
 # the device's built-in keys.
 arora-behavior = "9"
 # The ROS 2 examples (`publish_slot`, `subscribe_slot`, `list_topics`).
-ros2-client = "0.8"
+ros2-client = "0.12"
 futures-util = "0.3"
 serde = { version = "1", features = ["derive"] }
-rand = "0.9"
+rand = "0.10"
 tokio = { version = "1", features = ["full"] }
 # The mock `Bridge` in the studio-bridge tests implements an `#[async_trait]` trait.
 async-trait = "0.1"
