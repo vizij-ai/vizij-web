@@ -1,5 +1,14 @@
 # @vizij/node-graph-authoring
 
+## 0.3.1
+
+### Patch Changes
+
+- 8ef2bc1: `vizij-ir-report` keeps the JSON parser's error as the `cause` of the error it throws for an unreadable machine report.
+- 8ef2bc1: Built with TypeScript 6 and tsup 9. The published code and declarations keep their ES2020 target and their exports.
+- Updated dependencies [8ef2bc1]
+  - @vizij/utils@0.2.2
+
 ## 0.3.0
 
 ### Minor Changes

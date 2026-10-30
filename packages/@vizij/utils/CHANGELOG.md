@@ -1,5 +1,11 @@
 # @vizij/utils
 
+## 0.2.2
+
+### Patch Changes
+
+- 8ef2bc1: Built with TypeScript 6 and tsup 9. The published code and declarations keep their ES2020 target and their exports.
+
 ## 0.2.1
 
 ### Patch Changes
