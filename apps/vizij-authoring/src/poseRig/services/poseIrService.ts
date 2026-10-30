@@ -1935,8 +1935,7 @@ export const PoseIrService = {
         ...(group && typeof group === "object" && "neutral" in group
           ? {
               neutral: (group as { neutral?: unknown }).neutral as
-                | PoseScopedNeutralDefinition
-                | undefined,
+                PoseScopedNeutralDefinition | undefined,
             }
           : {}),
       })),

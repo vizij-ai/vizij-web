@@ -182,13 +182,11 @@ describe("useBundleSynchronizer", () => {
       standardInputCount: 3,
       standardInputsRigImportRevision: 0,
       skipDiscrepancyCheck: false,
-      importGraphSpec: vi.fn(
-        async (): Promise<RigImportResult> => ({
-          faceChanged: false,
-          importedFaceId: null,
-          inputsRevision: 0,
-        }),
-      ),
+      importGraphSpec: vi.fn(async (): Promise<RigImportResult> => ({
+        faceChanged: false,
+        importedFaceId: null,
+        inputsRevision: 0,
+      })),
       canImportRigGraph: true,
       importPoseConfigFromData: vi.fn(),
       onPhaseChange: (update) => {
@@ -207,13 +205,11 @@ describe("useBundleSynchronizer", () => {
     // The pose rig has no inputs yet, and the rig graph import brings them.
     const { hook, props, phases } = renderSynchronizer({
       standardInputCount: 0,
-      importGraphSpec: vi.fn(
-        async (): Promise<RigImportResult> => ({
-          faceChanged: false,
-          importedFaceId: null,
-          inputsRevision: 1,
-        }),
-      ),
+      importGraphSpec: vi.fn(async (): Promise<RigImportResult> => ({
+        faceChanged: false,
+        importedFaceId: null,
+        inputsRevision: 1,
+      })),
     });
     await runFrames();
 
@@ -238,13 +234,11 @@ describe("useBundleSynchronizer", () => {
     const { hook, props, phases } = renderSynchronizer({
       standardInputCount: 3,
       standardInputsRigImportRevision: 4,
-      importGraphSpec: vi.fn(
-        async (): Promise<RigImportResult> => ({
-          faceChanged: false,
-          importedFaceId: null,
-          inputsRevision: 5,
-        }),
-      ),
+      importGraphSpec: vi.fn(async (): Promise<RigImportResult> => ({
+        faceChanged: false,
+        importedFaceId: null,
+        inputsRevision: 5,
+      })),
     });
     await runFrames();
 
@@ -262,13 +256,11 @@ describe("useBundleSynchronizer", () => {
   it("imports the pose config of a face whose pose rig has no inputs", async () => {
     const { hook, props, phases } = renderSynchronizer({
       standardInputCount: 0,
-      importGraphSpec: vi.fn(
-        async (): Promise<RigImportResult> => ({
-          faceChanged: false,
-          importedFaceId: null,
-          inputsRevision: 1,
-        }),
-      ),
+      importGraphSpec: vi.fn(async (): Promise<RigImportResult> => ({
+        faceChanged: false,
+        importedFaceId: null,
+        inputsRevision: 1,
+      })),
     });
     await runFrames();
     expect(props.importPoseConfigFromData).not.toHaveBeenCalled();
@@ -311,13 +303,11 @@ describe("useBundleSynchronizer", () => {
     // The rig graph renames the face, so the pose stage waits for the rename
     // to land before importing.
     const { hook, props, phases } = renderSynchronizer({
-      importGraphSpec: vi.fn(
-        async (): Promise<RigImportResult> => ({
-          faceChanged: true,
-          importedFaceId: "renamed",
-          inputsRevision: 0,
-        }),
-      ),
+      importGraphSpec: vi.fn(async (): Promise<RigImportResult> => ({
+        faceChanged: true,
+        importedFaceId: "renamed",
+        inputsRevision: 0,
+      })),
     });
     await runFrames(5);
     expect(

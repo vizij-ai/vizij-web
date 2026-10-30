@@ -1,7 +1,5 @@
 export type MicrophoneSupportCode =
-  | "available"
-  | "insecure-context"
-  | "unsupported-browser";
+  "available" | "insecure-context" | "unsupported-browser";
 
 export const MICROPHONE_INSECURE_CONTEXT_MESSAGE =
   "Microphone input requires HTTPS or localhost. Open this app on localhost, or run the dev server with HTTPS for LAN testing.";

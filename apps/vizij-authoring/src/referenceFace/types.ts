@@ -1,8 +1,5 @@
 export type MappingRowStatus =
-  | "resolved"
-  | "ambiguous"
-  | "unmapped"
-  | "skipped";
+  "resolved" | "ambiguous" | "unmapped" | "skipped";
 
 export type UnresolvedMappingRowStatus = Exclude<
   MappingRowStatus,
@@ -24,9 +21,7 @@ export interface ReferenceInputRange {
 }
 
 export type ReferencePipelineLinkSource =
-  | "pipeline-link"
-  | "by-input-parent"
-  | "merged";
+  "pipeline-link" | "by-input-parent" | "merged";
 
 export interface ReferenceCatalogPipelineLink {
   linkId: string;
@@ -139,8 +134,7 @@ export interface VariableCopyProposal {
   childRows: readonly VariableLinkMappingRow[];
   valueMerge: VariableValueMergeDecisions;
   unresolvedRows: readonly (
-    | InputDestinationMappingRow
-    | VariableLinkMappingRow
+    InputDestinationMappingRow | VariableLinkMappingRow
   )[];
 }
 

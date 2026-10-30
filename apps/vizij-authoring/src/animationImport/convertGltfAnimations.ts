@@ -30,9 +30,7 @@ import { quaternionCurveToEulerZYX } from "./quaternionToEuler";
 
 /** How the source grouped its animations, inferred from the document's shape. */
 export type GltfAnimationGrouping =
-  | "per-action"
-  | "per-animation"
-  | "single-scene";
+  "per-action" | "per-animation" | "single-scene";
 
 export type GltfImportDiagnosticSeverity = "info" | "warning" | "error";
 

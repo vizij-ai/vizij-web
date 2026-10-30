@@ -121,8 +121,7 @@ export function useGeminiLive(
       return;
     }
     const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY as
-      | string
-      | undefined;
+      string | undefined;
     if (!apiKey) {
       setError("Missing VITE_GEMINI_API_KEY (see README.md)");
       setStatus(LiveStatus.ERROR);
@@ -264,15 +263,13 @@ export function useGeminiLive(
                 try {
                   const responses =
                     (await handleFunctionCalls?.(toolCalls)) ??
-                    toolCalls.map(
-                      (call): FunctionResponse => ({
-                        id: call.id,
-                        name: call.name,
-                        response: {
-                          error: "No client-side handler provided.",
-                        },
-                      }),
-                    );
+                    toolCalls.map((call): FunctionResponse => ({
+                      id: call.id,
+                      name: call.name,
+                      response: {
+                        error: "No client-side handler provided.",
+                      },
+                    }));
                   if (responses && responses.length > 0) {
                     console.warn(
                       "[gemini][tools] sending responses",
@@ -288,18 +285,16 @@ export function useGeminiLive(
                   }
                 } catch (err) {
                   console.error("[gemini] tool handling failed", err);
-                  const fallback = toolCalls.map(
-                    (call): FunctionResponse => ({
-                      id: call.id,
-                      name: call.name,
-                      response: {
-                        error:
-                          err instanceof Error
-                            ? err.message
-                            : "Tool handling failed",
-                      },
-                    }),
-                  );
+                  const fallback = toolCalls.map((call): FunctionResponse => ({
+                    id: call.id,
+                    name: call.name,
+                    response: {
+                      error:
+                        err instanceof Error
+                          ? err.message
+                          : "Tool handling failed",
+                    },
+                  }));
                   const session = await sessionPromiseRef.current;
                   session?.sendToolResponse?.({
                     functionResponses: fallback,

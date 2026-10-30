@@ -134,10 +134,7 @@ export type SurfaceTab =
   | "programs"
   | "inputs";
 type CenterAuthoringMode =
-  | "none"
-  | "animation"
-  | "procedural-animation-programming"
-  | "reference-face";
+  "none" | "animation" | "procedural-animation-programming" | "reference-face";
 type FilterableSurfaceTab = Exclude<
   SurfaceTab,
   "pose-groups" | "animations" | "programs"
@@ -4694,7 +4691,7 @@ export function VariablesPanel({
       Boolean(timelineInputLockActive) &&
       Boolean(
         timelineLockedInputIds?.has(row.inputId) ||
-          timelineLockedInputIds?.has(row.path),
+        timelineLockedInputIds?.has(row.path),
       ),
     [timelineInputLockActive, timelineLockedInputIds],
   );

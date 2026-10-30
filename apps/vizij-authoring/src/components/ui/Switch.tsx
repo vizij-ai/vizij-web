@@ -2,11 +2,10 @@ import type { ReactNode } from "react";
 import { Switch as SemioSwitch, Size, Variant } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
-export interface SwitchProps
-  extends Omit<
-    React.InputHTMLAttributes<HTMLInputElement>,
-    "type" | "size" | "onChange"
-  > {
+export interface SwitchProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "type" | "size" | "onChange"
+> {
   onChange?: (checked: boolean) => void;
   label?: ReactNode;
   hint?: ReactNode;

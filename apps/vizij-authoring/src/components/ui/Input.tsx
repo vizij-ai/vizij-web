@@ -3,8 +3,10 @@ import type { InputHTMLAttributes } from "react";
 import { TextField, Size } from "@semio/ui";
 import { cn } from "../../utils/cn";
 
-export interface InputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
+export interface InputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "size"
+> {
   size?: "sm" | "md";
   startContent?: ReactNode;
 }

@@ -4,11 +4,7 @@ import type { NodeType } from "@vizij/node-graph";
 type NodeSignature = ReturnType<typeof requireNodeSignature>;
 
 export type ExpressionFunctionCategory =
-  | "math"
-  | "logic"
-  | "time"
-  | "utility"
-  | "vector";
+  "math" | "logic" | "time" | "utility" | "vector";
 
 export type ExpressionValueType = "scalar" | "vector" | "boolean" | "any";
 

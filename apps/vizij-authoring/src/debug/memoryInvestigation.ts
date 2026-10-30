@@ -1,9 +1,7 @@
 import { memoryBytes } from "@vizij/runtime";
 
 export type MemoryInvestigationScope =
-  | "full"
-  | "main-runtime-only"
-  | "authoring-only";
+  "full" | "main-runtime-only" | "authoring-only";
 
 export interface MemoryInvestigationFlags {
   enabled: boolean;

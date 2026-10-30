@@ -4,8 +4,7 @@ import type { VectorDescriptorType } from "@vizij/utils";
 import { RGB_COMPONENTS, XYZ_COMPONENTS } from "../utils/constants";
 
 export type VectorComponent =
-  | (typeof XYZ_COMPONENTS)[number]
-  | (typeof RGB_COMPONENTS)[number];
+  (typeof XYZ_COMPONENTS)[number] | (typeof RGB_COMPONENTS)[number];
 
 export interface RenderableLike {
   id: string;

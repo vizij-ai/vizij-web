@@ -35,10 +35,7 @@ export type RigInputDescriptor = {
 export type VectorDefaults = RawVector3 | RawEuler | RawRGB;
 
 export type AnimatableDescriptors =
-  | AnimatableNumber
-  | AnimatableVector3
-  | AnimatableEuler
-  | AnimatableColor;
+  AnimatableNumber | AnimatableVector3 | AnimatableEuler | AnimatableColor;
 
 export interface PropertyNode {
   id: string;
@@ -81,11 +78,7 @@ export interface ShapeTreeNode {
 }
 
 export type TreeNodeType =
-  | "shape"
-  | "feature"
-  | "animatable"
-  | "field"
-  | "property";
+  "shape" | "feature" | "animatable" | "field" | "property";
 
 export type {
   FeatureEntry,

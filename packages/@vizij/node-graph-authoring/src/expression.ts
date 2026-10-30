@@ -31,16 +31,7 @@ export type ControlExpressionNode =
 type UnaryOperator = "+" | "-" | "!";
 
 type BinaryOperator =
-  | "+"
-  | "-"
-  | "*"
-  | "/"
-  | ">"
-  | "<"
-  | "=="
-  | "!="
-  | "&&"
-  | "||";
+  "+" | "-" | "*" | "/" | ">" | "<" | "==" | "!=" | "&&" | "||";
 
 export interface ExpressionParseError {
   index: number;

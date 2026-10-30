@@ -220,8 +220,7 @@ export function specToEditorState(
   // ── 5. Restore saved layout or fall back to auto-layout ──────────
 
   const layout = spec.layout as
-    | Record<string, { x: number; y: number }>
-    | undefined;
+    Record<string, { x: number; y: number }> | undefined;
 
   if (layout && typeof layout === "object") {
     let hasAnyPosition = false;

@@ -10,11 +10,10 @@ import { cn } from "../../utils/cn";
  * `HTMLAttributes` already declares an `onSelect` (the DOM text-selection event),
  * so it has to be omitted before the row can use that name for row activation.
  */
-interface ListRowProps
-  extends Omit<
-    HTMLAttributes<HTMLDivElement>,
-    "title" | "children" | "onSelect"
-  > {
+interface ListRowProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  "title" | "children" | "onSelect"
+> {
   title: ReactNode;
   meta?: ReactNode;
   actions?: ReactNode;

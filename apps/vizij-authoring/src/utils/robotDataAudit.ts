@@ -43,8 +43,7 @@ export function refsOfScene(
   scene.traverse((object) => {
     const robotData = (
       object.userData as
-        | { gltfExtensions?: { RobotData?: { id?: unknown } } }
-        | undefined
+        { gltfExtensions?: { RobotData?: { id?: unknown } } } | undefined
     )?.gltfExtensions?.RobotData;
     if (typeof robotData?.id === "string") {
       refs[robotData.id] = { [namespace]: { current: object } };
@@ -351,8 +350,7 @@ export function createRobotDataAuditTask(
     }
     const robotExtension = (
       object.userData as
-        | { gltfExtensions?: { RobotData?: unknown } }
-        | undefined
+        { gltfExtensions?: { RobotData?: unknown } } | undefined
     )?.gltfExtensions?.RobotData;
     const hasRobotData = Boolean(robotExtension);
     if (hasRobotData) {

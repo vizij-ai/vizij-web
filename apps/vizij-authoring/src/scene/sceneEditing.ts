@@ -889,8 +889,7 @@ export function duplicateSceneNode(
 
     if (resolvedParent) {
       const parent = nextWorld[resolvedParent] as
-        | RenderableWithChildren
-        | undefined;
+        RenderableWithChildren | undefined;
       if (parent) {
         const children = createChildrenArray(parent);
         if (children.includes(newId)) {

@@ -5,10 +5,7 @@ import {
 } from "@vizij/utils";
 
 export type SharedVariableSyncPolicy =
-  | "off"
-  | "bidirectional"
-  | "main-to-reference"
-  | "reference-to-main";
+  "off" | "bidirectional" | "main-to-reference" | "reference-to-main";
 
 type SharedVariableSource = "main" | "reference";
 

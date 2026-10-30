@@ -11,13 +11,7 @@ export type GraphDiffCategory =
 export type GraphDiffKind = "missing" | "unexpected" | "mismatch";
 
 export type GraphDiffEntityType =
-  | "node"
-  | "edge"
-  | "input"
-  | "binding"
-  | "expression"
-  | "metadata"
-  | "other";
+  "node" | "edge" | "input" | "binding" | "expression" | "metadata" | "other";
 
 export interface GraphDiffContext {
   entityType: GraphDiffEntityType;

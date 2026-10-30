@@ -200,13 +200,7 @@ function componentKeys(component: VectorComponent): readonly string[] {
 
 function getVectorComponentValue(
   vector:
-    | RawVector2
-    | RawVector3
-    | RawEuler
-    | RawColor
-    | number[]
-    | null
-    | undefined,
+    RawVector2 | RawVector3 | RawEuler | RawColor | number[] | null | undefined,
   component: VectorComponent,
   fallback: number,
 ): number {
@@ -255,10 +249,7 @@ function computeNumberFallbackRange(
 
 function computeVectorFallbackRange(
   animatable:
-    | AnimatableVector2
-    | AnimatableVector3
-    | AnimatableEuler
-    | AnimatableColor,
+    AnimatableVector2 | AnimatableVector3 | AnimatableEuler | AnimatableColor,
   component: VectorComponent,
   defaultValue: number,
 ): { min: number; max: number } {
@@ -354,10 +345,7 @@ function extractNumberComponent(
 
 function extractVectorComponents(
   animatable:
-    | AnimatableVector2
-    | AnimatableVector3
-    | AnimatableEuler
-    | AnimatableColor,
+    AnimatableVector2 | AnimatableVector3 | AnimatableEuler | AnimatableColor,
   registry: Set<string>,
 ): AnimatableComponent[] {
   let components: VectorComponent[];

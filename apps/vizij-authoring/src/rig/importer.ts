@@ -239,9 +239,9 @@ function synthesizeInputBindingSummariesFromPipelineLinks(params: {
   const hasLinks = Boolean(links && Object.keys(links).length > 0);
   const hasParentConfigs = Boolean(
     byInputId &&
-      Object.values(byInputId).some(
-        (config) => Array.isArray(config?.parents) && config.parents.length > 0,
-      ),
+    Object.values(byInputId).some(
+      (config) => Array.isArray(config?.parents) && config.parents.length > 0,
+    ),
   );
   if (!hasLinks && !hasParentConfigs) {
     return [...params.summaries];

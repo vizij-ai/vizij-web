@@ -21,12 +21,7 @@ export type DemoPlaybackSelection = {
 };
 
 export type DemoPanelId =
-  | "overview"
-  | "controls"
-  | "poses"
-  | "animations"
-  | "programs"
-  | "diagnostics";
+  "overview" | "controls" | "poses" | "animations" | "programs" | "diagnostics";
 
 export type DemoPanelVisibility = Record<DemoPanelId, boolean>;
 

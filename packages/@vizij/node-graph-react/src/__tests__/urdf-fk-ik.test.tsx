@@ -257,8 +257,7 @@ describe("URDF FK/IK integration", () => {
           }
 
           const fkNode = fkResult.nodes?.fk as
-            | Record<string, { value: ValueJSON }>
-            | undefined;
+            Record<string, { value: ValueJSON }> | undefined;
           if (!fkNode?.position)
             throw new Error(`fk position missing for sample ${sampleIdx}`);
           const fkPos = valueAsVector(fkNode.position);
@@ -300,8 +299,7 @@ describe("URDF FK/IK integration", () => {
             );
           }
           const validationFk = validation.nodes?.fk as
-            | Record<string, { value: ValueJSON }>
-            | undefined;
+            Record<string, { value: ValueJSON }> | undefined;
           const validationPos = validationFk?.position
             ? valueAsVector(validationFk.position)
             : undefined;

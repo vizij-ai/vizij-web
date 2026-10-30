@@ -130,9 +130,7 @@ async function conversationState(page: Page): Promise<Record<string, number>> {
     for (const name of ["speaking", "user_speaking", "thinking"]) {
       const key = runtime.path(`standard/vizij/conversation/${name}`);
       const value = runtime.readValues([key])[key] as
-        | { f32?: number; float?: number }
-        | number
-        | null;
+        { f32?: number; float?: number } | number | null;
       state[name] =
         typeof value === "number" ? value : (value?.f32 ?? value?.float ?? 0);
     }

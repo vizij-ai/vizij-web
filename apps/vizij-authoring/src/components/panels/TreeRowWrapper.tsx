@@ -197,9 +197,9 @@ export function TreeRowWrapper({
     (referencePoseId
       ? selectedReferencePoseIds?.has(referencePoseId)
       : false) ||
-      (bulkReferenceRigSelectionId
-        ? selectedReferenceRigIds?.has(bulkReferenceRigSelectionId)
-        : false),
+    (bulkReferenceRigSelectionId
+      ? selectedReferenceRigIds?.has(bulkReferenceRigSelectionId)
+      : false),
   );
 
   // Check selection
@@ -268,7 +268,7 @@ export function TreeRowWrapper({
       Boolean(timelineInputLockActive) &&
       Boolean(
         timelineLockedInputIds?.has(inputData.inputId) ||
-          timelineLockedInputIds?.has(inputData.path),
+        timelineLockedInputIds?.has(inputData.path),
       );
     const motionGraphPath = motionGraphContext
       ? buildRigInputPath(motionGraphContext.runtimeFaceSegment, inputData.path)

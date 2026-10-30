@@ -25,9 +25,7 @@ export type AuthoringUiAction =
 
 export type RiggingTab = "rigging" | "face";
 export type RuntimeAuthoringSource =
-  | "animation"
-  | "procedural-animation-programming"
-  | "none";
+  "animation" | "procedural-animation-programming" | "none";
 export type RotationDisplayMode = "radians" | "degrees";
 export type EditFocus =
   | "default"

@@ -48,8 +48,7 @@ export function RiggingMorphTargetsSection({
   // Get morph targets from runtime
   const morphTargetKeys = useGraphRuntime((state) => {
     const renderable = state.world[node.id] as
-      | { morphTargets?: string[] }
-      | undefined;
+      { morphTargets?: string[] } | undefined;
     return renderable?.morphTargets ?? EMPTY_ARRAY;
   });
 

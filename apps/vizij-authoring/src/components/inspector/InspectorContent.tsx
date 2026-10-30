@@ -3322,10 +3322,7 @@ export function InspectorContent({
       };
       const resolvePatchedPipelineMetadata = (
         pipelineMetadata:
-          | Record<string, unknown>
-          | RigPipelineV1Metadata
-          | null
-          | undefined,
+          Record<string, unknown> | RigPipelineV1Metadata | null | undefined,
         patch?: PipelineMetadataPatch,
       ): RigPipelineV1Metadata | null => {
         if (!patch) {
@@ -3353,10 +3350,7 @@ export function InspectorContent({
       const resolveParentContributionSourcesForInput = (params: {
         childInputId: string;
         pipelineMetadata:
-          | Record<string, unknown>
-          | RigPipelineV1Metadata
-          | null
-          | undefined;
+          Record<string, unknown> | RigPipelineV1Metadata | null | undefined;
         patch?: PipelineMetadataPatch;
       }): RigPipelineV1ParentContributionSource[] => {
         const childInput = standardInputsById.get(params.childInputId);
@@ -3426,9 +3420,7 @@ export function InspectorContent({
         const previousExpression =
           readParentBlendExpressionFromPipelineMetadata(
             currentState.pipelineMetadataV1 as
-              | Record<string, unknown>
-              | null
-              | undefined,
+              Record<string, unknown> | null | undefined,
             params.childInputId,
           );
         const rewriteParentBlend = isAutoParentBlendExpression(
@@ -3464,8 +3456,7 @@ export function InspectorContent({
             : previousExpression;
           const nextMetadata = mergePipelineMetadata(
             (existingBinding.metadata ?? undefined) as
-              | Record<string, unknown>
-              | undefined,
+              Record<string, unknown> | undefined,
             {
               ...(params.linkDeletes && params.linkDeletes.length > 0
                 ? { linkDeletes: params.linkDeletes }
@@ -4507,8 +4498,7 @@ export function InspectorContent({
             createDefaultParentBinding(bindingTargetFromInput(sourceInput));
           const nextMetadata = mergePipelineMetadata(
             (existingBinding.metadata ?? undefined) as
-              | Record<string, unknown>
-              | undefined,
+              Record<string, unknown> | undefined,
             patch,
           );
           const previousMetadataSignature = JSON.stringify(

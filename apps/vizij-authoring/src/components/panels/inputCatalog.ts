@@ -14,11 +14,7 @@ import {
 import { isPropsRigStandardInputPath } from "../../utils/rigElementInputs";
 
 export type InputCatalogSource =
-  | "auto"
-  | "preset"
-  | "custom"
-  | "reference"
-  | "shared";
+  "auto" | "preset" | "custom" | "reference" | "shared";
 
 export interface InputCatalogRow {
   id: string;

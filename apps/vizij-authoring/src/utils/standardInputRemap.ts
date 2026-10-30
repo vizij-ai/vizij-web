@@ -121,9 +121,7 @@ function remapStringRecord<T>(
 
 function remapScopedNeutralDefinition<
   T extends
-    | { sourceType?: string; values?: Record<string, number> }
-    | null
-    | undefined,
+    { sourceType?: string; values?: Record<string, number> } | null | undefined,
 >(definition: T, idRemap: ReadonlyMap<string, string>): T {
   if (
     !definition ||

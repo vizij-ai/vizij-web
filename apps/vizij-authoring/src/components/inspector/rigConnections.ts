@@ -21,9 +21,7 @@ export interface DirectRigInputDependent {
 }
 
 export type PoseRigSourceKind =
-  | "pose-entry"
-  | "pose-group-output"
-  | "pose-aggregate-output";
+  "pose-entry" | "pose-group-output" | "pose-aggregate-output";
 
 export interface TraceConnectionsSummary {
   rigs: Array<{
@@ -61,10 +59,7 @@ export interface PoseRigFaceTrace {
 }
 
 export type PoseRigTraversalNodeKind =
-  | "pose"
-  | "rig"
-  | "propsrig"
-  | "animatable";
+  "pose" | "rig" | "propsrig" | "animatable";
 
 export interface PoseRigTraversalNode {
   id: string;

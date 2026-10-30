@@ -104,8 +104,7 @@ describe("useRigController pipeline metadata merge helpers", () => {
 
     const merged = mergeImportedAndLocalPipelineLinksById(imported, local);
     const link = merged["link/parent_input->child_input"] as
-      | { expression?: string; scale?: number }
-      | undefined;
+      { expression?: string; scale?: number } | undefined;
     expect(link).toBeDefined();
     expect(link?.scale).toBe(2);
     expect(link?.expression).toBe("s1 = sin(parent * scale) + offset");
@@ -131,8 +130,7 @@ describe("useRigController pipeline metadata merge helpers", () => {
 
     const merged = mergeImportedAndLocalPipelineLinksById(imported, local);
     const link = merged["link/parent_input->child_input"] as
-      | { expression?: string }
-      | undefined;
+      { expression?: string } | undefined;
     expect(link?.expression).toBe("s1 = sin(parent * scale) + offset");
   });
 
