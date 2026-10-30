@@ -36,7 +36,7 @@ Published on npm, for apps of your own:
 
 ## Run it
 
-You need Node 24 and pnpm 9 (`corepack enable` provides it). From the
+You need Node 24 and pnpm 12 (`corepack enable` provides it). From the
 repository root:
 
 ```bash
