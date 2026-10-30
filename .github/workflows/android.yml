@@ -57,9 +57,7 @@ jobs:
         with:
           workspaces: ${{ env.APP_DIR }}/src-tauri -> target
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.12.2
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
@@ -246,9 +244,7 @@ jobs:
         with:
           workspaces: ${{ env.APP_DIR }}/src-tauri -> target
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.12.2
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:

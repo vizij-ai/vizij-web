@@ -9,7 +9,7 @@ release it. How the pieces fit together is in
 ### Node and pnpm
 
 - **Node 24**, the version in [`.nvmrc`](./.nvmrc) and CI.
-- **pnpm 9.12.2**, the `packageManager` in [`package.json`](./package.json);
+- **pnpm 12.16.1**, the `packageManager` in [`package.json`](./package.json);
   `corepack enable` provides it. Use pnpm for everything: the workspace links
   its packages with `workspace:` ranges, which npm does not resolve.
 
