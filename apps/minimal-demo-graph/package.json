@@ -22,13 +22,13 @@
     "@vizij/node-graph": "^0.13.0",
     "@vizij/node-graph-react": "workspace:*",
     "@vizij/utils": "workspace:*",
-    "@vizij/value-json": "^0.2.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "@vizij/value-json": "^0.2.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "cross-env": "^10.1.0",
     "prettier": "^3.9.10",

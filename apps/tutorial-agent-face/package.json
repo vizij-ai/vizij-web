@@ -13,16 +13,16 @@
     "test": "vitest --run"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
+    "@google/genai": "^2.32.0",
     "@vizij/render": "workspace:*",
     "@vizij/runtime": "^9.2.0",
     "@vizij/runtime-react": "workspace:*",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "typescript": "^6.0.3",
     "vite": "^8.3.5"
