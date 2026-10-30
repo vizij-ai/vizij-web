@@ -1,13 +1,10 @@
-import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const workspaceRoot = path.resolve(__dirname, "..", "..");
+const workspaceRoot = path.resolve(import.meta.dirname, "..", "..");
 /**
  * Where the linked `@vizij/*` wasm packages actually live on disk.
  *
@@ -41,8 +38,11 @@ const linkedVizijDirs = (() => {
   return [...roots];
 })();
 
-const reactPath = path.resolve(__dirname, "node_modules/react");
-const reactDomPath = path.resolve(__dirname, "node_modules/react-dom");
+const reactPath = path.resolve(import.meta.dirname, "node_modules/react");
+const reactDomPath = path.resolve(
+  import.meta.dirname,
+  "node_modules/react-dom",
+);
 export default defineConfig(({ mode }) => {
   const nodeEnv =
     mode === "production"
@@ -83,7 +83,7 @@ export default defineConfig(({ mode }) => {
           "packages/@vizij/utils/src",
         ),
         "@vizij/authoring-shared": path.resolve(
-          __dirname,
+          import.meta.dirname,
           "src/shared/index.ts",
         ),
         react: reactPath,

@@ -2,7 +2,8 @@
   "name": "demo-graph-studio",
   "version": "0.1.5",
   "private": true,
-  "description": "Demo Node Graph Editor app — built on @vizij/node-graph-react and node-graph",
+  "type": "module",
+  "description": "Demo Node Graph Editor app \u2014 built on @vizij/node-graph-react and node-graph",
   "main": "src/main.tsx",
   "scripts": {
     "dev": "vite",
@@ -30,12 +31,12 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@vitejs/plugin-react-swc": "^4.2.2",
+    "@vitejs/plugin-react": "^6.1.2",
     "eslint": "^10.13.0",
     "prettier": "^3.9.10",
     "typescript": "^6.0.3",
-    "vite": "^6.4.3",
-    "vitest": "^3.2.7"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   },
   "keywords": [
     "vizij",

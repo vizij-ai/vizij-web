@@ -169,7 +169,7 @@ describe("VariablePipelineStages", () => {
 
     const parentsTrigger = within(
       view.getByTestId("pipeline-stage-parents"),
-    ).getByRole("button", { name: /parents/i });
+    ).getByRole("button", { name: /^parents/i });
     expect(parentsTrigger.getAttribute("aria-expanded")).toBe("true");
 
     const childrenTrigger = within(
@@ -217,7 +217,7 @@ describe("VariablePipelineStages", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);
 
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
@@ -307,7 +307,7 @@ describe("VariablePipelineStages", () => {
       },
     ];
     const view = render(<VariablePipelineStages {...props} />);
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
 
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
@@ -339,7 +339,7 @@ describe("VariablePipelineStages", () => {
 
     const view = render(<VariablePipelineStages {...props} />);
 
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
@@ -399,7 +399,7 @@ describe("VariablePipelineStages", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);
 
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
     const migrateButton = within(parentStage).getByTestId(
       "pipeline-migrate-action",
     );
@@ -413,7 +413,7 @@ describe("VariablePipelineStages", () => {
     props.parentExpressionReadOnlyReason = "Expression includes custom math.";
     props.onMigrateLegacyBinding = undefined;
     const view = render(<VariablePipelineStages {...props} />);
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
 
     expect(
       within(parentStage).getByText(
@@ -428,7 +428,7 @@ describe("VariablePipelineStages", () => {
   it("shows parent variable mapping with expanded contribution math", () => {
     const props = createBaseProps();
     const view = render(<VariablePipelineStages {...props} />);
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
 
     const mapping = within(parentStage).getByTestId(
       "pipeline-parent-variable-mapping",
@@ -451,7 +451,7 @@ describe("VariablePipelineStages", () => {
       },
     ];
     const view = render(<VariablePipelineStages {...props} />);
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
     fireEvent.click(
       within(parentStage).getByRole("button", { name: /jaw parent/i }),
     );
@@ -520,7 +520,7 @@ describe("VariablePipelineStages", () => {
     props.parents = [];
     const view = render(<VariablePipelineStages {...props} />);
 
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
     fireEvent.click(
       within(parentStage).getByRole("button", {
         name: "Add Parent Link",
@@ -537,7 +537,7 @@ describe("VariablePipelineStages", () => {
     props.onParentExpressionChange = undefined;
     const view = render(<VariablePipelineStages {...props} />);
 
-    const parentStage = openStage(view, "pipeline-stage-parents", /parents/i);
+    const parentStage = openStage(view, "pipeline-stage-parents", /^parents/i);
     expect(
       within(parentStage).getByText("Parent Contribution Formula"),
     ).toBeTruthy();
