@@ -2,20 +2,9 @@ import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-/**
- * Vite config for vizij-web/apps/node-graph-editor
- * - Uses plugin-react for fast refresh and JSX/TSX support
- * - Adds server.fs.allow so Vite can serve local workspace packages (e.g. vizij-rs/npm/*)
- *
- * Note: If you move the repo, adjust the allowedPaths accordingly.
- */
-// Absolute path to the mono-repo root and the local wasm package folders we need to allow
-const repoRoot = path.resolve(import.meta.dirname, "../../.."); // vizij_ws
-// const localWasmPkg = path.resolve(
-//   __dirname,
-//   "../../vizij-rs/npm/@vizij/node-graph",
-// );
-// const localWasmPkgPkg = path.resolve(localWasmPkg, "pkg");
+// The directory holding this checkout, so a linked sibling vizij-rs checkout's
+// wasm packages can be served.
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
 
 export default defineConfig({
   plugins: [react()],
@@ -31,8 +20,6 @@ export default defineConfig({
   server: {
     port: 5174,
     fs: {
-      // Allow serving files from the repo root and the wasm package location (and pkg subdir)
-      // allow: [repoRoot, localWasmPkg, localWasmPkgPkg],
       allow: [repoRoot],
     },
     watch: {
@@ -43,7 +30,7 @@ export default defineConfig({
     outDir: "dist",
   },
   optimizeDeps: {
-    // Keep the wasm shim out of the esbuild prebundle so its relative pkg/ URLs remain valid
+    // Pre-bundling the wasm shim would break its relative pkg/ URLs.
     exclude: ["@vizij/node-graph"],
   },
   assetsInclude: ["**/*.wasm"],

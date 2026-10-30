@@ -2,10 +2,7 @@
 #
 # `changeset version` applies every pending .changeset/*.md: it bumps each
 # affected package, cascades patch bumps to workspace dependents, writes the
-# CHANGELOG.md entries, and deletes the changesets it consumed. Doing that by
-# hand was the documented flow, and in practice it stopped happening —
-# changesets sat unreleased on main, and `changeset version` was in fact broken
-# outright, so nobody could have run it even deliberately.
+# CHANGELOG.md entries, and deletes the changesets it consumed.
 #
 # This workflow versions only; it does not publish. Publishing stays in
 # publish-npm.yml, which decides per package against the npm registry and
@@ -57,10 +54,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # No `publish-script` input, so the action stops after versioning: it
-      # opens (or updates) the PR and leaves npm to publish-npm.yml. `ci:version` runs
-      # `changeset version` and then the repo formatters, because generated
-      # CHANGELOG.md files are covered by `format:check` and an unformatted one
-      # would turn main red the moment the PR merged.
+      # opens (or updates) the PR and leaves npm to publish-npm.yml.
+      # `ci:version` runs `changeset version` and then the repo formatters,
+      # because `format:check` covers the generated CHANGELOG.md files.
       - uses: changesets/action@v2
         with:
           version-script: pnpm run ci:version

@@ -45,7 +45,6 @@ export default defineConfig(
         "warn",
         { allowConstantExport: true },
       ],
-      // Relax some strict TypeScript rules to allow the codebase to lint cleanly for now.
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",

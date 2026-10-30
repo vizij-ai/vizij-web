@@ -70,7 +70,7 @@ jobs:
       - name: Build debug APK
         # `-- --no-default-features` drops the desktop-only `ros2` feature
         # (rustdds does not cross-compile to Android); `--features studio-bridge`
-        # ships the Studio-connected build (VIZ-67). Zero-config: the published
+        # ships the Studio-connected build. Zero-config: the published
         # `arora-studio-bridge-client` crate bakes in the public Firebase config
         # and the production bridge endpoint, so nothing is injected here.
         working-directory: ${{ env.APP_DIR }}
@@ -121,7 +121,7 @@ jobs:
       # The smoke test is genuinely flaky on the headless software GPU: the
       # emulator intermittently dies with `Failed to find ColorBuffer: N`
       # (swiftshader surface-allocation failure), taking adb offline with it.
-      # It is not an app regression, so we retry the emulator up to two times.
+      # It is not an app regression, so the emulator is retried once.
       #
       # The retry re-invokes the whole action (a FRESH emulator boot), because a
       # ColorBuffer crash kills the emulator process — retrying against the same
@@ -277,7 +277,7 @@ jobs:
           echo "Release signing configured."
 
       - name: Build release APK
-        # Ships the Studio-connected build (`--features studio-bridge`, VIZ-67).
+        # Ships the Studio-connected build (`--features studio-bridge`).
         # Zero-config: the published `arora-studio-bridge-client` crate bakes in
         # the public Firebase config and the production bridge endpoint.
         working-directory: ${{ env.APP_DIR }}

@@ -4,31 +4,23 @@ import type { StorybookConfig } from "@storybook/react-vite";
 /**
  * Storybook for `vizij-authoring`.
  *
- * Stories are deliberately COLOCATED with their components rather than kept in a
- * central `stories/` directory: `src/components/ui/` is intended to be extracted
- * into a consumable package, and colocated stories travel with the extraction.
+ * Stories are colocated with their components rather than kept in a central
+ * `stories/` directory: `src/components/ui/` is meant to be extracted into a
+ * consumable package, and colocated stories travel with it.
  *
- * ## Two tiers, and why the globs are no longer narrow
+ * Two tiers are in scope:
  *
- * The design-system layer — `ui/`, `common/`, `editor/` — has always been here.
+ * - **The design-system layer**: `ui/`, `common/`, `editor/`.
+ * - **Feature panels**, on one rule: a panel earns a story only if it can be
+ *   mounted from props or from seeded store state. No story boots the 3D
+ *   runtime or the WASM graph; a panel that cannot meet that bar stays
+ *   unstoried rather than getting a fake that misrepresents it.
  *
- * **Feature panels used to be excluded**, on the grounds that store-, 3D-, WASM-
- * and reactflow-connected components are not design-system material. That was true
- * but had a cost: the components that carry the actual product were the only ones
- * nobody could look at, and verifying a change to one meant either loading a rig in
- * the real app (~2 minutes) or building a throwaway harness. Two separate
- * workstreams did exactly that, independently, in a single day.
- *
- * So feature panels are in scope now, with one rule: **a panel earns a story only
- * if it can be mounted from props or from seeded store state.** No story may boot
- * the 3D runtime or the WASM graph. Panels that cannot meet that bar stay
- * unstoried rather than getting a fake that lies about them.
- *
- * Titles keep the tiers apart. `Editor/` is reserved for `src/components/editor/`,
- * whose defining property is that it has NO app dependencies — mixing store-bound
- * panels under that prefix would blur the one distinction the eslint import
- * boundary exists to protect. Feature panels are titled `Editor Tools/`, matching
- * the vocabulary of `docs/references/editor-refactoring-plan.md` §5.
+ * Titles keep the tiers apart. `Editor/` is reserved for
+ * `src/components/editor/`, whose defining property is that it has no app
+ * dependencies, the distinction the ESLint import boundary protects. Feature
+ * panels are titled `Editor Tools/`, the vocabulary of
+ * `docs/references/editor-refactoring-plan.md` §5.
  */
 const config: StorybookConfig = {
   stories: [
@@ -39,7 +31,7 @@ const config: StorybookConfig = {
     "../src/components/common/**/*.stories.@(ts|tsx)",
     "../src/components/editor/**/*.mdx",
     "../src/components/editor/**/*.stories.@(ts|tsx)",
-    // Feature panels — see the two-tier note above.
+    // Feature panels: see the two tiers above.
     "../src/components/panels/**/*.stories.@(ts|tsx)",
     "../src/components/inspector/**/*.stories.@(ts|tsx)",
     "../src/motiongraph/**/*.stories.@(ts|tsx)",
@@ -47,9 +39,7 @@ const config: StorybookConfig = {
   addons: ["@storybook/addon-docs"],
   // `Logo.tsx` hardcodes `src="/assets/icon.svg"`, an app-absolute public path,
   // so the icon has to be served for its story to render. Only that one file is
-  // mapped — `public/assets/` also holds ~31MB of GLBs that nothing here needs.
-  // (The hardcoded path is itself an extraction blocker, not something to fix
-  // from the Storybook side.)
+  // mapped: `public/assets/` also holds ~31MB of GLBs that nothing here needs.
   staticDirs: [{ from: "../public/assets/icon.svg", to: "/assets/icon.svg" }],
   framework: {
     name: "@storybook/react-vite",
