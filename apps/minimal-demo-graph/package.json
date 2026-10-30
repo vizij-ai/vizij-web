@@ -29,12 +29,12 @@
   "devDependencies": {
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react-swc": "^4.2.2",
-    "cross-env": "^7.0.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "cross-env": "^10.1.0",
     "prettier": "^3.9.10",
     "reactflow": "^11.11.4",
     "typescript": "^6.0.3",
-    "vite": "^6.4.3",
-    "vitest": "^3.2.7"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   }
 }

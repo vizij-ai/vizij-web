@@ -1,8 +1,8 @@
 import { resolve } from "node:path";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-const workspaceRoot = resolve(__dirname, "../..");
+const workspaceRoot = resolve(import.meta.dirname, "../..");
 
 export default defineConfig({
   plugins: [react()],

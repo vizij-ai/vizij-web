@@ -1,7 +1,6 @@
 import path from "path";
-import { fileURLToPath } from "url";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 
 /**
  * Vite config for vizij-web/apps/node-graph-editor
@@ -10,11 +9,8 @@ import react from "@vitejs/plugin-react-swc";
  *
  * Note: If you move the repo, adjust the allowedPaths accordingly.
  */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Absolute path to the mono-repo root and the local wasm package folders we need to allow
-const repoRoot = path.resolve(__dirname, "../../.."); // vizij_ws
+const repoRoot = path.resolve(import.meta.dirname, "../../.."); // vizij_ws
 // const localWasmPkg = path.resolve(
 //   __dirname,
 //   "../../vizij-rs/npm/@vizij/node-graph",
@@ -27,7 +23,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@vizij/authoring-shared": path.resolve(
-        __dirname,
+        import.meta.dirname,
         "../vizij-authoring/src/shared/index.ts",
       ),
     },

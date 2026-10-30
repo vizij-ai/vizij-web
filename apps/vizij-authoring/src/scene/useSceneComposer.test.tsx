@@ -1,5 +1,5 @@
 import { act } from "react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi, type Mock } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { VizijContext, createVizijStore } from "@vizij/render";
 import {
@@ -35,13 +35,15 @@ const scene: SceneObjectNode[] = [
   },
 ];
 
+type Handler = Mock<(...args: any[]) => void>;
+
 interface BindingHandlers {
-  handleBindingInputChange: ReturnType<typeof vi.fn>;
-  handleAddBindingSlot: ReturnType<typeof vi.fn>;
-  handleRemoveBindingSlot: ReturnType<typeof vi.fn>;
-  handleUpdateBindingExpression: ReturnType<typeof vi.fn>;
-  handleUpdateBindingSlotAlias: ReturnType<typeof vi.fn>;
-  handleBindingSlotValueTypeChange: ReturnType<typeof vi.fn>;
+  handleBindingInputChange: Handler;
+  handleAddBindingSlot: Handler;
+  handleRemoveBindingSlot: Handler;
+  handleUpdateBindingExpression: Handler;
+  handleUpdateBindingSlotAlias: Handler;
+  handleBindingSlotValueTypeChange: Handler;
 }
 
 function createBindingHandlers(): BindingHandlers {

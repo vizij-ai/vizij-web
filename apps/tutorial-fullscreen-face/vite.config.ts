@@ -1,13 +1,16 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ["**/*.glb"],
   server: {
     fs: {
-      allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../..")],
+      allow: [
+        resolve(import.meta.dirname, "../.."),
+        resolve(import.meta.dirname, "../../.."),
+      ],
     },
     watch: {
       ignored: [

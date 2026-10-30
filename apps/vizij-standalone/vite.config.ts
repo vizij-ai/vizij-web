@@ -20,7 +20,10 @@ export default defineConfig(async () => ({
     // A locally linked @vizij/runtime (the wasm link workflow) lives beside
     // this checkout.
     fs: {
-      allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../..")],
+      allow: [
+        resolve(import.meta.dirname, "../.."),
+        resolve(import.meta.dirname, "../../.."),
+      ],
     },
   },
   // The runtime's wasm loads itself; pre-bundling would break its URL.

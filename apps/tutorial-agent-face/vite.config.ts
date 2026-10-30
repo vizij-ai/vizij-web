@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import { resolveDevHttpsOptions } from "./dev-certificate.mjs";
 
 const https = resolveDevHttpsOptions();
@@ -11,7 +11,10 @@ export default defineConfig({
   server: {
     https,
     fs: {
-      allow: [resolve(__dirname, "../.."), resolve(__dirname, "../../..")],
+      allow: [
+        resolve(import.meta.dirname, "../.."),
+        resolve(import.meta.dirname, "../../.."),
+      ],
     },
     watch: {
       ignored: [

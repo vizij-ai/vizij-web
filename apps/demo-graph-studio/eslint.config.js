@@ -1,13 +1,12 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const js = require("@eslint/js");
-const { defineConfig } = require("eslint/config");
-const globals = require("globals");
-const reactHooks = require("eslint-plugin-react-hooks");
-const { reactRefresh } = require("eslint-plugin-react-refresh");
-const { importX } = require("eslint-plugin-import-x");
-const tseslint = require("typescript-eslint");
+import js from "@eslint/js";
+import { defineConfig } from "eslint/config";
+import { importX } from "eslint-plugin-import-x";
+import reactHooks from "eslint-plugin-react-hooks";
+import { reactRefresh } from "eslint-plugin-react-refresh";
+import globals from "globals";
+import tseslint from "typescript-eslint";
 
-module.exports = defineConfig(
+export default defineConfig(
   { ignores: ["dist", "eslint.config.js"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -16,7 +15,7 @@ module.exports = defineConfig(
       ecmaVersion: 2020,
       globals: globals.browser,
       parserOptions: {
-        tsconfigRootDir: __dirname,
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     plugins: {
