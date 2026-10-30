@@ -4,7 +4,7 @@
     "module": "ESNext",
     "lib": ["DOM", "ES2022"],
     "jsx": "react-jsx",
-    "types": ["vitest"],
+    "types": ["vitest", "vite/client"],
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "esModuleInterop": true,
@@ -14,9 +14,8 @@
     "noImplicitAny": false,
     "allowJs": false,
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@vizij/node-graph-react": ["../../packages/@vizij/node-graph-react/src"],
       "@vizij/authoring-shared": ["../vizij-authoring/src/shared/index.ts"],
       "@vizij/authoring-shared/*": ["../vizij-authoring/src/shared/*"]

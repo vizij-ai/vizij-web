@@ -5,13 +5,13 @@
     "module": "ES2020",
     "declaration": true,
     "outDir": "dist",
+    "rootDir": "..",
     "strict": true,
     "moduleResolution": "Bundler",
     "types": ["node"],
     "skipLibCheck": true,
-    "baseUrl": "./",
     "paths": {
-      "@vizij/node-graph-authoring": ["src/index.ts"],
+      "@vizij/node-graph-authoring": ["./src/index.ts"],
       "@vizij/utils": ["../utils/src/index.ts"],
       "@vizij/utils/*": ["../utils/src/*"]
     }
