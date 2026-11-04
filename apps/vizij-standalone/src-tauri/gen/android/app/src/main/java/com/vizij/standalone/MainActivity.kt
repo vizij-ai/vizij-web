@@ -15,18 +15,13 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
   }
 
-  override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
-    // The app is already running: the page read its model when it loaded and
-    // does not ask again, so a model opened now is not shown, and the next launch
-    // replaces or removes the file, so it is not kept either.
-    captureOpenedModel(intent)
-  }
-
   // Copy the VIEW intent's model bytes to `<filesDir>/opened_model.glb`, which
   // the Rust side exposes to the frontend via `get_glb_source`. The file holds
   // what this launch opened and nothing else: the page loads it in place of the
   // default face, so a launch without a model and a copy that fails leave none.
+  // An intent reaching the running activity is not captured: the page read its
+  // model when it loaded and does not ask again, so such a model is neither
+  // shown nor kept.
   private fun captureOpenedModel(intent: Intent?) {
     val model = File(filesDir, OPENED_MODEL_FILE)
     model.delete()

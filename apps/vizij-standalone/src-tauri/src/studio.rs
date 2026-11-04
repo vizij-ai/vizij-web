@@ -2,8 +2,8 @@
 //!
 //! The device connects to Semio Studio through the studio-bridge Zenoh device
 //! client (`ZenohDeviceClient`, an `arora_bridge::Bridge`), and asks to register.
-//! Production Studio refuses that: an anonymous client 10 device has no record
-//! there, since Studio's rules let no client create one.
+//! Production Studio refuses to create that record, since its rules let no
+//! client create one: a device on an anonymous client 10 identity gets none.
 //!
 //! The run holds a [`StudioEndpoint`] from its first step while the client
 //! connects on a task of its own, so a slow or failed connection never holds up
@@ -275,9 +275,7 @@ where
         match opened {
             Ok(client) => {
                 let connected_at = Instant::now();
-                if pump(client, info.clone(), &mut link).await == PumpEnd::DeviceGone {
-                    return;
-                }
+                pump(client, info.clone(), &mut link).await;
                 if connected_at.elapsed() >= Backoff::CAP {
                     backoff = Backoff::new();
                 }
@@ -293,15 +291,6 @@ where
     }
 }
 
-/// Why a [`pump`] ended.
-#[derive(Debug, PartialEq)]
-enum PumpEnd {
-    /// The client's inbound stream ended; the run is still there.
-    ClientDisconnected,
-    /// The run dropped its endpoint.
-    DeviceGone,
-}
-
 /// Register the device with `info`, serve the client's access requests, and
 /// relay between the client and the run until either ends. Takes any
 /// [`Bridge`], so it runs against a mock client under test.
@@ -314,10 +303,10 @@ enum PumpEnd {
 /// The run is told that nobody asks for its data any more: it sends its changes
 /// for as long as it believes someone does, and nothing drains `link` between
 /// two clients.
-async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: &mut StudioLink) -> PumpEnd {
+async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: &mut StudioLink) {
     tokio::select! {
         _ = register(&*client, info) => {}
-        _ = link.to_run.closed() => return PumpEnd::DeviceGone,
+        _ = link.to_run.closed() => return,
     }
 
     let access_cancel = CancellationToken::new();
@@ -327,22 +316,21 @@ async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: &mut StudioLi
     ));
 
     let mut inbound = client.take_inbound();
-    let end = loop {
+    loop {
         tokio::select! {
             event = inbound.next() => match event {
                 Some(event) => forward(&link.to_run, event),
-                None => break PumpEnd::ClientDisconnected,
+                None => break, // the client disconnected
             },
             change = link.from_run.recv() => match change {
                 Some(change) => client.try_send(&change),
-                None => break PumpEnd::DeviceGone,
+                None => break, // the device is gone
             },
         }
-    };
+    }
     forward(&link.to_run, Inbound::DataRequested(false));
     access_cancel.cancel();
     info!("studio-bridge: pump ended");
-    end
 }
 
 /// Write the device's record with Studio, logging the outcome.
@@ -752,10 +740,9 @@ mod tests {
             })
             .await;
             drop(client_tx);
-            let end = within(pumping)
+            within(pumping)
                 .await
                 .expect("the pump ends with the client");
-            assert_eq!(end, PumpEnd::ClientDisconnected);
             assert!(matches!(
                 within(to_device.next()).await,
                 Some(Inbound::DataRequested(false))
