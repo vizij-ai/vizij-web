@@ -56,7 +56,7 @@ tauri = { version = "2.12", features = [] }
 tauri-plugin-dialog = "2.8"
 tauri-plugin-fs = "2.7"
 tauri-plugin-log = "2.10"
-tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync"] }
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7"
 log = "0.4"
 clap = { version = "4", features = ["derive"] }
@@ -106,7 +106,7 @@ ros2-client = "0.12"
 futures-util = "0.3"
 serde = { version = "1", features = ["derive"] }
 rand = "0.10"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full", "test-util"] }
 # The mock `Bridge` in the studio-bridge tests implements an `#[async_trait]` trait.
 async-trait = "0.1"
 # The reply channel of an `arora_bridge::BridgeCommand` the Studio tests send.

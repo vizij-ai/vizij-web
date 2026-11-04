@@ -91,7 +91,9 @@ reachable over:
   client 10 on. The device registers as `vizij-<random>`, owned by
   `DEVICE_OWNERS` or by the owners an earlier launch was given — an APK has
   neither, so it registers unowned — under one Studio identity across
-  launches; `STUDIO_BRIDGE_ENDPOINT` names another bridge.
+  launches; `STUDIO_BRIDGE_ENDPOINT` names another bridge. A device that
+  cannot reach Studio, as when it starts before its network is up, runs on
+  without it and tries again every 1 to 60 s.
 
 ## Files
 

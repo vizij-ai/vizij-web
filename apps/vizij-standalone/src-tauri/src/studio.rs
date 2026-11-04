@@ -11,22 +11,38 @@
 //! sends Studio's way, which it does once Studio asks for the device's data,
 //! goes to the client.
 //!
+//! [`connect`] retries for as long as the run lives, waiting 1 to 60 s between
+//! attempts ([`Backoff`]): a device regularly starts before its network is up,
+//! on Android above all, and nothing else would connect it later. A link lost
+//! after that is the client's to restore: its Zenoh session reconnects to the
+//! bridge by itself and its inbound stream stays open meanwhile, so a pump ends
+//! on the client's side only when that stream ends, which `Bridge` defines as
+//! the endpoint's disconnection, and a new client then replaces it.
+//!
 //! Zero-config: the published client crate bakes in the public Firebase config
 //! and the production bridge endpoint. Runtime overrides:
 //! `STUDIO_BRIDGE_ENDPOINT` (another bridge), `DEVICE_OWNERS` (ownership), and
 //! the Firebase emulator hosts (`FIREBASE_*_EMULATOR_HOST`).
 
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use arora_bridge::{
     AccessDecision, AccessRequestStream, Bridge, BridgeResult, DeviceInfo, Inbound, InboundStream,
 };
+use arora_studio_bridge_client::error::Error;
+use arora_studio_bridge_client::firestore_support::options::{
+    FirebaseEmulatorOptions, FirebaseOptions,
+};
+use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
 use arora_types::data::StateChange;
 use async_trait::async_trait;
 use futures_util::stream::StreamExt;
 use log::{info, warn};
 use tauri::Manager;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 /// The run's end of the Studio connection: a bridge whose inbound stream is
@@ -130,15 +146,30 @@ impl Registration {
     }
 }
 
-/// Connect to Semio Studio and pump the connection into `link` until either
-/// side ends. A failed connection is logged, and the device runs on without
-/// Studio.
-pub async fn connect(registration: Registration, link: StudioLink) {
-    use arora_studio_bridge_client::firestore_support::options::{
-        FirebaseEmulatorOptions, FirebaseOptions,
-    };
-    use arora_studio_bridge_client::zenoh::ZenohDeviceClient;
+/// The wait before each new connection attempt: 1 s, doubling up to 60 s.
+struct Backoff {
+    next: Duration,
+}
 
+impl Backoff {
+    const FIRST: Duration = Duration::from_secs(1);
+    const CAP: Duration = Duration::from_secs(60);
+
+    fn new() -> Self {
+        Backoff { next: Self::FIRST }
+    }
+
+    fn next_delay(&mut self) -> Duration {
+        let delay = self.next;
+        self.next = (delay * 2).min(Self::CAP);
+        delay
+    }
+}
+
+/// Connect to Semio Studio and pump the connection into `link`, for as long as
+/// the run lives: [`stay_connected`] over clients opened with the Firebase and
+/// bridge configuration of the environment.
+pub async fn connect(registration: Registration, link: StudioLink) {
     // The Zenoh/Firebase TLS stacks need a process-wide rustls crypto provider
     // installed before the first handshake.
     if rustls::crypto::CryptoProvider::get_default().is_none() {
@@ -152,12 +183,33 @@ pub async fn connect(registration: Registration, link: StudioLink) {
         .and_then(|v| v.split(',').next().map(|s| s.trim().to_string()))
         .filter(|s| !s.is_empty());
 
-    // The saved (encrypted) anonymous refresh token keeps the device ONE
-    // Studio identity — one devices/{uid} doc, with its owners and
-    // permissions — across launches; the client rotates it through the
-    // save callback.
-    let refresh_token = registration
-        .token_paths
+    let open = || async {
+        let client = open_client(
+            &firebase_options,
+            &emulator_options,
+            endpoint_override.clone(),
+            registration.token_paths.clone(),
+        )
+        .await?;
+        Ok::<_, Error>(Box::new(client) as Box<dyn Bridge>)
+    };
+    stay_connected(open, registration.device_info(), link).await;
+}
+
+/// Open one client under the device's saved identity.
+///
+/// The saved (encrypted) anonymous refresh token keeps the device ONE Studio
+/// identity — one devices/{uid} doc, with its owners and permissions — across
+/// launches and attempts. It is read for each attempt: the client saves a new
+/// one through the callback as it rotates it, and when it signs in for the
+/// first time, so an attempt that fails after that keeps the identity.
+async fn open_client(
+    firebase_options: &FirebaseOptions,
+    emulator_options: &FirebaseEmulatorOptions,
+    endpoint_override: Option<String>,
+    token_paths: Option<(PathBuf, PathBuf)>,
+) -> Result<ZenohDeviceClient, Error> {
+    let refresh_token = token_paths
         .as_ref()
         .and_then(|(key_path, token_path)| read_refresh_token(key_path, token_path));
     if refresh_token.is_some() {
@@ -165,10 +217,8 @@ pub async fn connect(registration: Registration, link: StudioLink) {
     } else {
         info!("studio-bridge: no saved device identity yet; one will be created");
     }
-    let save_token: Option<Box<dyn FnMut(String) + Send + Sync>> = registration
-        .token_paths
-        .clone()
-        .map(|(key_path, token_path)| {
+    let save_token: Option<Box<dyn FnMut(String) + Send + Sync>> =
+        token_paths.map(|(key_path, token_path)| {
             Box::new(move |token: String| {
                 if let Err(e) = write_refresh_token(&key_path, &token_path, &token) {
                     warn!("studio-bridge: failed to save device identity: {e}");
@@ -176,12 +226,12 @@ pub async fn connect(registration: Registration, link: StudioLink) {
             }) as Box<dyn FnMut(String) + Send + Sync>
         });
 
-    let connected = match endpoint_override {
+    match endpoint_override {
         Some(endpoint) => {
             info!("studio-bridge: connecting to Semio Studio via Zenoh (endpoint: {endpoint})");
             ZenohDeviceClient::new_endpoint(
-                &firebase_options,
-                Some(&emulator_options),
+                firebase_options,
+                Some(emulator_options),
                 refresh_token,
                 save_token,
                 endpoint,
@@ -191,28 +241,69 @@ pub async fn connect(registration: Registration, link: StudioLink) {
         None => {
             info!("studio-bridge: connecting to Semio Studio via the baked-in bridge endpoint");
             ZenohDeviceClient::new(
-                &firebase_options,
-                Some(&emulator_options),
+                firebase_options,
+                Some(emulator_options),
                 refresh_token,
                 save_token,
             )
             .await
         }
-    };
-    match connected {
-        Ok(client) => pump(Box::new(client), registration.device_info(), link).await,
-        Err(e) => log::error!("studio-bridge: failed to connect to Semio Studio: {e:?}"),
     }
+}
+
+/// Open a client and [`pump`] it into `link`, and open another when the attempt
+/// fails or the client disconnects, until the run is gone.
+///
+/// Attempts are [`Backoff`] apart. A client that held for the backoff's cap
+/// restarts the schedule; one that disconnects sooner does not, so a connection
+/// that keeps dropping is retried at the slow end and not once a second.
+async fn stay_connected<O, F, E>(mut open: O, info: DeviceInfo, mut link: StudioLink)
+where
+    O: FnMut() -> F,
+    F: Future<Output = Result<Box<dyn Bridge>, E>>,
+    E: std::fmt::Debug,
+{
+    let mut backoff = Backoff::new();
+    loop {
+        match open().await {
+            Ok(client) => {
+                let connected_at = Instant::now();
+                if pump(client, info.clone(), &mut link).await == PumpEnd::DeviceGone {
+                    return;
+                }
+                if connected_at.elapsed() >= Backoff::CAP {
+                    backoff = Backoff::new();
+                }
+            }
+            Err(e) => log::error!("studio-bridge: failed to connect to Semio Studio: {e:?}"),
+        }
+        let delay = backoff.next_delay();
+        info!("studio-bridge: next connection attempt in {delay:?}");
+        tokio::select! {
+            _ = tokio::time::sleep(delay) => {}
+            _ = link.to_run.closed() => return,
+        }
+    }
+}
+
+/// Why a [`pump`] ended.
+#[derive(Debug, PartialEq)]
+enum PumpEnd {
+    /// The client's inbound stream ended; the run is still there.
+    ClientDisconnected,
+    /// The run dropped its endpoint.
+    DeviceGone,
 }
 
 /// Register the device with `info`, serve the client's access requests, and
 /// relay between the client and the run until either ends. Takes any
 /// [`Bridge`], so it runs against a mock client under test.
-pub(crate) async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: StudioLink) {
-    let StudioLink {
-        to_run,
-        mut from_run,
-    } = link;
+///
+/// `link` outlives the client, for a next one to take over the same endpoint.
+/// The run is told that nobody asks for its data any more: it sends its changes
+/// for as long as it believes someone does, and nothing drains `link` between
+/// two clients.
+async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: &mut StudioLink) -> PumpEnd {
     let name = info.name.clone().unwrap_or_default();
     let owners = info.owners.len();
     match client.update_device_info(Some(info)).await {
@@ -229,20 +320,22 @@ pub(crate) async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: St
     ));
 
     let mut inbound = client.take_inbound();
-    loop {
+    let end = loop {
         tokio::select! {
             event = inbound.next() => match event {
-                Some(event) => forward(&to_run, event),
-                None => break, // the client disconnected
+                Some(event) => forward(&link.to_run, event),
+                None => break PumpEnd::ClientDisconnected,
             },
-            change = from_run.recv() => match change {
+            change = link.from_run.recv() => match change {
                 Some(change) => client.try_send(&change),
-                None => break, // the device is gone
+                None => break PumpEnd::DeviceGone,
             },
         }
-    }
+    };
+    forward(&link.to_run, Inbound::DataRequested(false));
     access_cancel.cancel();
     info!("studio-bridge: pump ended");
+    end
 }
 
 /// Hand one client event to the run. A command that finds no run is refused
@@ -578,7 +671,7 @@ mod tests {
 
     /// `future`'s output, failing the test when it takes over a second: a
     /// relay that drops what it is handed fails rather than hangs.
-    async fn within<F: std::future::Future>(future: F) -> F::Output {
+    async fn within<F: Future>(future: F) -> F::Output {
         tokio::time::timeout(Duration::from_secs(1), future)
             .await
             .expect("the pump relays within a second")
@@ -586,7 +679,8 @@ mod tests {
 
     /// The pump registers the device under its name and owners, hands the
     /// run what the client receives and the client what the run sends, and
-    /// ends when the client disconnects — after a failed registration too.
+    /// ends when the client disconnects — after a failed registration too —
+    /// telling the run that nobody asks for its data any more.
     #[tokio::test]
     async fn the_pump_registers_the_device_and_relays_both_ways() {
         for fail in [false, true] {
@@ -605,7 +699,10 @@ mod tests {
                 owners: vec!["studio-user-uid".to_string()],
                 token_paths: None,
             };
-            let pumping = tokio::spawn(pump(Box::new(client), registration.device_info(), link));
+            let pumping = tokio::spawn(async move {
+                let mut link = link;
+                pump(Box::new(client), registration.device_info(), &mut link).await
+            });
 
             let mut to_device = endpoint.take_inbound();
             client_tx.send(Inbound::DataRequested(true)).unwrap();
@@ -628,9 +725,14 @@ mod tests {
             })
             .await;
             drop(client_tx);
-            within(pumping)
+            let end = within(pumping)
                 .await
                 .expect("the pump ends with the client");
+            assert_eq!(end, PumpEnd::ClientDisconnected);
+            assert!(matches!(
+                within(to_device.next()).await,
+                Some(Inbound::DataRequested(false))
+            ));
             assert_eq!(*sent.lock().unwrap(), vec![change]);
             let registrations = registrations.lock().unwrap();
             assert_eq!(registrations.len(), 1);
@@ -638,6 +740,200 @@ mod tests {
             assert_eq!(registrations[0].owners, vec!["studio-user-uid".to_string()]);
             assert_eq!(registrations[0].model_family.as_deref(), Some("Vizij"));
         }
+    }
+
+    /// The wait between attempts doubles from one second and stays at a minute.
+    #[test]
+    fn the_backoff_doubles_up_to_its_cap() {
+        let mut backoff = Backoff::new();
+        let delays: Vec<u64> = (0..9).map(|_| backoff.next_delay().as_secs()).collect();
+        assert_eq!(delays, [1, 2, 4, 8, 16, 32, 60, 60, 60]);
+    }
+
+    /// One connection attempt's scripted outcome.
+    enum Attempt {
+        /// The connection fails.
+        Fails,
+        /// This client connects.
+        Connects(MockClient),
+    }
+
+    /// A [`MockClient`] and the sender whose drop disconnects it.
+    fn mock_client(
+        registrations: &Arc<Mutex<Vec<DeviceInfo>>>,
+        sent: &Arc<Mutex<Vec<StateChange>>>,
+    ) -> (mpsc::UnboundedSender<Inbound>, MockClient) {
+        let (client_tx, client_rx) = mpsc::unbounded_channel();
+        let client = MockClient {
+            inbound: Some(client_rx),
+            registrations: registrations.clone(),
+            sent: sent.clone(),
+            fail: false,
+        };
+        (client_tx, client)
+    }
+
+    /// Run [`stay_connected`] over `script`, one attempt per entry, then
+    /// failing every attempt; returns its task, the instant of each attempt,
+    /// and the run's end of the link.
+    fn run_script(
+        script: Vec<Attempt>,
+    ) -> (
+        tokio::task::JoinHandle<()>,
+        Arc<Mutex<Vec<Instant>>>,
+        StudioEndpoint,
+    ) {
+        let (endpoint, link) = endpoint();
+        let attempts = Arc::new(Mutex::new(Vec::new()));
+        let recorded = attempts.clone();
+        let mut script = script.into_iter();
+        let open = move || {
+            recorded.lock().unwrap().push(Instant::now());
+            let outcome = match script.next() {
+                Some(Attempt::Connects(client)) => Ok(Box::new(client) as Box<dyn Bridge>),
+                Some(Attempt::Fails) | None => Err("offline"),
+            };
+            std::future::ready(outcome)
+        };
+        let info = Registration {
+            device_name: "vizij-test".to_string(),
+            owners: Vec::new(),
+            token_paths: None,
+        }
+        .device_info();
+        let task = tokio::spawn(stay_connected(open, info, link));
+        (task, attempts, endpoint)
+    }
+
+    /// The seconds between consecutive `attempts`.
+    fn gaps(attempts: &Mutex<Vec<Instant>>) -> Vec<u64> {
+        attempts
+            .lock()
+            .unwrap()
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).as_secs())
+            .collect()
+    }
+
+    /// Waits on the paused test clock until `condition` holds.
+    async fn eventually(condition: impl Fn() -> bool) {
+        tokio::time::timeout(Duration::from_secs(600), async {
+            while !condition() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the condition holds within ten minutes");
+    }
+
+    /// A connection that fails is tried again, each wait longer than the last,
+    /// and the client that finally connects registers the device.
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_connection_is_retried_on_the_backoff_schedule() {
+        let registrations = Arc::new(Mutex::new(Vec::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let (_client_tx, client) = mock_client(&registrations, &sent);
+        let (task, attempts, _endpoint) = run_script(vec![
+            Attempt::Fails,
+            Attempt::Fails,
+            Attempt::Fails,
+            Attempt::Connects(client),
+        ]);
+
+        eventually(|| !registrations.lock().unwrap().is_empty()).await;
+        assert_eq!(gaps(&attempts), [1, 2, 4]);
+        task.abort();
+    }
+
+    /// A client that disconnects is replaced, and the next one takes over the
+    /// same endpoint: it registers the device and receives the run's changes.
+    #[tokio::test(start_paused = true)]
+    async fn a_disconnected_client_is_replaced_on_the_same_endpoint() {
+        let registrations = Arc::new(Mutex::new(Vec::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let (first_tx, first) = mock_client(&registrations, &sent);
+        let (second_tx, second) = mock_client(&registrations, &sent);
+        let (task, attempts, mut endpoint) =
+            run_script(vec![Attempt::Connects(first), Attempt::Connects(second)]);
+
+        eventually(|| registrations.lock().unwrap().len() == 1).await;
+        drop(first_tx);
+        eventually(|| registrations.lock().unwrap().len() == 2).await;
+        assert_eq!(gaps(&attempts), [1]);
+
+        let mut to_device = endpoint.take_inbound();
+        assert!(matches!(
+            within(to_device.next()).await,
+            Some(Inbound::DataRequested(false))
+        ));
+        second_tx.send(Inbound::DataRequested(true)).unwrap();
+        assert!(matches!(
+            within(to_device.next()).await,
+            Some(Inbound::DataRequested(true))
+        ));
+        let change = StateChange::new();
+        endpoint.try_send(&change);
+        eventually(|| !sent.lock().unwrap().is_empty()).await;
+        assert_eq!(*sent.lock().unwrap(), vec![change]);
+        task.abort();
+    }
+
+    /// A client that disconnects at once does not restart the schedule, so a
+    /// connection that keeps dropping is not retried every second.
+    #[tokio::test(start_paused = true)]
+    async fn a_client_that_drops_at_once_keeps_the_backoff_growing() {
+        let registrations = Arc::new(Mutex::new(Vec::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let script = (0..4)
+            .map(|_| Attempt::Connects(mock_client(&registrations, &sent).1))
+            .collect();
+        let (task, attempts, _endpoint) = run_script(script);
+
+        eventually(|| attempts.lock().unwrap().len() == 4).await;
+        assert_eq!(gaps(&attempts), [1, 2, 4]);
+        task.abort();
+    }
+
+    /// A client that held for the backoff's cap restarts the schedule: a
+    /// connection lost after a stable stretch is tried again promptly.
+    #[tokio::test(start_paused = true)]
+    async fn a_client_that_held_restarts_the_backoff() {
+        let registrations = Arc::new(Mutex::new(Vec::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let (client_tx, client) = mock_client(&registrations, &sent);
+        let (task, attempts, _endpoint) = run_script(vec![
+            Attempt::Fails,
+            Attempt::Fails,
+            Attempt::Connects(client),
+        ]);
+
+        eventually(|| !registrations.lock().unwrap().is_empty()).await;
+        tokio::time::sleep(Backoff::CAP).await;
+        drop(client_tx);
+        eventually(|| attempts.lock().unwrap().len() == 4).await;
+        // 1 and 2 before the client connects, its minute, then 1 again.
+        assert_eq!(gaps(&attempts), [1, 2, 61]);
+        task.abort();
+    }
+
+    /// Nothing is left to connect once the run is gone: it ends the wait
+    /// between attempts as it ends a pump.
+    #[tokio::test(start_paused = true)]
+    async fn the_attempts_end_with_the_run() {
+        let (task, attempts, endpoint) = run_script(vec![Attempt::Fails]);
+        eventually(|| !attempts.lock().unwrap().is_empty()).await;
+        drop(endpoint);
+        within(task).await.expect("the attempts end");
+        assert_eq!(attempts.lock().unwrap().len(), 1);
+
+        let registrations = Arc::new(Mutex::new(Vec::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let (_client_tx, client) = mock_client(&registrations, &sent);
+        let (task, attempts, endpoint) = run_script(vec![Attempt::Connects(client)]);
+        eventually(|| !registrations.lock().unwrap().is_empty()).await;
+        drop(endpoint);
+        within(task).await.expect("the pump ends");
+        assert_eq!(attempts.lock().unwrap().len(), 1);
     }
 
     /// The refresh token is persisted encrypted and loads back decrypted —
