@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import java.io.File
 
 class MainActivity : TauriActivity() {
+  private var resumed = false
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     // Capture an "open with" / VIEW intent BEFORE the web app starts, so the
@@ -15,13 +17,24 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
   }
 
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    // Android restores a retained task in a new process under the intent that
+    // started the task, and delivers this launch's own intent here, before the
+    // first resume. After that the page has read its model and does not ask
+    // again, so an intent reaching the running activity is neither shown nor kept.
+    if (!resumed) captureOpenedModel(intent)
+  }
+
+  override fun onResume() {
+    super.onResume()
+    resumed = true
+  }
+
   // Copy the VIEW intent's model bytes to `<filesDir>/opened_model.glb`, which
   // the Rust side exposes to the frontend via `get_glb_source`. The file holds
   // what this launch opened and nothing else: the page loads it in place of the
   // default face, so a launch without a model and a copy that fails leave none.
-  // An intent reaching the running activity is not captured: the page read its
-  // model when it loaded and does not ask again, so such a model is neither
-  // shown nor kept.
   private fun captureOpenedModel(intent: Intent?) {
     val model = File(filesDir, OPENED_MODEL_FILE)
     model.delete()
