@@ -17,9 +17,9 @@ class MainActivity : TauriActivity() {
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    // Warm start (app already running): capture the new model. A running web
-    // app won't auto-reload yet — relaunching (cold start via `am start`) is the
-    // reliable path for swapping models during testing.
+    // The app is already running: the page read its model when it loaded and
+    // does not ask again, so a model opened now is not shown, and the next launch
+    // replaces or removes the file, so it is not kept either.
     captureOpenedModel(intent)
   }
 
