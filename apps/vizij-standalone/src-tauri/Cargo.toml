@@ -81,12 +81,13 @@ default = []
 ros2 = ["ros2-dds"]
 ros2-dds = ["dep:arora-bridge-ros2", "arora-bridge-ros2/dds"]
 ros2-zenoh = ["dep:arora-bridge-ros2", "arora-bridge-ros2/zenoh"]
-# Semio Studio: the device registers with Studio, which sees its keys and
-# methods and drives it. The run holds a Studio endpoint, and the Zenoh device
-# client (`ZenohDeviceClient`) connects outbound on a task of its own, relaying
-# Studio's commands to the run and the run's changes to Studio. The client crate
-# bakes in the Firebase config and the bridge endpoint; STUDIO_BRIDGE_ENDPOINT,
-# DEVICE_OWNERS and FIREBASE_*_EMULATOR_HOST override them at run time.
+# Semio Studio: the device connects to Studio's bridge and asks to register,
+# which production Studio refuses (see the README). The run holds a Studio
+# endpoint, and the Zenoh device client (`ZenohDeviceClient`) connects outbound
+# on a task of its own, relaying Studio's commands to the run and the run's
+# changes to Studio. The client crate bakes in the Firebase config and the bridge
+# endpoint; STUDIO_BRIDGE_ENDPOINT, DEVICE_OWNERS and FIREBASE_*_EMULATOR_HOST
+# override them at run time.
 studio-bridge = [
     "dep:arora-studio-bridge-client",
     "dep:arora-bridge",
