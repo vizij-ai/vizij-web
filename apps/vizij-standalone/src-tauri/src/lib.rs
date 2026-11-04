@@ -314,8 +314,8 @@ fn warn_if_snap_env() {
 // =============================================================================
 
 /// Get the GLB source: a CLI argument (path or URL) on desktop, or — on Android,
-/// where there is no CLI — a model opened via an "open with" / VIEW intent, which
-/// `MainActivity` copies to `<app_local_data_dir>/opened_model.glb`.
+/// where there is no CLI — a model opened via an "open with" / VIEW intent
+/// ([`opened_model`]).
 #[tauri::command]
 async fn get_glb_source(app_handle: AppHandle) -> Option<String> {
     if let Some(src) = app_handle.state::<AppState>().glb_source.clone() {
@@ -324,13 +324,23 @@ async fn get_glb_source(app_handle: AppHandle) -> Option<String> {
     #[cfg(target_os = "android")]
     {
         if let Ok(dir) = app_handle.path().app_local_data_dir() {
-            let model = dir.join("opened_model.glb");
-            if model.exists() {
+            if let Some(model) = opened_model(&dir) {
                 return Some(model.to_string_lossy().into_owned());
             }
         }
     }
     None
+}
+
+/// The model `MainActivity` saved from an "open with" / VIEW intent, if any.
+///
+/// `MainActivity` writes to Android's `filesDir`, the `files/` directory under
+/// the app's data directory, and `data_dir` is that data directory: what Tauri
+/// resolves `app_local_data_dir()` to on Android.
+#[cfg(any(target_os = "android", test))]
+fn opened_model(data_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let model = data_dir.join("files").join("opened_model.glb");
+    model.exists().then_some(model)
 }
 
 /// Read a local GLB file and return as base64.
@@ -604,6 +614,27 @@ mod tests {
                 "{skill} is described: {names:?}"
             );
         }
+    }
+
+    /// The opened model is read from `files/` under the data directory, where
+    /// `MainActivity` saves it.
+    #[test]
+    fn an_opened_model_is_found_in_the_files_directory() {
+        let data_dir = std::env::temp_dir().join(format!(
+            "vizij-opened-model-{}-{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        let files_dir = data_dir.join("files");
+        std::fs::create_dir_all(&files_dir).unwrap();
+
+        assert_eq!(opened_model(&data_dir), None);
+
+        let saved = files_dir.join("opened_model.glb");
+        std::fs::write(&saved, b"glTF").unwrap();
+        assert_eq!(opened_model(&data_dir), Some(saved));
+
+        let _ = std::fs::remove_dir_all(&data_dir);
     }
 
     /// `/skill/set_expression` is a typed endpoint landing on the expression

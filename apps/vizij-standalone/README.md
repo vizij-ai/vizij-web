@@ -88,10 +88,14 @@ reachable over:
   `--ros2-domain-id`);
 - Semio Studio, with `--features studio-bridge`, the Android build's feature:
   `arora-studio-bridge-client` 10, whose keys a Studio reads from studio
-  client 10 on. The device registers as `vizij-<random>`, owned by
-  `DEVICE_OWNERS` or by the owners an earlier launch was given — an APK has
-  neither, so it registers unowned — under one Studio identity across
-  launches; `STUDIO_BRIDGE_ENDPOINT` names another bridge.
+  client 10 on. The device signs in under one anonymous Studio identity across
+  launches and asks to register as `vizij-<random>`, owned by `DEVICE_OWNERS`
+  or by the owners an earlier launch was given — an APK has neither;
+  `STUDIO_BRIDGE_ENDPOINT` names another bridge. Production Studio refuses to
+  create that record: its rules let no client create a device, and Studio's
+  enrollment takes a later client, so a fresh install has no record there. A
+  device that cannot open the connection, as when it starts before its network
+  is up, runs on without it and tries again every 1 to 60 s.
 
 ## Files
 
