@@ -24,18 +24,23 @@ class MainActivity : TauriActivity() {
   }
 
   // Copy the VIEW intent's model bytes to `<filesDir>/opened_model.glb`, which
-  // the Rust side exposes to the frontend via `get_glb_source`.
+  // the Rust side exposes to the frontend via `get_glb_source`. The file holds
+  // what this launch opened and nothing else: the page loads it in place of the
+  // default face, so a launch without a model and a copy that fails leave none.
   private fun captureOpenedModel(intent: Intent?) {
+    val model = File(filesDir, OPENED_MODEL_FILE)
+    model.delete()
     if (intent?.action != Intent.ACTION_VIEW) return
     val uri = intent.data ?: return
     try {
       contentResolver.openInputStream(uri)?.use { input ->
-        File(filesDir, OPENED_MODEL_FILE).outputStream().use { output ->
+        model.outputStream().use { output ->
           input.copyTo(output)
         }
       }
       Log.i(TAG, "Captured opened model from $uri")
     } catch (e: Exception) {
+      model.delete()
       Log.e(TAG, "Failed to capture opened model from $uri", e)
     }
   }
