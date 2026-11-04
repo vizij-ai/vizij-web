@@ -1,5 +1,12 @@
 # vizij-standalone
 
+## 0.4.3
+
+### Patch Changes
+
+- 71030b8: On Android, a model opened with the app loads at that launch: the shell reads it from `files/`, where the activity saves it. A cold start without a model shows the default face. A model opened while the app is running is neither shown nor kept.
+- 3edce80: The device retries its Semio Studio connection every 1 to 60 s instead of giving up on the first failure, so a device that starts before its network is up connects once it can. Production Studio still refuses to create its record, so a fresh install has none there.
+
 ## 0.4.2
 
 ### Patch Changes
