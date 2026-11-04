@@ -83,7 +83,8 @@ impl Bridge for StudioEndpoint {
     }
 
     fn try_send(&mut self, change: &StateChange) {
-        // The pump has ended when nothing receives: Studio is gone.
+        // Nothing receives only once the connection task has ended; between two
+        // clients the link holds the change for the next.
         let _ = self.outbound.send(change.clone());
     }
 
@@ -265,7 +266,11 @@ where
 {
     let mut backoff = Backoff::new();
     loop {
-        match open().await {
+        let opened = tokio::select! {
+            opened = open() => opened,
+            _ = link.to_run.closed() => return,
+        };
+        match opened {
             Ok(client) => {
                 let connected_at = Instant::now();
                 if pump(client, info.clone(), &mut link).await == PumpEnd::DeviceGone {
@@ -299,19 +304,19 @@ enum PumpEnd {
 /// relay between the client and the run until either ends. Takes any
 /// [`Bridge`], so it runs against a mock client under test.
 ///
+/// A failed registration does not stop the relay, which serves Studio whatever
+/// the device's record says; it is tried again on a [`Backoff`] until it holds,
+/// because that record is the device's name and owners to Studio.
+///
 /// `link` outlives the client, for a next one to take over the same endpoint.
 /// The run is told that nobody asks for its data any more: it sends its changes
 /// for as long as it believes someone does, and nothing drains `link` between
 /// two clients.
 async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: &mut StudioLink) -> PumpEnd {
-    let name = info.name.clone().unwrap_or_default();
-    let owners = info.owners.len();
-    match client.update_device_info(Some(info)).await {
-        Ok(_) => {
-            info!("studio-bridge: registered device \"{name}\" with Studio ({owners} owner(s))")
-        }
-        Err(e) => log::error!("studio-bridge: failed to register this device with Studio: {e}"),
-    }
+    let mut registered = register(&*client, &info).await;
+    let mut backoff = Backoff::new();
+    let next_registration = tokio::time::sleep(backoff.next_delay());
+    tokio::pin!(next_registration);
 
     let access_cancel = CancellationToken::new();
     tokio::spawn(serve_access_auto_allow(
@@ -330,12 +335,32 @@ async fn pump(mut client: Box<dyn Bridge>, info: DeviceInfo, link: &mut StudioLi
                 Some(change) => client.try_send(&change),
                 None => break PumpEnd::DeviceGone,
             },
+            _ = &mut next_registration, if !registered => {
+                registered = register(&*client, &info).await;
+                next_registration.as_mut().reset(Instant::now() + backoff.next_delay());
+            },
         }
     };
     forward(&link.to_run, Inbound::DataRequested(false));
     access_cancel.cancel();
     info!("studio-bridge: pump ended");
     end
+}
+
+/// Write the device's record with Studio; `false` when that failed.
+async fn register(client: &dyn Bridge, info: &DeviceInfo) -> bool {
+    let name = info.name.as_deref().unwrap_or_default();
+    let owners = info.owners.len();
+    match client.update_device_info(Some(info.clone())).await {
+        Ok(_) => {
+            info!("studio-bridge: registered device \"{name}\" with Studio ({owners} owner(s))");
+            true
+        }
+        Err(e) => {
+            log::error!("studio-bridge: failed to register this device with Studio: {e}");
+            false
+        }
+    }
 }
 
 /// Hand one client event to the run. A command that finds no run is refused
@@ -639,7 +664,8 @@ mod tests {
         inbound: Option<mpsc::UnboundedReceiver<Inbound>>,
         registrations: Arc<Mutex<Vec<DeviceInfo>>>,
         sent: Arc<Mutex<Vec<StateChange>>>,
-        fail: bool,
+        /// How many registrations fail before they hold.
+        failures: Mutex<usize>,
     }
 
     #[async_trait]
@@ -661,7 +687,9 @@ mod tests {
             if let Some(info) = &info {
                 self.registrations.lock().unwrap().push(info.clone());
             }
-            if self.fail {
+            let mut failures = self.failures.lock().unwrap();
+            if *failures > 0 {
+                *failures -= 1;
                 Err(BridgeError::Other("mock connection lost".into()))
             } else {
                 Ok(info)
@@ -683,7 +711,7 @@ mod tests {
     /// telling the run that nobody asks for its data any more.
     #[tokio::test]
     async fn the_pump_registers_the_device_and_relays_both_ways() {
-        for fail in [false, true] {
+        for failures in [0, usize::MAX] {
             let (client_tx, client_rx) = mpsc::unbounded_channel();
             let registrations = Arc::new(Mutex::new(Vec::new()));
             let sent = Arc::new(Mutex::new(Vec::new()));
@@ -691,7 +719,7 @@ mod tests {
                 inbound: Some(client_rx),
                 registrations: registrations.clone(),
                 sent: sent.clone(),
-                fail,
+                failures: Mutex::new(failures),
             };
             let (mut endpoint, link) = endpoint();
             let registration = Registration {
@@ -735,7 +763,7 @@ mod tests {
             ));
             assert_eq!(*sent.lock().unwrap(), vec![change]);
             let registrations = registrations.lock().unwrap();
-            assert_eq!(registrations.len(), 1);
+            assert!(!registrations.is_empty());
             assert_eq!(registrations[0].name.as_deref(), Some("vizij-test"));
             assert_eq!(registrations[0].owners, vec!["studio-user-uid".to_string()]);
             assert_eq!(registrations[0].model_family.as_deref(), Some("Vizij"));
@@ -768,7 +796,7 @@ mod tests {
             inbound: Some(client_rx),
             registrations: registrations.clone(),
             sent: sent.clone(),
-            fail: false,
+            failures: Mutex::new(0),
         };
         (client_tx, client)
     }
@@ -795,14 +823,17 @@ mod tests {
             };
             std::future::ready(outcome)
         };
-        let info = Registration {
+        let task = tokio::spawn(stay_connected(open, test_info(), link));
+        (task, attempts, endpoint)
+    }
+
+    fn test_info() -> DeviceInfo {
+        Registration {
             device_name: "vizij-test".to_string(),
             owners: Vec::new(),
             token_paths: None,
         }
-        .device_info();
-        let task = tokio::spawn(stay_connected(open, info, link));
-        (task, attempts, endpoint)
+        .device_info()
     }
 
     /// The seconds between consecutive `attempts`.
@@ -894,6 +925,35 @@ mod tests {
         task.abort();
     }
 
+    /// A failed registration is tried again on the backoff schedule, until it
+    /// holds, while the pump goes on relaying.
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_registration_is_retried_during_the_relay() {
+        let registrations = Arc::new(Mutex::new(Vec::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let (_client_tx, client) = mock_client(&registrations, &sent);
+        *client.failures.lock().unwrap() = 2;
+        let (task, _attempts, mut endpoint) = run_script(vec![Attempt::Connects(client)]);
+
+        let count = || registrations.lock().unwrap().len();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert_eq!(count(), 1);
+
+        let change = StateChange::new();
+        endpoint.try_send(&change);
+        eventually(|| !sent.lock().unwrap().is_empty()).await;
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(count(), 2, "one second after the first");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(count(), 2, "the next wait is longer");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(count(), 3, "two seconds after the second");
+        tokio::time::sleep(Duration::from_secs(120)).await;
+        assert_eq!(count(), 3, "a registration that held is not repeated");
+        task.abort();
+    }
+
     /// A client that held for the backoff's cap restarts the schedule: a
     /// connection lost after a stable stretch is tried again promptly.
     #[tokio::test(start_paused = true)]
@@ -916,8 +976,8 @@ mod tests {
         task.abort();
     }
 
-    /// Nothing is left to connect once the run is gone: it ends the wait
-    /// between attempts as it ends a pump.
+    /// Nothing is left to connect once the run is gone: it ends an attempt, the
+    /// wait between attempts and a pump.
     #[tokio::test(start_paused = true)]
     async fn the_attempts_end_with_the_run() {
         let (task, attempts, endpoint) = run_script(vec![Attempt::Fails]);
@@ -934,6 +994,13 @@ mod tests {
         drop(endpoint);
         within(task).await.expect("the pump ends");
         assert_eq!(attempts.lock().unwrap().len(), 1);
+
+        let (endpoint, link) = super::endpoint();
+        let open = std::future::pending::<Result<Box<dyn Bridge>, &str>>;
+        let task = tokio::spawn(stay_connected(open, test_info(), link));
+        tokio::task::yield_now().await;
+        drop(endpoint);
+        within(task).await.expect("the attempt ends");
     }
 
     /// The refresh token is persisted encrypted and loads back decrypted —
