@@ -6,7 +6,7 @@ import { changedFromNearest, distinctColours, sampleRect } from "../pixels";
 // The face page: the Bevy view mounts on the page's canvas, the shipped face
 // loads from its bytes, its device runs, and the page reports it ready. The
 // canvas then shows something — a non-uniform pixel sample — and an
-// expression written as its face-standard weight changes what it shows.
+// expression, a `set_expression` run, changes what it shows.
 //
 // The face moves on its own: its programs move the eyes and blink. So the
 // check is made around the mouth, which `surprised` opens, and against that
