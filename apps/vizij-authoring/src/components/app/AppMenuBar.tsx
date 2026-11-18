@@ -245,7 +245,7 @@ export function AppMenuBar({
           onCheckedChange={onOptimizeMorphTrianglesChange}
           testId="app-menu-file-optimize-morph-triangles"
         >
-          Optimize Morph Triangles on Import
+          Clean Up Morph Targets on Import
         </MenuCheckboxItem>
         <MenuItem
           onSelect={onImportReferenceFace}
