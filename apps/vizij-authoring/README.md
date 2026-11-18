@@ -21,6 +21,11 @@ what you author is what ships. Why that holds, and what it takes, is in
 - auto-generated standard-input drivers with enable/disable and round-trip metadata
 - grouped pose workflow with canonical pose-weight paths: `rig/{face}/poses/{poseId}.weight`
 - graph import face-id safety and remapping
+- optional morph-triangle optimization on import (File → Optimize Morph
+  Triangles on Import): parts modelled as one large polygon, such as a mouth
+  or a pupil, are re-triangulated so their morph targets stay unfolded, and a
+  notice lists the shapes that still fold and need remodelling
+  ([`@vizij/import`](https://github.com/vizij-ai/vizij-rs/tree/main/npm/@vizij/import))
 - live IR stats and report export hooks
 
 ## Standard Feature Spaces Editor

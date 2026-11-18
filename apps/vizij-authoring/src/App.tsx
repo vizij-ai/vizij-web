@@ -150,6 +150,8 @@ import {
   updateMemoryDebugState,
 } from "./debug/memoryInvestigation";
 import { createEditFocusPanelVisibility } from "./state/editFocusPanels";
+import { useImportPasses } from "./faceImport/useImportPasses";
+import { MorphTrianglesNotice } from "./faceImport/MorphTrianglesNotice";
 import {
   areActiveInspectorTargetsEqual,
   synchronizeActiveInspectorTarget,
@@ -735,6 +737,9 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     fileName: string;
   } | null>(null);
 
+  const importPasses = useImportPasses();
+  const prepareImportFile = importPasses.prepare;
+
   const capturePendingAnimationImport = useCallback(async (file: File) => {
     try {
       pendingAnimationImportRef.current = {
@@ -763,7 +768,12 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         if (controller.signal.aborted) {
           return;
         }
-        const file = new File([blob], filename, { type: "model/gltf-binary" });
+        const file = await prepareImportFile(
+          new File([blob], filename, { type: "model/gltf-binary" }),
+        );
+        if (controller.signal.aborted) {
+          return;
+        }
 
         await capturePendingAnimationImport(file);
         await loadFromFile(file, () => loadGLTFFromBlobWithBundle(file, true), {
@@ -791,6 +801,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       loadFromFile,
       markImportFlowError,
       markImportFileSelected,
+      prepareImportFile,
     ],
   );
 
@@ -4221,16 +4232,23 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextDiscrepancyCheck = useRef(false);
 
+  const dismissMorphTriangles = importPasses.dismissMorphTriangles;
   const handleNewClick = useCallback(() => {
     cancelPendingMainAssetFetch();
     resetAuthoringSessionState();
     loader.reset();
-  }, [cancelPendingMainAssetFetch, loader, resetAuthoringSessionState]);
+    dismissMorphTriangles();
+  }, [
+    cancelPendingMainAssetFetch,
+    dismissMorphTriangles,
+    loader,
+    resetAuthoringSessionState,
+  ]);
 
   const handleFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) {
+      const picked = event.target.files?.[0];
+      if (!picked) {
         skipNextDiscrepancyCheck.current = false;
         return;
       }
@@ -4248,6 +4266,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       }
       skipNextDiscrepancyCheck.current = false;
 
+      const file = await prepareImportFile(picked);
       await capturePendingAnimationImport(file);
       await loadFromFile(file, () => loadGLTFFromBlobWithBundle(file, true), {
         sessionToken,
@@ -4260,6 +4279,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       capturePendingAnimationImport,
       loadFromFile,
       markImportFileSelected,
+      prepareImportFile,
       uiActions,
     ],
   );
@@ -4611,6 +4631,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onNew={handleNewClick}
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
+      optimizeMorphTriangles={uiState.optimizeMorphTriangles}
+      onOptimizeMorphTrianglesChange={uiActions.setOptimizeMorphTriangles}
       onImportReferenceFace={handleImportReferenceFaceClick}
       onImportGlbAnimations={handleImportGlbAnimationsClick}
       standardProfiles={availableStandardProfiles}
@@ -4943,6 +4965,14 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
             sessionCompletedAtMs={loader.faceLoadSessionCompletedAtMs}
             inFlightOperations={faceLoadInFlightOperationCount}
             sourceLabel={loader.faceLoadSourceLabel}
+          />
+        </div>
+      )}
+      {importPasses.morphTriangles && (
+        <div className="absolute bottom-2 left-2 z-20">
+          <MorphTrianglesNotice
+            outcome={importPasses.morphTriangles}
+            onDismiss={importPasses.dismissMorphTriangles}
           />
         </div>
       )}

@@ -28,6 +28,12 @@ interface AppMenuBarProps {
   onNew: () => void;
   onImport: () => void;
   onImportSkipChecks: () => void;
+  /**
+   * Whether an import re-triangulates each part modelled as one large
+   * polygon so it stays unfolded across its morph targets.
+   */
+  optimizeMorphTriangles: boolean;
+  onOptimizeMorphTrianglesChange: (enabled: boolean) => void;
   onImportReferenceFace: () => void;
   onImportGlbAnimations: () => void;
   onSave: () => void;
@@ -94,6 +100,8 @@ export function AppMenuBar({
   onNew,
   onImport,
   onImportSkipChecks,
+  optimizeMorphTriangles,
+  onOptimizeMorphTrianglesChange,
   onImportReferenceFace,
   onImportGlbAnimations,
   onSave,
@@ -232,6 +240,13 @@ export function AppMenuBar({
         >
           Import (Skip Checks)...
         </MenuItem>
+        <MenuCheckboxItem
+          checked={optimizeMorphTriangles}
+          onCheckedChange={onOptimizeMorphTrianglesChange}
+          testId="app-menu-file-optimize-morph-triangles"
+        >
+          Optimize Morph Triangles on Import
+        </MenuCheckboxItem>
         <MenuItem
           onSelect={onImportReferenceFace}
           testId="app-menu-file-import-reference-face"

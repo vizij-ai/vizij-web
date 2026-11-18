@@ -8,6 +8,11 @@ export interface AuthoringUiState {
   includeImportedAnimations: boolean;
   activeRiggingTab: RiggingTab;
   skipDiscrepancyCheck: boolean;
+  /**
+   * Whether an import re-triangulates each part modelled as one large
+   * polygon so its triangles stay unfolded across its morph targets.
+   */
+  optimizeMorphTriangles: boolean;
   activeRuntimeSource: RuntimeAuthoringSource;
   activeEditFocus: EditFocus;
   rotationDisplayMode: RotationDisplayMode;
@@ -19,6 +24,7 @@ export type AuthoringUiAction =
   | { type: "set-include-animations"; payload: boolean }
   | { type: "set-rigging-tab"; payload: RiggingTab }
   | { type: "set-skip-discrepancy-check"; payload: boolean }
+  | { type: "set-optimize-morph-triangles"; payload: boolean }
   | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource }
   | { type: "set-edit-focus"; payload: EditFocus }
   | { type: "set-rotation-display-mode"; payload: RotationDisplayMode };
@@ -41,6 +47,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  optimizeMorphTriangles: false,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
   rotationDisplayMode: "degrees",
@@ -87,6 +94,11 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, skipDiscrepancyCheck: action.payload };
+    case "set-optimize-morph-triangles":
+      if (state.optimizeMorphTriangles === action.payload) {
+        return state;
+      }
+      return { ...state, optimizeMorphTriangles: action.payload };
     case "set-active-runtime-source":
       if (state.activeRuntimeSource === action.payload) {
         return state;
@@ -123,6 +135,7 @@ export interface AuthoringUiActions {
   setIncludeImportedAnimations: (value: boolean) => void;
   setRiggingTab: (value: RiggingTab) => void;
   setSkipDiscrepancyCheck: (value: boolean) => void;
+  setOptimizeMorphTriangles: (value: boolean) => void;
   setActiveRuntimeSource: (value: RuntimeAuthoringSource) => void;
   setEditFocus: (value: EditFocus) => void;
   setRotationDisplayMode: (value: RotationDisplayMode) => void;
@@ -147,6 +160,8 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-rigging-tab", payload: value }),
       setSkipDiscrepancyCheck: (value) =>
         dispatch({ type: "set-skip-discrepancy-check", payload: value }),
+      setOptimizeMorphTriangles: (value) =>
+        dispatch({ type: "set-optimize-morph-triangles", payload: value }),
       setActiveRuntimeSource: (value) =>
         dispatch({ type: "set-active-runtime-source", payload: value }),
       setEditFocus: (value) =>

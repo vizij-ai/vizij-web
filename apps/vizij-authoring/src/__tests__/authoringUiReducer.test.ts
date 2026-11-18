@@ -10,12 +10,27 @@ const baseState: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  optimizeMorphTriangles: false,
   activeRuntimeSource: "none",
   activeEditFocus: "default",
   rotationDisplayMode: "degrees",
 };
 
 describe("authoringUiReducer", () => {
+  it("turns the morph-triangle import pass on and off", () => {
+    const on = authoringUiReducer(baseState, {
+      type: "set-optimize-morph-triangles",
+      payload: true,
+    });
+    expect(on.optimizeMorphTriangles).toBe(true);
+    expect(
+      authoringUiReducer(on, {
+        type: "set-optimize-morph-triangles",
+        payload: true,
+      }),
+    ).toBe(on);
+  });
+
   it("updates the active workbench", () => {
     const result = authoringUiReducer(baseState, {
       type: "set-workbench",

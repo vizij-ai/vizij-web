@@ -1,3 +1,4 @@
+import type React from "react";
 import {
   cleanup,
   fireEvent,
@@ -35,12 +36,15 @@ function renderMenuBar(
   save: { canSave: boolean; saveDisabledReason?: string | null } = {
     canSave: true,
   },
+  overrides: Partial<React.ComponentProps<typeof AppMenuBar>> = {},
 ) {
   return render(
     <AppMenuBar
       onNew={vi.fn()}
       onImport={vi.fn()}
       onImportSkipChecks={vi.fn()}
+      optimizeMorphTriangles={false}
+      onOptimizeMorphTrianglesChange={vi.fn()}
       onImportReferenceFace={vi.fn()}
       onImportGlbAnimations={vi.fn()}
       onSave={vi.fn()}
@@ -79,6 +83,7 @@ function renderMenuBar(
       onSelectRotationDisplayMode={vi.fn()}
       activeAuthoringSurface="variables"
       onSelectAuthoringSurface={vi.fn()}
+      {...overrides}
     />,
   );
 }
@@ -163,6 +168,22 @@ describe("AppMenuBar", () => {
     expect(panels.motiongraphPalette.isVisible).toBe(true);
     expect(panels.animation.isVisible).toBe(false);
     expect(panels.referenceFace.isVisible).toBe(false);
+  });
+
+  it("toggles the morph-triangle import pass from the File menu", async () => {
+    const onOptimizeMorphTrianglesChange = vi.fn();
+    renderMenuBar(undefined, {
+      optimizeMorphTriangles: false,
+      onOptimizeMorphTrianglesChange,
+    });
+
+    openMenu("app-menu-file");
+    const item = await screen.findByTestId(
+      "app-menu-file-optimize-morph-triangles",
+    );
+    expect(item.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(item);
+    expect(onOptimizeMorphTrianglesChange).toHaveBeenCalledWith(true);
   });
 
   it("says why Save is disabled, on the toolbar and in the File menu", async () => {
