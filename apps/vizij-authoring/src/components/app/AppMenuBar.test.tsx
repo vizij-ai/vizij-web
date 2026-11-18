@@ -186,6 +186,22 @@ describe("AppMenuBar", () => {
     expect(onOptimizeMorphTrianglesChange).toHaveBeenCalledWith(true);
   });
 
+  it("shows the morph-triangle import pass as on when it is", async () => {
+    const onOptimizeMorphTrianglesChange = vi.fn();
+    renderMenuBar(undefined, {
+      optimizeMorphTriangles: true,
+      onOptimizeMorphTrianglesChange,
+    });
+
+    openMenu("app-menu-file");
+    const item = await screen.findByTestId(
+      "app-menu-file-optimize-morph-triangles",
+    );
+    expect(item.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(item);
+    expect(onOptimizeMorphTrianglesChange).toHaveBeenCalledWith(false);
+  });
+
   it("says why Save is disabled, on the toolbar and in the File menu", async () => {
     renderMenuBar({
       canSave: false,

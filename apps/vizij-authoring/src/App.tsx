@@ -771,7 +771,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         const file = await prepareImportFile(
           new File([blob], filename, { type: "model/gltf-binary" }),
         );
-        if (controller.signal.aborted) {
+        // Superseded by a later import or New while the passes ran.
+        if (!file || controller.signal.aborted) {
           return;
         }
 
@@ -4232,15 +4233,15 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextDiscrepancyCheck = useRef(false);
 
-  const dismissMorphTriangles = importPasses.dismissMorphTriangles;
+  const cancelImportPasses = importPasses.cancel;
   const handleNewClick = useCallback(() => {
     cancelPendingMainAssetFetch();
+    cancelImportPasses();
     resetAuthoringSessionState();
     loader.reset();
-    dismissMorphTriangles();
   }, [
+    cancelImportPasses,
     cancelPendingMainAssetFetch,
-    dismissMorphTriangles,
     loader,
     resetAuthoringSessionState,
   ]);
@@ -4267,6 +4268,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       skipNextDiscrepancyCheck.current = false;
 
       const file = await prepareImportFile(picked);
+      if (!file) {
+        // Superseded by a later import or New while the passes ran.
+        event.target.value = "";
+        return;
+      }
       await capturePendingAnimationImport(file);
       await loadFromFile(file, () => loadGLTFFromBlobWithBundle(file, true), {
         sessionToken,

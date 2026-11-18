@@ -26,6 +26,12 @@ describe("authoringUiReducer", () => {
     expect(
       authoringUiReducer(on, {
         type: "set-optimize-morph-triangles",
+        payload: false,
+      }).optimizeMorphTriangles,
+    ).toBe(false);
+    expect(
+      authoringUiReducer(on, {
+        type: "set-optimize-morph-triangles",
         payload: true,
       }),
     ).toBe(on);

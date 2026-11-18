@@ -4,6 +4,7 @@ import { prepareImport } from "./importPasses";
 const pass = vi.hoisted(() => ({
   init: vi.fn(async () => undefined),
   optimizeMorphTriangles: vi.fn(),
+  stillFolding: vi.fn(() => []),
 }));
 
 vi.mock("@vizij/import", () => pass);
@@ -59,7 +60,10 @@ describe("prepareImport", () => {
     expect(new Uint8Array(await prepared.file.arrayBuffer())).toEqual(
       new Uint8Array([9, 9]),
     );
-    expect(prepared.morphTriangles).toEqual({ status: "applied", report });
+    expect(prepared.morphTriangles).toEqual({
+      status: "applied",
+      summary: { improved: [], remaining: [], unchecked: [] },
+    });
   });
 
   it("keeps the original file when the pass changed nothing", async () => {

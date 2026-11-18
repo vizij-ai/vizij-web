@@ -1,89 +1,61 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MorphTrianglesReport } from "@vizij/import";
+import type { MorphTrianglesSummary } from "./importPasses";
 import { MorphTrianglesNotice } from "./MorphTrianglesNotice";
-
-vi.mock("@vizij/import", () => ({
-  stillFolding: (report: MorphTrianglesReport, threshold = 0.01) =>
-    report.parts
-      .map((part) => ({
-        part,
-        folds: part.folds.filter((f) => (f.after ?? 0) > threshold),
-      }))
-      .filter((entry) => entry.folds.length > 0),
-}));
 
 afterEach(cleanup);
 
-const mouth = {
-  mesh: 5,
-  meshName: "mouth",
-  primitive: 0,
-  vertices: 65,
-  outcome: "retriangulated" as const,
-  skipReason: null,
-  folds: [
-    { shape: "rest", before: 0.46, after: 0.21 },
-    { shape: "smile_shape", before: 0.41, after: 0.12 },
-    { shape: "approval_shape", before: 0.23, after: 0.009 },
-    // Above the pass's own threshold, below what the notice names.
-    { shape: "talking_shape", before: 0.11, after: 0.012 },
-  ],
-};
-
-/** One eyelid exported as two pieces, both still wrong at rest. */
-const lidPiece = (vertices: number) => ({
-  mesh: 0,
-  meshName: "left_eye_lid",
-  primitive: 0,
-  vertices,
-  outcome: "retriangulated" as const,
-  skipReason: null,
-  folds: [{ shape: "rest", before: 0.3, after: 0.3 }],
-});
+function renderSummary(summary: Partial<MorphTrianglesSummary>) {
+  render(
+    <MorphTrianglesNotice
+      outcome={{
+        status: "applied",
+        summary: { improved: [], remaining: [], unchecked: [], ...summary },
+      }}
+      onDismiss={vi.fn()}
+    />,
+  );
+  return screen.getByTestId("morph-triangles-notice").textContent ?? "";
+}
 
 describe("MorphTrianglesNotice", () => {
-  it("names the adjusted parts and the shapes still drawn wrongly", () => {
-    render(
-      <MorphTrianglesNotice
-        outcome={{
-          status: "applied",
-          report: { parts: [mouth, lidPiece(4), lidPiece(6)] },
-        }}
-        onDismiss={vi.fn()}
-      />,
+  it("names the fixed parts and the shapes still drawn wrong", () => {
+    const text = renderSummary({
+      improved: ["mouth", "left_pupil"],
+      remaining: [{ part: "mouth", shapes: ["neutral", "smile_shape"] }],
+    });
+    expect(screen.getByTestId("morph-triangles-improved").textContent).toBe(
+      "Adjusted so their morph targets keep their outline instead of filling in: mouth, left_pupil.",
     );
     expect(
-      screen.getByText(
-        "Adjusted so their morph targets keep their outline instead of filling in: mouth.",
+      Array.from(screen.getByTestId("morph-triangles-remaining").children).map(
+        (li) => li.textContent,
       ),
-    ).toBeTruthy();
-    const items = Array.from(
-      screen.getByTestId("morph-triangles-remaining").children,
-    ).map((li) => li.textContent);
-    expect(items).toEqual([
-      "mouth: neutral, smile_shape",
-      "left_eye_lid: neutral",
-    ]);
-    expect(
-      screen.getByTestId("morph-triangles-notice").textContent,
-    ).not.toMatch(/%|fold/i);
+    ).toEqual(["mouth: neutral, smile_shape"]);
+    expect(text).not.toMatch(/%|fold/i);
   });
 
-  it("says so when nothing needed changing", () => {
-    render(
-      <MorphTrianglesNotice
-        outcome={{ status: "applied", report: { parts: [] } }}
-        onDismiss={vi.fn()}
-      />,
+  it("does not claim nothing needed adjusting while a shape is still wrong", () => {
+    const text = renderSummary({
+      remaining: [{ part: "mouth", shapes: ["neutral"] }],
+    });
+    expect(text).not.toMatch(/Nothing/);
+    expect(screen.queryByTestId("morph-triangles-improved")).toBeNull();
+  });
+
+  it("says nothing needed adjusting only when everything was checked", () => {
+    expect(renderSummary({})).toMatch(/Nothing needed adjusting\./);
+    cleanup();
+    const text = renderSummary({
+      unchecked: [{ part: "left_iris", reason: "is not a single polygon" }],
+    });
+    expect(text).toMatch(/Nothing that could be checked needed adjusting\./);
+    expect(screen.getByTestId("morph-triangles-unchecked").textContent).toBe(
+      "left_iris is not a single polygon",
     );
-    expect(
-      screen.getByText("Nothing needed a visible adjustment."),
-    ).toBeTruthy();
-    expect(screen.queryByTestId("morph-triangles-remaining")).toBeNull();
   });
 
-  it("explains a failed pass and dismisses", () => {
+  it("explains a failed cleanup without claiming the face loaded, and dismisses", () => {
     const onDismiss = vi.fn();
     render(
       <MorphTrianglesNotice
@@ -91,7 +63,9 @@ describe("MorphTrianglesNotice", () => {
         onDismiss={onDismiss}
       />,
     );
-    expect(screen.getByText(/not a GLB file/)).toBeTruthy();
+    const text = screen.getByTestId("morph-triangles-notice").textContent;
+    expect(text).toMatch(/imported as it was: not a GLB file/);
+    expect(text).not.toMatch(/loaded/);
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onDismiss).toHaveBeenCalled();
   });

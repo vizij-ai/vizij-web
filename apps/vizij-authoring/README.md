@@ -25,9 +25,10 @@ what you author is what ships. Why that holds, and what it takes, is in
   Import, off by default): parts modelled as one large polygon, such as a
   mouth or a pupil, get triangles that keep their outline across every morph
   target instead of filling in. Only the triangles change. A notice names the
-  parts adjusted and the shapes that still need more vertices in the source
-  model
-  ([`@vizij/import`](https://github.com/vizij-ai/vizij-rs/tree/main/npm/@vizij/import))
+  parts whose shapes visibly improved, the shapes that still look partly
+  filled in and need reshaping in the source model, and the parts the cleanup
+  could not check. The cleanup is the `@vizij/import` package from
+  [vizij-rs](https://github.com/vizij-ai/vizij-rs)
 - live IR stats and report export hooks
 
 ## Standard Feature Spaces Editor
