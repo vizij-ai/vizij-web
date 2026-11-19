@@ -30,14 +30,18 @@ async function openFileMenu(page: Page): Promise<void> {
  */
 async function openCleanupSubmenu(page: Page): Promise<void> {
   const submenu = page.getByTestId("app-menu-file-morph-cleanup");
+  const firstChoice = page.getByTestId("app-menu-file-morph-cleanup-off");
   await expect(async () => {
+    // Done once the choices show; clicking an open submenu's trigger again
+    // never settles.
+    if (await firstChoice.isVisible()) {
+      return;
+    }
     if (!(await submenu.isVisible())) {
       await openFileMenu(page);
     }
-    await submenu.click({ timeout: 2_000 });
-    await expect(
-      page.getByTestId("app-menu-file-morph-cleanup-off"),
-    ).toBeVisible({ timeout: 2_000 });
+    await submenu.click({ timeout: 5_000 });
+    await expect(firstChoice).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
 }
 
