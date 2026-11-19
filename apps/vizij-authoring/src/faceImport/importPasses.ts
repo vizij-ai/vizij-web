@@ -8,8 +8,10 @@ export interface ImportPassOptions {
 
 /**
  * Reversed area, relative to a shape's own area, below which the notice
- * does not mention the shape or the change: a few pixels at a curve's tip
- * are not worth an author's attention.
+ * does not list a pose as still looking filled in: a few pixels at a
+ * curve's tip are not worth an author's attention. Whether the cleanup made
+ * a shape visibly better or worse is the pass's own judgement
+ * (`visiblyBetter`, `visiblyWorse`), the rule safe mode applies.
  */
 export const NOTICEABLE = 0.05;
 
@@ -28,9 +30,11 @@ export interface MorphTrianglesSummary {
   worsened: Array<{ part: string; shapes: string[] }>;
   /**
    * Parts safe mode left as exported because the rewrite that improves
-   * them overall would make some shape visibly worse.
+   * them overall would make some shape visibly worse, each with its poses
+   * that look partly filled in now: best overall improves some of them,
+   * and whatever it leaves needs reshaping in the source model.
    */
-  declined: string[];
+  declined: Array<{ part: string; shapes: string[] }>;
   /** Parts the cleanup could not check, with the reason. */
   unchecked: Array<{ part: string; reason: string }>;
 }
@@ -106,13 +110,13 @@ function grouped(
 
 /**
  * Condenses the pass's report for a face author. A part counts as improved
- * when any pose or blend lost a noticeable amount of wrongly drawn area, so
- * a part whose triangles changed only marginally is not named; `changed`
- * still records that they changed. Any shape that gained a noticeable amount
- * is listed as worsened. Poses still drawn wrong are listed for remodelling
- * only in parts the cleanup could do no better for: a part safe mode
- * declined is listed as such instead, since best overall improves it. A
- * mesh exported as several pieces appears once in each list.
+ * when the pass flags any pose or blend as visibly better, so a part whose
+ * triangles changed only marginally is not named; `changed` still records
+ * that they changed. Any shape the pass flags as visibly worse is listed as
+ * worsened. Poses still drawn wrong are listed for remodelling in parts the
+ * cleanup could do no better for, and with the part in `declined` for a
+ * part safe mode declined. A mesh exported as several pieces appears once
+ * in each list.
  */
 export function summarizeMorphTriangles(
   report: MorphTrianglesReport,
@@ -120,17 +124,17 @@ export function summarizeMorphTriangles(
 ): MorphTrianglesSummary {
   const partName = partLabels(report);
   const improved = new Set<string>();
-  const declined = new Set<string>();
+  const declinedParts = new Set<string>();
   const worsened: Array<{ part: string; shape: string }> = [];
   const worsenedShapes = new Map<string, Set<string>>();
   const unchecked = new Map<string, Set<string>>();
   for (const part of report.parts) {
     const name = partName(part);
     for (const fold of part.folds) {
-      const gain = (fold.before ?? 0) - (fold.after ?? 0);
-      if (gain >= NOTICEABLE) {
+      if (fold.visiblyBetter) {
         improved.add(name);
-      } else if (-gain >= NOTICEABLE) {
+      }
+      if (fold.visiblyWorse) {
         worsened.push({ part: name, shape: shapeName(fold.shape) });
         const shapes = worsenedShapes.get(name) ?? new Set<string>();
         shapes.add(fold.shape);
@@ -138,7 +142,7 @@ export function summarizeMorphTriangles(
       }
     }
     if (part.outcome === "declined") {
-      declined.add(name);
+      declinedParts.add(name);
     }
     if (part.outcome === "skipped") {
       const reasons = unchecked.get(name) ?? new Set<string>();
@@ -146,27 +150,34 @@ export function summarizeMorphTriangles(
       unchecked.set(name, reasons);
     }
   }
-  const remaining = stillFolding(report, NOTICEABLE).flatMap(
-    ({ part, folds }) =>
-      part.outcome === "declined"
-        ? []
-        : folds
-            .filter(
-              (fold) =>
-                !isBlend(fold.kind) &&
-                !worsenedShapes.get(partName(part))?.has(fold.shape),
-            )
-            .map((fold) => ({
-              part: partName(part),
-              shape: shapeName(fold.shape),
-            })),
-  );
+  const remaining: Array<{ part: string; shape: string }> = [];
+  const declined: Array<{ part: string; shape: string }> = [];
+  for (const { part, folds } of stillFolding(report, NOTICEABLE)) {
+    const name = partName(part);
+    for (const fold of folds) {
+      if (isBlend(fold.kind) || worsenedShapes.get(name)?.has(fold.shape)) {
+        continue;
+      }
+      (part.outcome === "declined" ? declined : remaining).push({
+        part: name,
+        shape: shapeName(fold.shape),
+      });
+    }
+  }
+  // A declined part is named even when none of its poses still looks
+  // filled in: only blends may be what the rewrite would improve.
+  const declinedGroups = grouped(declined);
+  for (const name of declinedParts) {
+    if (!declinedGroups.some((group) => group.part === name)) {
+      declinedGroups.push({ part: name, shapes: [] });
+    }
+  }
   return {
     changed: report.parts.some((part) => part.outcome === "retriangulated"),
     improved: [...improved],
     remaining: grouped(remaining),
     worsened: grouped(worsened),
-    declined: [...declined],
+    declined: declinedGroups,
     unchecked: [...unchecked].map(([part, reasons]) => ({
       part,
       reason: [...reasons].join("; "),

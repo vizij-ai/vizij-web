@@ -1,6 +1,14 @@
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { bootAuthoring, loadMainPreset, waitForMainFaceReady } from "./helpers";
+import {
+  bootAuthoring,
+  expectDownload,
+  FACE_IMPORT_TIMEOUT_MS,
+  loadMainPreset,
+  waitForMainFaceReady,
+} from "./helpers";
+import { FAN, morphedMouthGlb, morphedTriangles } from "./morphFixture";
 
 /**
  * The morph target cleanup runs on import only when File → Morph Target
@@ -141,4 +149,40 @@ test("the notice re-imports the picked file with another cleanup @workflow", asy
   await expect(
     page.getByTestId("app-menu-file-morph-cleanup-off"),
   ).toHaveAttribute("aria-checked", "true");
+});
+
+test("the face loads and saves with the triangles the cleanup chose @workflow", async ({
+  page,
+}, testInfo) => {
+  const picked = testInfo.outputPath("mouth.glb");
+  await writeFile(picked, morphedMouthGlb());
+  const fan = FAN.map((t) => [...t].sort((a, b) => a - b).join(",")).sort();
+  expect(morphedTriangles(await readFile(picked))).toEqual(fan);
+
+  await bootAuthoring(page);
+  await chooseCleanup(page, "safe");
+  await page.getByTestId("app-import-file-input").setInputFiles(picked);
+  await expect(page.getByTestId("morph-triangles-headline")).toContainText(
+    "Improved",
+  );
+  await page
+    .getByRole("button", { name: "Orientation Looks Correct" })
+    .click({ timeout: 120_000 });
+  await waitForMainFaceReady(page);
+  await expect(page.getByTestId("morph-triangles-headline")).toContainText(
+    "Improved",
+  );
+
+  const save = page.getByTestId("app-save-button");
+  await expect(save).toBeEnabled({ timeout: FACE_IMPORT_TIMEOUT_MS });
+  const download = await expectDownload(page, async () => {
+    await save.click();
+  });
+  const saved = await download.path();
+  if (!saved) {
+    throw new Error("the saved GLB did not resolve to a local path");
+  }
+  const triangles = morphedTriangles(await readFile(saved));
+  expect(triangles).toHaveLength(fan.length);
+  expect(triangles).not.toEqual(fan);
 });

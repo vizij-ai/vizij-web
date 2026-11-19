@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { stillFolding, type MorphTrianglesReport } from "@vizij/import";
+import {
+  stillFolding,
+  type MorphTrianglesReport,
+  type ShapeFold,
+  type ShapeKind,
+} from "@vizij/import";
 import { NOTICEABLE, summarizeMorphTriangles } from "./importPasses";
 
 type Part = MorphTrianglesReport["parts"][number];
@@ -17,30 +22,38 @@ function part(overrides: Partial<Part>): Part {
   };
 }
 
+/** A fold; `change` is the pass's own judgement of the rewrite. */
+function fold(
+  shape: string,
+  kind: ShapeKind,
+  before: number | null,
+  after: number | null,
+  change: "better" | "worse" | "same" = "same",
+): ShapeFold {
+  return {
+    shape,
+    kind,
+    before,
+    after,
+    visiblyBetter: change === "better",
+    visiblyWorse: change === "worse",
+  };
+}
+
 const summarize = (parts: Part[]) =>
   summarizeMorphTriangles({ parts }, stillFolding);
 
 describe("summarizeMorphTriangles", () => {
-  it("names a part fixed only when a shape visibly improved", () => {
-    const fixed = part({
-      folds: [
-        { shape: "smile_shape", kind: "target", before: 0.41, after: 0.12 },
-      ],
-    });
-    const marginal = part({
-      meshName: "left_eyebrow",
-      folds: [
-        { shape: "rest", kind: "rest", before: NOTICEABLE / 2, after: 0 },
-      ],
-    });
-    const atThreshold = part({
-      meshName: "left_pupil",
-      folds: [{ shape: "rest", kind: "rest", before: NOTICEABLE, after: 0 }],
-    });
-    expect(summarize([fixed, marginal, atThreshold]).improved).toEqual([
-      "mouth",
-      "left_pupil",
+  it("names a part improved by the pass's own visibly-better flag", () => {
+    const summary = summarize([
+      part({ folds: [fold("smile_shape", "target", 0.41, 0.12, "better")] }),
+      part({
+        meshName: "left_eyebrow",
+        folds: [fold("rest", "rest", 0.3, 0.0, "same")],
+      }),
     ]);
+    expect(summary.improved).toEqual(["mouth"]);
+    expect(summary.changed).toBe(true);
   });
 
   it("lists each part once, however many pieces it was exported in", () => {
@@ -49,16 +62,15 @@ describe("summarizeMorphTriangles", () => {
         meshName: "left_eye_lid",
         vertices,
         folds: [
-          { shape: "rest", kind: "rest" as const, before: 0.4, after: 0.0 },
-          {
-            shape: "wink_shape",
-            kind: "target" as const,
-            before: 0.9,
-            after: 0.0,
-          },
-        ].map((fold) =>
-          fold.shape === stillWrong ? { ...fold, after: 0.3 } : fold,
-        ),
+          fold("rest", "rest", 0.4, stillWrong === "rest" ? 0.3 : 0, "better"),
+          fold(
+            "wink_shape",
+            "target",
+            0.9,
+            stillWrong === "wink_shape" ? 0.3 : 0,
+            "better",
+          ),
+        ],
       });
     const summary = summarize([piece(4, "rest"), piece(6, "wink_shape")]);
     expect(summary.improved).toEqual(["left_eye_lid"]);
@@ -67,18 +79,13 @@ describe("summarizeMorphTriangles", () => {
     ]);
   });
 
-  it("keeps shapes still drawn wrong above the threshold only", () => {
+  it("keeps poses still drawn wrong above the threshold only", () => {
     const summary = summarize([
       part({
         outcome: "kept",
         folds: [
-          { shape: "smile_shape", kind: "target", before: 0.12, after: 0.12 },
-          {
-            shape: "talking_shape",
-            kind: "target",
-            before: 0.012,
-            after: 0.012,
-          },
+          fold("smile_shape", "target", 0.12, 0.12),
+          fold("talking_shape", "target", 0.012, 0.012),
         ],
       }),
     ]);
@@ -92,91 +99,56 @@ describe("summarizeMorphTriangles", () => {
     });
   });
 
-  it("reports blends only when the cleanup made them worse", () => {
+  it("lists whatever the pass flags as visibly worse, poses and blends alike", () => {
     const summary = summarize([
       part({
         folds: [
-          { shape: "smile_shape", kind: "target", before: 0.41, after: 0.02 },
-          {
-            shape: "smile_shape + sad_shape",
-            kind: "blend",
-            before: 0.9,
-            after: 0.1,
-          },
-          {
-            shape: "idle_shape + sad_shape",
-            kind: "blend",
-            before: 0.05,
-            after: 0.19,
-          },
-          {
-            shape: "o_shape + sad_shape (halfway)",
-            kind: "blendHalfway",
-            before: 0.3,
-            after: 0.3,
-          },
+          fold("rest", "rest", 0.0, 0.3, "worse"),
+          fold("smile_shape", "target", 0.9, 0.0, "better"),
+          fold("idle_shape + sad_shape", "blend", 0.05, 0.19, "worse"),
+          fold("o_shape + sad_shape", "blend", 0.0, 0.2, "same"),
         ],
       }),
     ]);
-    expect(summary.improved).toEqual(["mouth"]);
-    expect(summary.remaining).toEqual([]);
     expect(summary.worsened).toEqual([
-      { part: "mouth", shapes: ["idle_shape + sad_shape"] },
+      { part: "mouth", shapes: ["neutral", "idle_shape + sad_shape"] },
     ]);
+    expect(summary.remaining).toEqual([]);
   });
 
-  it("counts a blend's gain as the part improved", () => {
+  it("counts a blend made visibly better as the part improved", () => {
     const summary = summarize([
-      part({
-        folds: [{ shape: "a + b", kind: "blend", before: 0.9, after: 0.1 }],
-      }),
+      part({ folds: [fold("a + b", "blend", 0.9, 0.1, "better")] }),
     ]);
     expect(summary.improved).toEqual(["mouth"]);
   });
 
-  it("lists a pose made worse as worsened, not as still to remodel", () => {
-    const summary = summarize([
-      part({
-        folds: [
-          { shape: "rest", kind: "rest", before: 0.0, after: 0.3 },
-          { shape: "smile_shape", kind: "target", before: 0.9, after: 0.0 },
-        ],
-      }),
-    ]);
-    expect(summary.worsened).toEqual([{ part: "mouth", shapes: ["neutral"] }]);
-    expect(summary.remaining).toEqual([]);
-  });
-
-  it("counts a change as worse only from the noticeable threshold", () => {
-    const summary = summarize([
-      part({
-        folds: [
-          { shape: "a + b", kind: "blend", before: 0, after: NOTICEABLE },
-          { shape: "a + c", kind: "blend", before: 0, after: NOTICEABLE / 2 },
-        ],
-      }),
-    ]);
-    expect(summary.worsened).toEqual([{ part: "mouth", shapes: ["a + b"] }]);
-  });
-
-  it("names a part safe mode declined, and does not send it to remodelling", () => {
+  it("keeps a declined part's poses with the part, not with remodelling", () => {
     const summary = summarize([
       part({
         outcome: "declined",
         folds: [
-          { shape: "smile_shape", kind: "target", before: 0.4, after: 0.4 },
+          fold("rest", "rest", 0.46, 0.46),
+          fold("a_shape", "target", 0.01, 0.01),
         ],
       }),
+      part({
+        mesh: 1,
+        meshName: "left_eye_lid",
+        outcome: "declined",
+        folds: [fold("rest", "rest", 0, 0)],
+      }),
     ]);
-    expect(summary.declined).toEqual(["mouth"]);
+    expect(summary.declined).toEqual([
+      { part: "mouth", shapes: ["neutral"] },
+      { part: "left_eye_lid", shapes: [] },
+    ]);
     expect(summary.remaining).toEqual([]);
   });
 
   it("records a rewrite too small to notice as a change", () => {
     const summary = summarize([
-      part({
-        folds: [{ shape: "rest", kind: "rest", before: 0.04, after: 0 }],
-      }),
+      part({ folds: [fold("rest", "rest", 0.04, 0)] }),
     ]);
     expect(summary.changed).toBe(true);
     expect(summary.improved).toEqual([]);
@@ -193,7 +165,7 @@ describe("summarizeMorphTriangles", () => {
       part({
         mesh: 4,
         meshName: "Circle",
-        folds: [{ shape: "rest", kind: "rest", before: 0.5, after: 0 }],
+        folds: [fold("rest", "rest", 0.5, 0, "better")],
       }),
     ]);
     expect(summary.improved).toEqual(["Circle (mesh 4)"]);
@@ -214,5 +186,18 @@ describe("summarizeMorphTriangles", () => {
     expect(summary.unchecked).toEqual([
       { part: "mesh 3", reason: "is not a single polygon" },
     ]);
+  });
+
+  it("lists a pose still wrong from the noticeable threshold on", () => {
+    const summary = summarize([
+      part({
+        outcome: "kept",
+        folds: [
+          fold("a_shape", "target", NOTICEABLE * 1.01, NOTICEABLE * 1.01),
+          fold("b_shape", "target", NOTICEABLE * 0.99, NOTICEABLE * 0.99),
+        ],
+      }),
+    ]);
+    expect(summary.remaining).toEqual([{ part: "mouth", shapes: ["a_shape"] }]);
   });
 });

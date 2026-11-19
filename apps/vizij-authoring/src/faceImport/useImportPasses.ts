@@ -29,8 +29,15 @@ export function useImportPasses() {
   // import can finish after a later one has started.
   const latest = useRef(0);
 
-  /** Starts an import: its ticket, which supersedes every earlier one. */
-  const begin = useCallback(() => ++latest.current, []);
+  /**
+   * Starts an import: its ticket, which supersedes every earlier one. The
+   * previous import's notice goes at once, so its re-import buttons cannot
+   * be used while this import is still fetching or running its passes.
+   */
+  const begin = useCallback(() => {
+    setNotice(null);
+    return ++latest.current;
+  }, []);
 
   /**
    * The file to load in place of `file`, once the passes have run with

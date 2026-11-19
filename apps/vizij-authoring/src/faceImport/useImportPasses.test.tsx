@@ -220,4 +220,19 @@ describe("useImportPasses", () => {
     expect(pass.optimizeMorphTriangles.mock.calls[0][1]).toBe("overall");
     expect(result.current.passes.notice?.cleanup).toBe("overall");
   });
+
+  it("hides the previous import's notice as soon as the next one starts", async () => {
+    const { result } = renderPasses("safe");
+    await act(async () => {
+      await result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("a.glb"),
+      );
+    });
+    expect(result.current.passes.notice).not.toBeNull();
+    act(() => {
+      result.current.passes.begin();
+    });
+    expect(result.current.passes.notice).toBeNull();
+  });
 });

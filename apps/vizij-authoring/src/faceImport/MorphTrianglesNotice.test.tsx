@@ -58,11 +58,21 @@ describe("MorphTrianglesNotice", () => {
     expect(text).not.toMatch(/%|fold/i);
   });
 
-  it("names parts safe mode declined instead of telling the author to remodel them", () => {
-    const text = renderSummary({ declined: ["mouth"] });
+  it("names parts safe mode declined, with their poses that look filled in now", () => {
+    const text = renderSummary({
+      declined: [
+        { part: "mouth", shapes: ["neutral", "smile_shape"] },
+        { part: "left_eye_lid", shapes: [] },
+      ],
+    });
     expect(screen.getByTestId("morph-triangles-declined").textContent).toMatch(
-      /best-overall cleanup improves them: mouth\./,
+      /Best-overall cleanup improves them; whatever still looks filled in after that needs reshaping in the source model\./,
     );
+    expect(
+      Array.from(
+        screen.getByTestId("morph-triangles-declined-shapes").children,
+      ).map((li) => li.textContent),
+    ).toEqual(["mouth: neutral, smile_shape", "left_eye_lid: none"]);
     expect(text).not.toMatch(/Nothing/);
     expect(screen.queryByTestId("morph-triangles-remaining")).toBeNull();
   });

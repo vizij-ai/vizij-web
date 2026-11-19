@@ -63,19 +63,29 @@ function SummaryBody({ summary }: { summary: MorphTrianglesSummary }) {
         </>
       )}
       {declined.length > 0 && (
-        <p data-testid="morph-triangles-declined">
-          Left as exported, because improving them would make some of their
-          shapes visibly worse; best-overall cleanup improves them:{" "}
-          {declined.join(", ")}.
-        </p>
+        <>
+          <p data-testid="morph-triangles-declined">
+            Left as exported, because improving them would make some of their
+            shapes visibly worse. Best-overall cleanup improves them; whatever
+            still looks filled in after that needs reshaping in the source
+            model. Poses that look partly filled in now:
+          </p>
+          <PartList
+            testId="morph-triangles-declined-shapes"
+            entries={declined.map(({ part, shapes }) => ({
+              part,
+              shapes: shapes.length > 0 ? shapes : ["none"],
+            }))}
+          />
+        </>
       )}
       {remaining.length > 0 && (
         <>
           <p className="text-text-secondary">
             Some poses still look partly filled in, because no arrangement of
-            their triangles follows the outline. Reshaping them in the source
-            model, usually with more vertices along the curves, then importing
-            again, fixes them:
+            their triangles follows every pose at once. Reshaping them in the
+            source model, usually with more vertices along the curves, then
+            importing again, fixes them:
           </p>
           <PartList testId="morph-triangles-remaining" entries={remaining} />
         </>
