@@ -27,15 +27,28 @@ async function chooseCleanup(
   page: Page,
   cleanup: "off" | "safe" | "overall",
 ): Promise<void> {
-  await openFileMenu(page);
-  await page.getByTestId("app-menu-file-morph-cleanup").click();
+  const submenu = page.getByTestId("app-menu-file-morph-cleanup");
   const choice = page.getByTestId(`app-menu-file-morph-cleanup-${cleanup}`);
-  await choice.click();
   await openFileMenu(page);
-  await page.getByTestId("app-menu-file-morph-cleanup").click();
+  await submenu.click();
+  await choice.click();
+  // A checkbox item may leave the menu open; reopen it only if it closed,
+  // since a pointerdown on an open menu's trigger closes it.
+  if (!(await choice.isVisible())) {
+    await openFileMenu(page);
+    await submenu.click();
+  }
   await expect(choice).toHaveAttribute("aria-checked", "true");
-  await page.keyboard.press("Escape");
-  await page.keyboard.press("Escape");
+  await closeMenus(page);
+}
+
+/** Closes any open menu and waits until the File menu's items are gone. */
+async function closeMenus(page: Page): Promise<void> {
+  const submenu = page.getByTestId("app-menu-file-morph-cleanup");
+  for (let i = 0; i < 3 && (await submenu.isVisible()); i += 1) {
+    await page.keyboard.press("Escape");
+  }
+  await expect(submenu).toBeHidden();
 }
 
 /**
@@ -104,6 +117,7 @@ test("the notice re-imports the picked file with another cleanup @workflow", asy
   await expect(page.getByTestId("morph-triangles-reimport-safe")).toBeVisible();
 
   // The re-import's choice becomes the choice for later imports.
+  await closeMenus(page);
   await openFileMenu(page);
   await page.getByTestId("app-menu-file-morph-cleanup").click();
   await expect(
