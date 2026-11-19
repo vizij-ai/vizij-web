@@ -40,7 +40,8 @@ describe("prepareImport", () => {
     const prepared = await prepareImport(file, {
       optimizeMorphTriangles: false,
     });
-    expect(prepared).toEqual({ file, morphTriangles: null });
+    expect(prepared.file).toBe(file);
+    expect(prepared.morphTriangles).toBeNull();
     expect(pass.optimizeMorphTriangles).not.toHaveBeenCalled();
   });
 
@@ -62,7 +63,7 @@ describe("prepareImport", () => {
     );
     expect(prepared.morphTriangles).toEqual({
       status: "applied",
-      summary: { improved: [], remaining: [], unchecked: [] },
+      summary: { changed: true, improved: [], remaining: [], unchecked: [] },
     });
   });
 
@@ -86,9 +87,10 @@ describe("prepareImport", () => {
     const prepared = await prepareImport(file, {
       optimizeMorphTriangles: true,
     });
-    expect(prepared).toEqual({
-      file,
-      morphTriangles: { status: "failed", message: "not a GLB file" },
+    expect(prepared.file).toBe(file);
+    expect(prepared.morphTriangles).toEqual({
+      status: "failed",
+      message: "not a GLB file",
     });
   });
 });

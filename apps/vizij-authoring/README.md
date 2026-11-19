@@ -22,7 +22,8 @@ what you author is what ships. Why that holds, and what it takes, is in
 - grouped pose workflow with canonical pose-weight paths: `rig/{face}/poses/{poseId}.weight`
 - graph import face-id safety and remapping
 - optional morph target cleanup on import (File → Clean Up Morph Targets on
-  Import, off by default): parts modelled as one large polygon, such as a
+  Import, off by default; `.glb` files only): parts modelled as one large
+  polygon, such as a
   mouth or a pupil, get triangles that keep their outline across every morph
   target instead of filling in. Only the triangles change. A notice names the
   parts whose shapes visibly improved, the shapes that still look partly

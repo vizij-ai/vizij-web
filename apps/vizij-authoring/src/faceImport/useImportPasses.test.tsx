@@ -117,6 +117,23 @@ describe("useImportPasses", () => {
     expect(result.current.passes.morphTriangles).toBeNull();
   });
 
+  it("dismissing hides the notice, and New clears it", async () => {
+    const { result } = renderPasses(true);
+    await act(async () => {
+      await result.current.passes.prepare(face("a.glb"));
+    });
+    expect(result.current.passes.morphTriangles).not.toBeNull();
+    act(() => result.current.passes.dismissMorphTriangles());
+    expect(result.current.passes.morphTriangles).toBeNull();
+
+    await act(async () => {
+      await result.current.passes.prepare(face("b.glb"));
+    });
+    expect(result.current.passes.morphTriangles).not.toBeNull();
+    act(() => result.current.passes.cancel());
+    expect(result.current.passes.morphTriangles).toBeNull();
+  });
+
   it("dismissing the notice leaves an import in progress to finish", async () => {
     const { result } = renderPasses(true);
     const release = gateInit();

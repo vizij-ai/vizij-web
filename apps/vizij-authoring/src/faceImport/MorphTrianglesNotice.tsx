@@ -7,10 +7,11 @@ interface MorphTrianglesNoticeProps {
 }
 
 /**
- * What the morph target cleanup did on import, in an author's terms: the
- * parts it fixed so they keep their outline as they change shape, the
- * shapes that still look partly filled in (which need a change in the
- * source model), and the parts it could not check.
+ * What the morph target cleanup did to the file being imported, in an
+ * author's terms: the parts it improved, the shapes that still look partly
+ * filled in (which need a change in the source model), and the parts it
+ * could not check. It speaks only of the cleanup, which runs before the
+ * face loads, never of whether the load itself succeeds.
  */
 export function MorphTrianglesNotice({
   outcome,
@@ -20,34 +21,34 @@ export function MorphTrianglesNotice({
   if (outcome.status === "failed") {
     body = (
       <p>
-        The morph target shapes could not be adjusted, so the file is imported
-        as it was: {outcome.message}
+        The cleanup could not run on this file, so its triangles are as they
+        were exported: {outcome.message}
       </p>
     );
   } else {
-    const { improved, remaining, unchecked } = outcome.summary;
+    const { changed, improved, remaining, unchecked } = outcome.summary;
+    let headline: string | null = null;
+    if (improved.length > 0) {
+      headline = `Improved how these keep their outline across their morph targets: ${improved.join(", ")}.`;
+    } else if (changed) {
+      headline =
+        "Rearranged some triangles, with no difference large enough to notice.";
+    } else if (remaining.length === 0) {
+      headline =
+        unchecked.length === 0
+          ? "Nothing needed adjusting."
+          : "Nothing that could be checked needed adjusting.";
+    }
     body = (
       <>
-        {improved.length > 0 && (
-          <p data-testid="morph-triangles-improved">
-            Adjusted so their morph targets keep their outline instead of
-            filling in: {improved.join(", ")}.
-          </p>
-        )}
-        {improved.length === 0 && remaining.length === 0 && (
-          <p>
-            {unchecked.length === 0
-              ? "Nothing needed adjusting."
-              : "Nothing that could be checked needed adjusting."}
-          </p>
-        )}
+        {headline && <p data-testid="morph-triangles-headline">{headline}</p>}
         {remaining.length > 0 && (
           <>
             <p className="text-text-secondary">
-              These still look partly filled in, because their triangles cannot
-              follow the outline. Reshaping them in the source model, usually
-              with more vertices along the curves, then importing again, fixes
-              them:
+              Some shapes still look partly filled in, because no arrangement of
+              their triangles follows the outline. Reshaping them in the source
+              model, usually with more vertices along the curves, then importing
+              again, fixes them:
             </p>
             <ul data-testid="morph-triangles-remaining">
               {remaining.map(({ part, shapes }) => (

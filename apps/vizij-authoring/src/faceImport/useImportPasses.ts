@@ -37,7 +37,11 @@ export function useImportPasses() {
   /** Hides the notice; an import in progress is unaffected. */
   const dismissMorphTriangles = useCallback(() => setMorphTriangles(null), []);
 
-  /** Abandons any import still in its passes and clears the notice (New). */
+  /**
+   * Abandons any import still in its passes (New). New also remounts the
+   * session, which clears the notice; what only this does is stop an import
+   * whose passes finish afterwards from loading into the new session.
+   */
   const cancel = useCallback(() => {
     latest.current += 1;
     setMorphTriangles(null);

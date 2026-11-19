@@ -10,7 +10,13 @@ function renderSummary(summary: Partial<MorphTrianglesSummary>) {
     <MorphTrianglesNotice
       outcome={{
         status: "applied",
-        summary: { improved: [], remaining: [], unchecked: [], ...summary },
+        summary: {
+          changed: false,
+          improved: [],
+          remaining: [],
+          unchecked: [],
+          ...summary,
+        },
       }}
       onDismiss={vi.fn()}
     />,
@@ -19,13 +25,14 @@ function renderSummary(summary: Partial<MorphTrianglesSummary>) {
 }
 
 describe("MorphTrianglesNotice", () => {
-  it("names the fixed parts and the shapes still drawn wrong", () => {
+  it("names the improved parts and the shapes still drawn wrong", () => {
     const text = renderSummary({
+      changed: true,
       improved: ["mouth", "left_pupil"],
       remaining: [{ part: "mouth", shapes: ["neutral", "smile_shape"] }],
     });
-    expect(screen.getByTestId("morph-triangles-improved").textContent).toBe(
-      "Adjusted so their morph targets keep their outline instead of filling in: mouth, left_pupil.",
+    expect(screen.getByTestId("morph-triangles-headline").textContent).toBe(
+      "Improved how these keep their outline across their morph targets: mouth, left_pupil.",
     );
     expect(
       Array.from(screen.getByTestId("morph-triangles-remaining").children).map(
@@ -40,7 +47,15 @@ describe("MorphTrianglesNotice", () => {
       remaining: [{ part: "mouth", shapes: ["neutral"] }],
     });
     expect(text).not.toMatch(/Nothing/);
-    expect(screen.queryByTestId("morph-triangles-improved")).toBeNull();
+    expect(screen.queryByTestId("morph-triangles-headline")).toBeNull();
+  });
+
+  it("does not claim nothing changed when triangles were rearranged", () => {
+    const text = renderSummary({ changed: true });
+    expect(text).not.toMatch(/Nothing/);
+    expect(screen.getByTestId("morph-triangles-headline").textContent).toBe(
+      "Rearranged some triangles, with no difference large enough to notice.",
+    );
   });
 
   it("says nothing needed adjusting only when everything was checked", () => {
@@ -55,7 +70,7 @@ describe("MorphTrianglesNotice", () => {
     );
   });
 
-  it("explains a failed cleanup without claiming the face loaded, and dismisses", () => {
+  it("explains a failed cleanup without claiming anything about the import, and dismisses", () => {
     const onDismiss = vi.fn();
     render(
       <MorphTrianglesNotice
@@ -64,8 +79,8 @@ describe("MorphTrianglesNotice", () => {
       />,
     );
     const text = screen.getByTestId("morph-triangles-notice").textContent;
-    expect(text).toMatch(/imported as it was: not a GLB file/);
-    expect(text).not.toMatch(/loaded/);
+    expect(text).toMatch(/as they were exported: not a GLB file/);
+    expect(text).not.toMatch(/load|import/i);
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onDismiss).toHaveBeenCalled();
   });

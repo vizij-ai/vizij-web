@@ -17,7 +17,9 @@ export const NOTICEABLE = 0.05;
 
 /** What the morph target cleanup did, in the terms the import notice uses. */
 export interface MorphTrianglesSummary {
-  /** Parts, by name and each once, whose shapes the cleanup visibly fixed. */
+  /** Whether the cleanup rewrote any triangles at all. */
+  changed: boolean;
+  /** Parts, each once, whose shapes the cleanup visibly improved. */
   improved: string[];
   /** Shapes still visibly drawn wrong, grouped by part name. */
   remaining: Array<{ part: string; shapes: string[] }>;
@@ -43,8 +45,28 @@ type StillFolding = (
   threshold: number,
 ) => Array<{ part: Part; folds: ShapeFold[] }>;
 
-function partName(part: Part): string {
-  return part.meshName ?? `mesh ${part.mesh}`;
+/**
+ * A label per mesh: its name, or its index when it has none. glTF does not
+ * require mesh names to be unique, so a name two meshes share also carries
+ * the index; the pieces of one mesh share its label.
+ */
+function partLabels(report: MorphTrianglesReport): (part: Part) => string {
+  const meshesByName = new Map<string, Set<number>>();
+  for (const part of report.parts) {
+    if (part.meshName !== null) {
+      const meshes = meshesByName.get(part.meshName) ?? new Set<number>();
+      meshes.add(part.mesh);
+      meshesByName.set(part.meshName, meshes);
+    }
+  }
+  return (part) => {
+    if (part.meshName === null) {
+      return `mesh ${part.mesh}`;
+    }
+    return (meshesByName.get(part.meshName)?.size ?? 0) > 1
+      ? `${part.meshName} (mesh ${part.mesh})`
+      : part.meshName;
+  };
 }
 
 /** `rest` is the shape with no morph target applied. */
@@ -53,17 +75,19 @@ function shapeName(shape: string): string {
 }
 
 /**
- * Condenses the pass's report for a face author. A part counts as fixed
+ * Condenses the pass's report for a face author. A part counts as improved
  * only when some shape lost a noticeable amount of wrongly drawn area, so a
- * part whose triangles changed only marginally is not named. A part
- * exported as several pieces appears once in each list.
+ * part whose triangles changed only marginally is not named; `changed`
+ * still records that they changed. A mesh exported as several pieces
+ * appears once in each list.
  */
 export function summarizeMorphTriangles(
   report: MorphTrianglesReport,
   stillFolding: StillFolding,
 ): MorphTrianglesSummary {
+  const partName = partLabels(report);
   const improved = new Set<string>();
-  const unchecked = new Map<string, string>();
+  const unchecked = new Map<string, Set<string>>();
   for (const part of report.parts) {
     if (
       part.folds.some(
@@ -73,7 +97,9 @@ export function summarizeMorphTriangles(
       improved.add(partName(part));
     }
     if (part.outcome === "skipped") {
-      unchecked.set(partName(part), part.skipReason ?? "could not be read");
+      const reasons = unchecked.get(partName(part)) ?? new Set<string>();
+      reasons.add(part.skipReason ?? "could not be read");
+      unchecked.set(partName(part), reasons);
     }
   }
   const remaining = new Map<string, Set<string>>();
@@ -83,12 +109,16 @@ export function summarizeMorphTriangles(
     remaining.set(partName(part), shapes);
   }
   return {
+    changed: report.parts.some((part) => part.outcome === "retriangulated"),
     improved: [...improved],
     remaining: [...remaining].map(([part, shapes]) => ({
       part,
       shapes: [...shapes],
     })),
-    unchecked: [...unchecked].map(([part, reason]) => ({ part, reason })),
+    unchecked: [...unchecked].map(([part, reasons]) => ({
+      part,
+      reason: [...reasons].join("; "),
+    })),
   };
 }
 

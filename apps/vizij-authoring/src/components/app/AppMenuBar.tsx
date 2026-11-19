@@ -229,7 +229,9 @@ export function AppMenuBar({
   return (
     <MenuBar>
       <Menu label="File" testId="app-menu-file">
-        <MenuItem onSelect={onNew}>New</MenuItem>
+        <MenuItem onSelect={onNew} testId="app-menu-file-new">
+          New
+        </MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={onImport} testId="app-menu-file-import">
           Import...

@@ -69,10 +69,39 @@ describe("summarizeMorphTriangles", () => {
       }),
     ]);
     expect(summary).toEqual({
+      changed: false,
       improved: [],
       remaining: [{ part: "mouth", shapes: ["smile_shape"] }],
       unchecked: [],
     });
+  });
+
+  it("records a rewrite too small to notice as a change", () => {
+    const summary = summarize([
+      part({ folds: [{ shape: "rest", before: 0.04, after: 0 }] }),
+    ]);
+    expect(summary.changed).toBe(true);
+    expect(summary.improved).toEqual([]);
+  });
+
+  it("keeps two meshes that share a name apart", () => {
+    const summary = summarize([
+      part({
+        mesh: 3,
+        meshName: "Circle",
+        outcome: "skipped",
+        skipReason: "is not a single polygon",
+      }),
+      part({
+        mesh: 4,
+        meshName: "Circle",
+        folds: [{ shape: "rest", before: 0.5, after: 0 }],
+      }),
+    ]);
+    expect(summary.improved).toEqual(["Circle (mesh 4)"]);
+    expect(summary.unchecked).toEqual([
+      { part: "Circle (mesh 3)", reason: "is not a single polygon" },
+    ]);
   });
 
   it("reports parts the cleanup could not check, with the reason", () => {
