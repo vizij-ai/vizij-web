@@ -66,7 +66,9 @@ function SummaryBody({ summary }: { summary: MorphTrianglesSummary }) {
         <>
           <p data-testid="morph-triangles-declined">
             Left as exported, because improving them would make some of their
-            shapes visibly worse. Best-overall cleanup improves them; whatever
+            shapes visibly worse, or would also change their depth, which a
+            face drawn head-on does not show. Best-overall cleanup improves
+            them; whatever
             still looks filled in after that needs reshaping in the source
             model. Poses that look partly filled in now:
           </p>

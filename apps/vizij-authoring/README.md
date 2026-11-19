@@ -33,8 +33,8 @@ what you author is what ships. Why that holds, and what it takes, is in
     fixes more, and lists any blends of two poses that got worse.
 
   A notice names the parts improved, anything made visibly worse, the parts
-  Safe left as exported because improving them would worsen other shapes
-  (Best overall improves those) with their poses that look filled in now, the
+  Safe left as exported because improving them would worsen other shapes or
+  also change their depth (Best overall improves those) with their poses that look filled in now, the
   poses that still look partly filled in and need reshaping in the source
   model, and the parts the cleanup could not check. It can import the picked file again with another choice, which
   starts a new session and becomes the choice for later imports. The cleanup

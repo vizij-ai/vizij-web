@@ -18,6 +18,7 @@ const report = {
       vertices: 65,
       outcome: "retriangulated",
       skipReason: null,
+      flat: true,
       folds: [],
     },
   ],

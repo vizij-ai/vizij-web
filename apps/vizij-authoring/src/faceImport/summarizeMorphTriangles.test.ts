@@ -17,6 +17,7 @@ function part(overrides: Partial<Part>): Part {
     vertices: 65,
     outcome: "retriangulated",
     skipReason: null,
+    flat: true,
     folds: [],
     ...overrides,
   };
