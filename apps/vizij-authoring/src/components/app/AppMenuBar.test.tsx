@@ -43,8 +43,8 @@ function renderMenuBar(
       onNew={vi.fn()}
       onImport={vi.fn()}
       onImportSkipChecks={vi.fn()}
-      optimizeMorphTriangles={false}
-      onOptimizeMorphTrianglesChange={vi.fn()}
+      morphTriangleCleanup="off"
+      onMorphTriangleCleanupChange={vi.fn()}
       onImportReferenceFace={vi.fn()}
       onImportGlbAnimations={vi.fn()}
       onSave={vi.fn()}
@@ -170,36 +170,27 @@ describe("AppMenuBar", () => {
     expect(panels.referenceFace.isVisible).toBe(false);
   });
 
-  it("toggles the morph-triangle import pass from the File menu", async () => {
-    const onOptimizeMorphTrianglesChange = vi.fn();
+  it("offers the morph target cleanup choices and marks the current one", async () => {
+    const onMorphTriangleCleanupChange = vi.fn();
     renderMenuBar(undefined, {
-      optimizeMorphTriangles: false,
-      onOptimizeMorphTrianglesChange,
+      morphTriangleCleanup: "safe",
+      onMorphTriangleCleanupChange,
     });
 
     openMenu("app-menu-file");
-    const item = await screen.findByTestId(
-      "app-menu-file-optimize-morph-triangles",
-    );
-    expect(item.getAttribute("aria-checked")).toBe("false");
-    fireEvent.click(item);
-    expect(onOptimizeMorphTrianglesChange).toHaveBeenCalledWith(true);
-  });
-
-  it("shows the morph-triangle import pass as on when it is", async () => {
-    const onOptimizeMorphTrianglesChange = vi.fn();
-    renderMenuBar(undefined, {
-      optimizeMorphTriangles: true,
-      onOptimizeMorphTrianglesChange,
-    });
-
-    openMenu("app-menu-file");
-    const item = await screen.findByTestId(
-      "app-menu-file-optimize-morph-triangles",
-    );
-    expect(item.getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(item);
-    expect(onOptimizeMorphTrianglesChange).toHaveBeenCalledWith(false);
+    fireEvent.click(await screen.findByTestId("app-menu-file-morph-cleanup"));
+    const checked = (value: string) =>
+      screen
+        .getByTestId(`app-menu-file-morph-cleanup-${value}`)
+        .getAttribute("aria-checked");
+    await screen.findByTestId("app-menu-file-morph-cleanup-off");
+    expect(["off", "safe", "overall"].map(checked)).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    fireEvent.click(screen.getByTestId("app-menu-file-morph-cleanup-overall"));
+    expect(onMorphTriangleCleanupChange).toHaveBeenCalledWith("overall");
   });
 
   it("says why Save is disabled, on the toolbar and in the File menu", async () => {

@@ -10,31 +10,36 @@ const baseState: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
-  optimizeMorphTriangles: false,
+  morphTriangleCleanup: "off",
   activeRuntimeSource: "none",
   activeEditFocus: "default",
   rotationDisplayMode: "degrees",
 };
 
 describe("authoringUiReducer", () => {
-  it("turns the morph-triangle import pass on and off", () => {
-    const on = authoringUiReducer(baseState, {
-      type: "set-optimize-morph-triangles",
-      payload: true,
+  it("chooses the morph target cleanup", () => {
+    const safe = authoringUiReducer(baseState, {
+      type: "set-morph-triangle-cleanup",
+      payload: "safe",
     });
-    expect(on.optimizeMorphTriangles).toBe(true);
+    expect(safe.morphTriangleCleanup).toBe("safe");
+    const overall = authoringUiReducer(safe, {
+      type: "set-morph-triangle-cleanup",
+      payload: "overall",
+    });
+    expect(overall.morphTriangleCleanup).toBe("overall");
     expect(
-      authoringUiReducer(on, {
-        type: "set-optimize-morph-triangles",
-        payload: false,
-      }).optimizeMorphTriangles,
-    ).toBe(false);
+      authoringUiReducer(overall, {
+        type: "set-morph-triangle-cleanup",
+        payload: "off",
+      }).morphTriangleCleanup,
+    ).toBe("off");
     expect(
-      authoringUiReducer(on, {
-        type: "set-optimize-morph-triangles",
-        payload: true,
+      authoringUiReducer(safe, {
+        type: "set-morph-triangle-cleanup",
+        payload: "safe",
       }),
-    ).toBe(on);
+    ).toBe(safe);
   });
 
   it("updates the active workbench", () => {

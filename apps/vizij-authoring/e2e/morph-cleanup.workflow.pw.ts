@@ -3,10 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { bootAuthoring, loadMainPreset, waitForMainFaceReady } from "./helpers";
 
 /**
- * The morph target cleanup runs on import only when File → Clean Up Morph
- * Targets on Import is ticked, for presets and picked files alike, and its
- * notice belongs to the session of the import that produced it: New, which
- * starts a new session, clears it.
+ * The morph target cleanup runs on import only when File → Morph Target
+ * Cleanup on Import is set to safe or best overall, for presets and picked
+ * files alike. Its notice belongs to the session of the import that
+ * produced it: New, which starts a new session, clears it; and the notice
+ * can import the picked file again with another cleanup.
  */
 
 test.describe.configure({ timeout: 360_000 });
@@ -22,14 +23,32 @@ async function openFileMenu(page: Page): Promise<void> {
     .dispatchEvent("pointerdown", { button: 0 });
 }
 
-async function turnCleanupOn(page: Page): Promise<void> {
+async function chooseCleanup(
+  page: Page,
+  cleanup: "off" | "safe" | "overall",
+): Promise<void> {
   await openFileMenu(page);
-  const option = page.getByTestId("app-menu-file-optimize-morph-triangles");
-  await expect(option).toHaveAttribute("aria-checked", "false");
-  await option.click();
+  await page.getByTestId("app-menu-file-morph-cleanup").click();
+  const choice = page.getByTestId(`app-menu-file-morph-cleanup-${cleanup}`);
+  await choice.click();
   await openFileMenu(page);
-  await expect(option).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("app-menu-file-morph-cleanup").click();
+  await expect(choice).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+}
+
+/**
+ * A Blender export opens the scene orientation dialog, which covers the
+ * viewer; confirm it as an author would before using the notice.
+ */
+async function confirmOrientation(page: Page): Promise<void> {
+  const orientation = page.getByRole("button", {
+    name: "Orientation Looks Correct",
+  });
+  if (await orientation.isVisible().catch(() => false)) {
+    await orientation.click();
+  }
 }
 
 test("an import with the cleanup off shows no cleanup notice @workflow", async ({
@@ -44,7 +63,7 @@ test("the cleanup reports on a preset import, and New clears it @workflow", asyn
   page,
 }) => {
   await bootAuthoring(page);
-  await turnCleanupOn(page);
+  await chooseCleanup(page, "safe");
   await loadMainPreset(page);
   await expect(page.getByTestId("morph-triangles-notice")).toBeVisible();
 
@@ -55,8 +74,39 @@ test("the cleanup reports on a preset import, and New clears it @workflow", asyn
 
 test("the cleanup reports on a picked file @workflow", async ({ page }) => {
   await bootAuthoring(page);
-  await turnCleanupOn(page);
+  await chooseCleanup(page, "safe");
   await page.getByTestId("app-import-file-input").setInputFiles(PICKED_FACE);
   await waitForMainFaceReady(page);
   await expect(page.getByTestId("morph-triangles-notice")).toBeVisible();
+});
+
+test("the notice re-imports the picked file with another cleanup @workflow", async ({
+  page,
+}) => {
+  await bootAuthoring(page);
+  await chooseCleanup(page, "safe");
+  await page.getByTestId("app-import-file-input").setInputFiles(PICKED_FACE);
+  await waitForMainFaceReady(page);
+  const notice = page.getByTestId("morph-triangles-notice");
+  await expect(notice).toBeVisible();
+  await confirmOrientation(page);
+
+  await page.getByTestId("morph-triangles-reimport-off").click();
+  await expect(
+    page.getByTestId("morph-triangles-reimport-confirm"),
+  ).toBeVisible();
+  await page.getByTestId("morph-triangles-reimport-go").click();
+  await expect(notice).toContainText("Imported as picked", {
+    timeout: 120_000,
+  });
+  await waitForMainFaceReady(page);
+  await confirmOrientation(page);
+  await expect(page.getByTestId("morph-triangles-reimport-safe")).toBeVisible();
+
+  // The re-import's choice becomes the choice for later imports.
+  await openFileMenu(page);
+  await page.getByTestId("app-menu-file-morph-cleanup").click();
+  await expect(
+    page.getByTestId("app-menu-file-morph-cleanup-off"),
+  ).toHaveAttribute("aria-checked", "true");
 });

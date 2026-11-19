@@ -17,6 +17,7 @@ import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 import type {
   EditFocus,
+  MorphTriangleCleanup,
   RotationDisplayMode,
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
@@ -24,16 +25,27 @@ import { cn } from "../../utils/cn";
 type AuthoringSurfaceMenuTarget =
   "starred" | "variables" | "poses" | "pose-groups" | "animations" | "programs";
 
+/** The cleanup choices, with what each may change, in the File menu. */
+const MORPH_CLEANUP_CHOICES: { value: MorphTriangleCleanup; label: string }[] =
+  [
+    { value: "off", label: "Off: import the file as picked" },
+    {
+      value: "safe",
+      label: "Safe: fix only what makes no shape worse",
+    },
+    {
+      value: "overall",
+      label: "Best overall: fix more; some blends may get worse",
+    },
+  ];
+
 interface AppMenuBarProps {
   onNew: () => void;
   onImport: () => void;
   onImportSkipChecks: () => void;
-  /**
-   * Whether an import re-triangulates each part modelled as one large
-   * polygon so it stays unfolded across its morph targets.
-   */
-  optimizeMorphTriangles: boolean;
-  onOptimizeMorphTrianglesChange: (enabled: boolean) => void;
+  /** The morph target cleanup imports apply. */
+  morphTriangleCleanup: MorphTriangleCleanup;
+  onMorphTriangleCleanupChange: (cleanup: MorphTriangleCleanup) => void;
   onImportReferenceFace: () => void;
   onImportGlbAnimations: () => void;
   onSave: () => void;
@@ -100,8 +112,8 @@ export function AppMenuBar({
   onNew,
   onImport,
   onImportSkipChecks,
-  optimizeMorphTriangles,
-  onOptimizeMorphTrianglesChange,
+  morphTriangleCleanup,
+  onMorphTriangleCleanupChange,
   onImportReferenceFace,
   onImportGlbAnimations,
   onSave,
@@ -242,13 +254,21 @@ export function AppMenuBar({
         >
           Import (Skip Checks)...
         </MenuItem>
-        <MenuCheckboxItem
-          checked={optimizeMorphTriangles}
-          onCheckedChange={onOptimizeMorphTrianglesChange}
-          testId="app-menu-file-optimize-morph-triangles"
+        <MenuSubmenu
+          label="Morph Target Cleanup on Import"
+          testId="app-menu-file-morph-cleanup"
         >
-          Clean Up Morph Targets on Import
-        </MenuCheckboxItem>
+          {MORPH_CLEANUP_CHOICES.map(({ value, label }) => (
+            <MenuCheckboxItem
+              key={value}
+              checked={morphTriangleCleanup === value}
+              onCheckedChange={() => onMorphTriangleCleanupChange(value)}
+              testId={`app-menu-file-morph-cleanup-${value}`}
+            >
+              {label}
+            </MenuCheckboxItem>
+          ))}
+        </MenuSubmenu>
         <MenuItem
           onSelect={onImportReferenceFace}
           testId="app-menu-file-import-reference-face"

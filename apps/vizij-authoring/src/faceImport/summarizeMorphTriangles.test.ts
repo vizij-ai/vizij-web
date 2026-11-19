@@ -23,15 +23,19 @@ const summarize = (parts: Part[]) =>
 describe("summarizeMorphTriangles", () => {
   it("names a part fixed only when a shape visibly improved", () => {
     const fixed = part({
-      folds: [{ shape: "smile_shape", before: 0.41, after: 0.12 }],
+      folds: [
+        { shape: "smile_shape", kind: "target", before: 0.41, after: 0.12 },
+      ],
     });
     const marginal = part({
       meshName: "left_eyebrow",
-      folds: [{ shape: "rest", before: NOTICEABLE / 2, after: 0 }],
+      folds: [
+        { shape: "rest", kind: "rest", before: NOTICEABLE / 2, after: 0 },
+      ],
     });
     const atThreshold = part({
       meshName: "left_pupil",
-      folds: [{ shape: "rest", before: NOTICEABLE, after: 0 }],
+      folds: [{ shape: "rest", kind: "rest", before: NOTICEABLE, after: 0 }],
     });
     expect(summarize([fixed, marginal, atThreshold]).improved).toEqual([
       "mouth",
@@ -45,8 +49,13 @@ describe("summarizeMorphTriangles", () => {
         meshName: "left_eye_lid",
         vertices,
         folds: [
-          { shape: "rest", before: 0.4, after: 0.0 },
-          { shape: "wink_shape", before: 0.9, after: 0.0 },
+          { shape: "rest", kind: "rest" as const, before: 0.4, after: 0.0 },
+          {
+            shape: "wink_shape",
+            kind: "target" as const,
+            before: 0.9,
+            after: 0.0,
+          },
         ].map((fold) =>
           fold.shape === stillWrong ? { ...fold, after: 0.3 } : fold,
         ),
@@ -63,8 +72,13 @@ describe("summarizeMorphTriangles", () => {
       part({
         outcome: "kept",
         folds: [
-          { shape: "smile_shape", before: 0.12, after: 0.12 },
-          { shape: "talking_shape", before: 0.012, after: 0.012 },
+          { shape: "smile_shape", kind: "target", before: 0.12, after: 0.12 },
+          {
+            shape: "talking_shape",
+            kind: "target",
+            before: 0.012,
+            after: 0.012,
+          },
         ],
       }),
     ]);
@@ -72,13 +86,58 @@ describe("summarizeMorphTriangles", () => {
       changed: false,
       improved: [],
       remaining: [{ part: "mouth", shapes: ["smile_shape"] }],
+      worsened: [],
       unchecked: [],
     });
   });
 
+  it("reports blends only when the cleanup made them worse", () => {
+    const summary = summarize([
+      part({
+        folds: [
+          { shape: "smile_shape", kind: "target", before: 0.41, after: 0.02 },
+          {
+            shape: "smile_shape + sad_shape",
+            kind: "blend",
+            before: 0.9,
+            after: 0.1,
+          },
+          {
+            shape: "idle_shape + sad_shape",
+            kind: "blend",
+            before: 0.05,
+            after: 0.19,
+          },
+          {
+            shape: "o_shape + sad_shape (halfway)",
+            kind: "blendHalfway",
+            before: 0.3,
+            after: 0.3,
+          },
+        ],
+      }),
+    ]);
+    expect(summary.improved).toEqual(["mouth"]);
+    expect(summary.remaining).toEqual([]);
+    expect(summary.worsened).toEqual([
+      { part: "mouth", shapes: ["idle_shape + sad_shape"] },
+    ]);
+  });
+
+  it("does not count a blend's gain as a part improved", () => {
+    const summary = summarize([
+      part({
+        folds: [{ shape: "a + b", kind: "blend", before: 0.9, after: 0.1 }],
+      }),
+    ]);
+    expect(summary.improved).toEqual([]);
+  });
+
   it("records a rewrite too small to notice as a change", () => {
     const summary = summarize([
-      part({ folds: [{ shape: "rest", before: 0.04, after: 0 }] }),
+      part({
+        folds: [{ shape: "rest", kind: "rest", before: 0.04, after: 0 }],
+      }),
     ]);
     expect(summary.changed).toBe(true);
     expect(summary.improved).toEqual([]);
@@ -95,7 +154,7 @@ describe("summarizeMorphTriangles", () => {
       part({
         mesh: 4,
         meshName: "Circle",
-        folds: [{ shape: "rest", before: 0.5, after: 0 }],
+        folds: [{ shape: "rest", kind: "rest", before: 0.5, after: 0 }],
       }),
     ]);
     expect(summary.improved).toEqual(["Circle (mesh 4)"]);

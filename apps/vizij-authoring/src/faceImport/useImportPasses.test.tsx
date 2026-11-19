@@ -4,31 +4,40 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AuthoringUiProvider,
   useAuthoringUiActions,
+  type MorphTriangleCleanup,
 } from "../state/AuthoringUiProvider";
 import { useImportPasses } from "./useImportPasses";
 
 const pass = vi.hoisted(() => ({
   init: vi.fn(async () => undefined),
-  optimizeMorphTriangles: vi.fn(() => ({ bytes: null, report: { parts: [] } })),
+  optimizeMorphTriangles: vi.fn(
+    (
+      _glb: Uint8Array,
+      _mode: string,
+    ): { bytes: Uint8Array<ArrayBuffer> | null; report: { parts: [] } } => ({
+      bytes: null,
+      report: { parts: [] },
+    }),
+  ),
   stillFolding: vi.fn(() => []),
 }));
 
 vi.mock("@vizij/import", () => pass);
 
-function wrapper(optimizeMorphTriangles: boolean) {
+function wrapper(morphTriangleCleanup: MorphTriangleCleanup) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <AuthoringUiProvider initialState={{ optimizeMorphTriangles }}>
+      <AuthoringUiProvider initialState={{ morphTriangleCleanup }}>
         {children}
       </AuthoringUiProvider>
     );
   };
 }
 
-function renderPasses(optimizeMorphTriangles: boolean) {
+function renderPasses(morphTriangleCleanup: MorphTriangleCleanup) {
   return renderHook(
     () => ({ passes: useImportPasses(), ui: useAuthoringUiActions() }),
-    { wrapper: wrapper(optimizeMorphTriangles) },
+    { wrapper: wrapper(morphTriangleCleanup) },
   );
 }
 
@@ -69,27 +78,27 @@ describe("useImportPasses", () => {
     });
     expect(prepared).toBe(file);
     expect(pass.init).not.toHaveBeenCalled();
-    expect(result.current.morphTriangles).toBeNull();
+    expect(result.current.notice).toBeNull();
   });
 
   it("follows the option when it changes after mount", async () => {
-    const { result } = renderPasses(false);
-    act(() => result.current.ui.setOptimizeMorphTriangles(true));
+    const { result } = renderPasses("off");
+    act(() => result.current.ui.setMorphTriangleCleanup("safe"));
     await act(async () => {
       await result.current.passes.prepare(face("face.glb"));
     });
     expect(pass.optimizeMorphTriangles).toHaveBeenCalledTimes(1);
-    expect(result.current.passes.morphTriangles?.status).toBe("applied");
+    expect(result.current.passes.notice?.outcome?.status).toBe("applied");
   });
 
   it("drops an earlier import that finishes after a later one", async () => {
-    const { result } = renderPasses(true);
+    const { result } = renderPasses("safe");
     const release = gateInit();
     let first: Promise<File | null> = Promise.resolve(null);
     act(() => {
       first = result.current.passes.prepare(face("a.glb"));
     });
-    act(() => result.current.ui.setOptimizeMorphTriangles(false));
+    act(() => result.current.ui.setMorphTriangleCleanup("off"));
     let second: File | null = null;
     await act(async () => {
       second = await result.current.passes.prepare(face("b.glb"));
@@ -99,11 +108,11 @@ describe("useImportPasses", () => {
       expect(await first).toBeNull();
     });
     expect((second as File | null)?.name).toBe("b.glb");
-    expect(result.current.passes.morphTriangles).toBeNull();
+    expect(result.current.passes.notice).toBeNull();
   });
 
   it("abandons an import still in its passes when New cancels it", async () => {
-    const { result } = renderPasses(true);
+    const { result } = renderPasses("safe");
     const release = gateInit();
     let pending: Promise<File | null> = Promise.resolve(null);
     act(() => {
@@ -114,28 +123,28 @@ describe("useImportPasses", () => {
       release();
       expect(await pending).toBeNull();
     });
-    expect(result.current.passes.morphTriangles).toBeNull();
+    expect(result.current.passes.notice).toBeNull();
   });
 
   it("dismissing hides the notice, and New clears it", async () => {
-    const { result } = renderPasses(true);
+    const { result } = renderPasses("safe");
     await act(async () => {
       await result.current.passes.prepare(face("a.glb"));
     });
-    expect(result.current.passes.morphTriangles).not.toBeNull();
+    expect(result.current.passes.notice).not.toBeNull();
     act(() => result.current.passes.dismissMorphTriangles());
-    expect(result.current.passes.morphTriangles).toBeNull();
+    expect(result.current.passes.notice).toBeNull();
 
     await act(async () => {
       await result.current.passes.prepare(face("b.glb"));
     });
-    expect(result.current.passes.morphTriangles).not.toBeNull();
+    expect(result.current.passes.notice).not.toBeNull();
     act(() => result.current.passes.cancel());
-    expect(result.current.passes.morphTriangles).toBeNull();
+    expect(result.current.passes.notice).toBeNull();
   });
 
   it("dismissing the notice leaves an import in progress to finish", async () => {
-    const { result } = renderPasses(true);
+    const { result } = renderPasses("safe");
     const release = gateInit();
     let pending: Promise<File | null> = Promise.resolve(null);
     act(() => {
@@ -146,6 +155,42 @@ describe("useImportPasses", () => {
       release();
       expect(await pending).not.toBeNull();
     });
-    expect(result.current.passes.morphTriangles?.status).toBe("applied");
+    expect(result.current.passes.notice?.outcome?.status).toBe("applied");
+  });
+
+  it("keeps the picked file, before the cleanup rewrote it", async () => {
+    pass.optimizeMorphTriangles.mockReturnValueOnce({
+      bytes: new Uint8Array([9]),
+      report: { parts: [] },
+    });
+    const { result } = renderPasses("safe");
+    const picked = face("a.glb");
+    let loaded: File | null = null;
+    await act(async () => {
+      loaded = await result.current.passes.prepare(picked);
+    });
+    expect(loaded).not.toBe(picked);
+    expect(result.current.passes.original).toBe(picked);
+  });
+
+  it("runs a re-import with the cleanup it is given and says so even when off", async () => {
+    const { result } = renderPasses("safe");
+    const picked = face("a.glb");
+    let loaded: File | null = null;
+    await act(async () => {
+      loaded = await result.current.passes.prepare(picked, "off");
+    });
+    expect(loaded).toBe(picked);
+    expect(pass.optimizeMorphTriangles).not.toHaveBeenCalled();
+    expect(result.current.passes.notice).toEqual({
+      cleanup: "off",
+      outcome: null,
+    });
+
+    await act(async () => {
+      await result.current.passes.prepare(picked, "overall");
+    });
+    expect(pass.optimizeMorphTriangles.mock.calls[0][1]).toBe("overall");
+    expect(result.current.passes.notice?.cleanup).toBe("overall");
   });
 });

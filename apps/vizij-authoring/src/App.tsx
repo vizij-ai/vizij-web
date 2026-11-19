@@ -95,6 +95,7 @@ import {
   useAuthoringUiActions,
   useAuthoringUiState,
   type EditFocus,
+  type MorphTriangleCleanup,
 } from "./state/AuthoringUiProvider";
 import { PoseRigProvider, usePoseRig } from "./state/PoseRigProvider";
 import { usePoseRigStore } from "./poseRig/store";
@@ -4246,38 +4247,25 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     resetAuthoringSessionState,
   ]);
 
-  const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const picked = event.target.files?.[0];
-      if (!picked) {
-        skipNextDiscrepancyCheck.current = false;
-        return;
-      }
-      const skipChecks = skipNextDiscrepancyCheck.current;
-      const sessionToken = beginImportFlow(
-        skipChecks ? "File import (skip checks)" : "File import",
-      );
+  /**
+   * The import every picked or re-imported file goes through: a new import
+   * session, the import passes (with `cleanup` in place of the UI's choice
+   * when given), then the load. A file whose passes were superseded by a
+   * later import or New is abandoned.
+   */
+  const importFaceFile = useCallback(
+    async (picked: File, label: string, cleanup?: MorphTriangleCleanup) => {
+      const sessionToken = beginImportFlow(label);
       cancelPendingMainAssetFetch();
       markImportFileSelected({ sessionToken });
-
-      if (skipChecks) {
-        uiActions.setSkipDiscrepancyCheck(true);
-      } else {
-        uiActions.setSkipDiscrepancyCheck(false);
-      }
-      skipNextDiscrepancyCheck.current = false;
-
-      const file = await prepareImportFile(picked);
+      const file = await prepareImportFile(picked, cleanup);
       if (!file) {
-        // Superseded by a later import or New while the passes ran.
-        event.target.value = "";
         return;
       }
       await capturePendingAnimationImport(file);
       await loadFromFile(file, () => loadGLTFFromBlobWithBundle(file, true), {
         sessionToken,
       });
-      event.target.value = "";
     },
     [
       beginImportFlow,
@@ -4286,8 +4274,42 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       loadFromFile,
       markImportFileSelected,
       prepareImportFile,
-      uiActions,
     ],
+  );
+
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const picked = event.target.files?.[0];
+      if (!picked) {
+        skipNextDiscrepancyCheck.current = false;
+        return;
+      }
+      const skipChecks = skipNextDiscrepancyCheck.current;
+      uiActions.setSkipDiscrepancyCheck(skipChecks);
+      skipNextDiscrepancyCheck.current = false;
+      await importFaceFile(
+        picked,
+        skipChecks ? "File import (skip checks)" : "File import",
+      );
+      event.target.value = "";
+    },
+    [importFaceFile, uiActions],
+  );
+
+  /**
+   * Imports the file the latest import started from again, with the
+   * cleanup `cleanup`, and makes that the cleanup for later imports too.
+   */
+  const handleReimport = useCallback(
+    async (cleanup: MorphTriangleCleanup) => {
+      const original = importPasses.original;
+      if (!original) {
+        return;
+      }
+      uiActions.setMorphTriangleCleanup(cleanup);
+      await importFaceFile(original, "Re-import", cleanup);
+    },
+    [importFaceFile, importPasses.original, uiActions],
   );
 
   const handleImportClick = useCallback(() => {
@@ -4637,8 +4659,8 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       onNew={handleNewClick}
       onImport={handleImportClick}
       onImportSkipChecks={handleImportSkipChecksClick}
-      optimizeMorphTriangles={uiState.optimizeMorphTriangles}
-      onOptimizeMorphTrianglesChange={uiActions.setOptimizeMorphTriangles}
+      morphTriangleCleanup={uiState.morphTriangleCleanup}
+      onMorphTriangleCleanupChange={uiActions.setMorphTriangleCleanup}
       onImportReferenceFace={handleImportReferenceFaceClick}
       onImportGlbAnimations={handleImportGlbAnimationsClick}
       standardProfiles={availableStandardProfiles}
@@ -4974,14 +4996,6 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           />
         </div>
       )}
-      {importPasses.morphTriangles && (
-        <div className="absolute bottom-2 left-2 z-20">
-          <MorphTrianglesNotice
-            outcome={importPasses.morphTriangles}
-            onDismiss={importPasses.dismissMorphTriangles}
-          />
-        </div>
-      )}
       <Viewer
         rootId={rootId}
         bundle={loadedBundle ?? null}
@@ -5009,6 +5023,18 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
         presetLoadOptions={FACE_PRESET_GRID_OPTIONS}
         onLoadPresetAsset={handleLoadPresetAsset}
       />
+      {importPasses.notice && (
+        // This pane is drawn in the viewer's overlay layer, which lets the
+        // pointer through to the canvas; the notice takes it back so its
+        // buttons can be clicked.
+        <div className="pointer-events-auto absolute bottom-2 left-2 z-20">
+          <MorphTrianglesNotice
+            notice={importPasses.notice}
+            onReimport={handleReimport}
+            onDismiss={importPasses.dismissMorphTriangles}
+          />
+        </div>
+      )}
     </div>
   );
   const viewerContent = (

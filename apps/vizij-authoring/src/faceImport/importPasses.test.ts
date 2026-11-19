@@ -38,7 +38,7 @@ describe("prepareImport", () => {
   it("leaves the file alone when the pass is off", async () => {
     const file = face();
     const prepared = await prepareImport(file, {
-      optimizeMorphTriangles: false,
+      cleanup: "off",
     });
     expect(prepared.file).toBe(file);
     expect(prepared.morphTriangles).toBeNull();
@@ -51,19 +51,26 @@ describe("prepareImport", () => {
       report,
     });
     const prepared = await prepareImport(face(), {
-      optimizeMorphTriangles: true,
+      cleanup: "safe",
     });
     expect(pass.init).toHaveBeenCalled();
     expect(Array.from(pass.optimizeMorphTriangles.mock.calls[0][0])).toEqual([
       1, 2, 3,
     ]);
+    expect(pass.optimizeMorphTriangles.mock.calls[0][1]).toBe("safe");
     expect(prepared.file.name).toBe("face.glb");
     expect(new Uint8Array(await prepared.file.arrayBuffer())).toEqual(
       new Uint8Array([9, 9]),
     );
     expect(prepared.morphTriangles).toEqual({
       status: "applied",
-      summary: { changed: true, improved: [], remaining: [], unchecked: [] },
+      summary: {
+        changed: true,
+        improved: [],
+        remaining: [],
+        worsened: [],
+        unchecked: [],
+      },
     });
   });
 
@@ -74,7 +81,7 @@ describe("prepareImport", () => {
     });
     const file = face();
     const prepared = await prepareImport(file, {
-      optimizeMorphTriangles: true,
+      cleanup: "safe",
     });
     expect(prepared.file).toBe(file);
   });
@@ -85,12 +92,24 @@ describe("prepareImport", () => {
     });
     const file = face();
     const prepared = await prepareImport(file, {
-      optimizeMorphTriangles: true,
+      cleanup: "safe",
     });
     expect(prepared.file).toBe(file);
     expect(prepared.morphTriangles).toEqual({
       status: "failed",
       message: "not a GLB file",
     });
+  });
+});
+
+describe("prepareImport modes", () => {
+  it("passes the overall mode through to the pass", async () => {
+    pass.optimizeMorphTriangles.mockReset();
+    pass.optimizeMorphTriangles.mockReturnValue({
+      bytes: null,
+      report: { parts: [] },
+    });
+    await prepareImport(face(), { cleanup: "overall" });
+    expect(pass.optimizeMorphTriangles.mock.calls[0][1]).toBe("overall");
   });
 });

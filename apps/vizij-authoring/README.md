@@ -21,15 +21,24 @@ what you author is what ships. Why that holds, and what it takes, is in
 - auto-generated standard-input drivers with enable/disable and round-trip metadata
 - grouped pose workflow with canonical pose-weight paths: `rig/{face}/poses/{poseId}.weight`
 - graph import face-id safety and remapping
-- optional morph target cleanup on import (File → Clean Up Morph Targets on
-  Import, off by default; `.glb` files only): parts modelled as one large
-  polygon, such as a
-  mouth or a pupil, get triangles that keep their outline across every morph
-  target instead of filling in. Only the triangles change. A notice names the
-  parts whose shapes visibly improved, the shapes that still look partly
-  filled in and need reshaping in the source model, and the parts the cleanup
-  could not check. The cleanup is the `@vizij/import` package from
+- optional morph target cleanup on import (File → Morph Target Cleanup on
+  Import; `.glb` files only). Parts modelled as one large polygon, such as a
+  mouth or a pupil, get triangles that keep their outline across their morph
+  targets instead of filling in. Every choice changes triangle data only:
+  - **Off** (the default) imports the file as picked;
+  - **Safe** rewrites a part only when no checked shape — each pose, each
+    pose halfway, every pair of poses — comes out visibly worse, so it fixes
+    less;
+  - **Best overall** rewrites whenever the shapes improve overall, so it
+    fixes more, and lists any blends of two poses that got worse.
+
+  A notice names the parts improved, the poses that still look partly filled
+  in and need reshaping in the source model, any blends made worse, and the
+  parts the cleanup could not check. It can import the picked file again with
+  another choice, which starts a new session. The cleanup is the
+  `@vizij/import` package from
   [vizij-rs](https://github.com/vizij-ai/vizij-rs)
+
 - live IR stats and report export hooks
 
 ## Standard Feature Spaces Editor
