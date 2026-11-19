@@ -4,7 +4,7 @@ import {
   type MorphTrianglesReport,
   type ShapeFold,
   type ShapeKind,
-} from "@vizij/import";
+} from "@semio/import";
 import { NOTICEABLE, summarizeMorphTriangles } from "./importPasses";
 
 type Part = MorphTrianglesReport["parts"][number];

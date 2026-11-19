@@ -38,8 +38,8 @@ what you author is what ships. Why that holds, and what it takes, is in
   poses that still look partly filled in and need reshaping in the source
   model, and the parts the cleanup could not check. It can import the picked file again with another choice, which
   starts a new session and becomes the choice for later imports. The cleanup
-  is the `@vizij/import` package from
-  [vizij-rs](https://github.com/vizij-ai/vizij-rs).
+  is the `@semio/import` package from
+  [arora-visuals](https://github.com/semio-ai/arora-visuals).
 
 - live IR stats and report export hooks
 

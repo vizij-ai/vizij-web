@@ -1,4 +1,4 @@
-import type { MorphTrianglesReport, ShapeFold, ShapeKind } from "@vizij/import";
+import type { MorphTrianglesReport, ShapeFold, ShapeKind } from "@semio/import";
 import type { MorphTriangleCleanup } from "../state/AuthoringUiProvider";
 
 export interface ImportPassOptions {
@@ -205,11 +205,11 @@ export async function prepareImport(
       message: err instanceof Error ? err.message : String(err),
     },
   });
-  let pass: typeof import("@vizij/import");
+  let pass: typeof import("@semio/import");
   try {
     // Loaded on first use, so a session that never turns the cleanup on
     // never fetches the package or its wasm module.
-    pass = await import("@vizij/import");
+    pass = await import("@semio/import");
     await pass.init();
   } catch (err) {
     return failed("load", err);

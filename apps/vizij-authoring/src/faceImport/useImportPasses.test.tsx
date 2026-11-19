@@ -22,7 +22,7 @@ const pass = vi.hoisted(() => ({
   stillFolding: vi.fn(() => []),
 }));
 
-vi.mock("@vizij/import", () => pass);
+vi.mock("@semio/import", () => pass);
 
 function wrapper(morphTriangleCleanup: MorphTriangleCleanup) {
   return function Wrapper({ children }: { children: ReactNode }) {
