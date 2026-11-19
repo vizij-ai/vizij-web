@@ -69,6 +69,7 @@ describe("prepareImport", () => {
         improved: [],
         remaining: [],
         worsened: [],
+        declined: [],
         unchecked: [],
       },
     });
@@ -97,7 +98,24 @@ describe("prepareImport", () => {
     expect(prepared.file).toBe(file);
     expect(prepared.morphTriangles).toEqual({
       status: "failed",
+      stage: "file",
       message: "not a GLB file",
+    });
+  });
+});
+
+describe("prepareImport failures", () => {
+  it("reports a cleanup that could not start as a load failure", async () => {
+    pass.init.mockImplementationOnce(async () => {
+      throw new Error("offline");
+    });
+    const file = face();
+    const prepared = await prepareImport(file, { cleanup: "safe" });
+    expect(prepared.file).toBe(file);
+    expect(prepared.morphTriangles).toEqual({
+      status: "failed",
+      stage: "load",
+      message: "offline",
     });
   });
 });

@@ -128,7 +128,7 @@ test("the notice re-imports the picked file with another cleanup @workflow", asy
     page.getByTestId("morph-triangles-reimport-confirm"),
   ).toBeVisible();
   await page.getByTestId("morph-triangles-reimport-go").click();
-  await expect(notice).toContainText("Imported as picked", {
+  await expect(notice).toContainText("cleanup was off for this import", {
     timeout: 120_000,
   });
   await waitForMainFaceReady(page);

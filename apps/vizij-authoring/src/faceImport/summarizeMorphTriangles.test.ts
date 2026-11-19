@@ -87,6 +87,7 @@ describe("summarizeMorphTriangles", () => {
       improved: [],
       remaining: [{ part: "mouth", shapes: ["smile_shape"] }],
       worsened: [],
+      declined: [],
       unchecked: [],
     });
   });
@@ -124,13 +125,51 @@ describe("summarizeMorphTriangles", () => {
     ]);
   });
 
-  it("does not count a blend's gain as a part improved", () => {
+  it("counts a blend's gain as the part improved", () => {
     const summary = summarize([
       part({
         folds: [{ shape: "a + b", kind: "blend", before: 0.9, after: 0.1 }],
       }),
     ]);
-    expect(summary.improved).toEqual([]);
+    expect(summary.improved).toEqual(["mouth"]);
+  });
+
+  it("lists a pose made worse as worsened, not as still to remodel", () => {
+    const summary = summarize([
+      part({
+        folds: [
+          { shape: "rest", kind: "rest", before: 0.0, after: 0.3 },
+          { shape: "smile_shape", kind: "target", before: 0.9, after: 0.0 },
+        ],
+      }),
+    ]);
+    expect(summary.worsened).toEqual([{ part: "mouth", shapes: ["neutral"] }]);
+    expect(summary.remaining).toEqual([]);
+  });
+
+  it("counts a change as worse only from the noticeable threshold", () => {
+    const summary = summarize([
+      part({
+        folds: [
+          { shape: "a + b", kind: "blend", before: 0, after: NOTICEABLE },
+          { shape: "a + c", kind: "blend", before: 0, after: NOTICEABLE / 2 },
+        ],
+      }),
+    ]);
+    expect(summary.worsened).toEqual([{ part: "mouth", shapes: ["a + b"] }]);
+  });
+
+  it("names a part safe mode declined, and does not send it to remodelling", () => {
+    const summary = summarize([
+      part({
+        outcome: "declined",
+        folds: [
+          { shape: "smile_shape", kind: "target", before: 0.4, after: 0.4 },
+        ],
+      }),
+    ]);
+    expect(summary.declined).toEqual(["mouth"]);
+    expect(summary.remaining).toEqual([]);
   });
 
   it("records a rewrite too small to notice as a change", () => {

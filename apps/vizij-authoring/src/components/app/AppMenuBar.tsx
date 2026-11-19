@@ -31,7 +31,7 @@ const MORPH_CLEANUP_CHOICES: { value: MorphTriangleCleanup; label: string }[] =
     { value: "off", label: "Off: import the file as picked" },
     {
       value: "safe",
-      label: "Safe: fix only what makes no shape worse",
+      label: "Safe: fix only what makes no shape visibly worse",
     },
     {
       value: "overall",

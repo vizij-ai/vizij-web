@@ -739,6 +739,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   } | null>(null);
 
   const importPasses = useImportPasses();
+  const beginImportPasses = importPasses.begin;
   const prepareImportFile = importPasses.prepare;
 
   const capturePendingAnimationImport = useCallback(async (file: File) => {
@@ -757,6 +758,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
 
   const handleLoadAssetFromUrl = useCallback(
     async (url: string, filename: string) => {
+      const ticket = beginImportPasses();
       const sessionToken = beginImportFlow(`Preset: ${filename}`);
       cancelPendingMainAssetFetch();
       const controller = new AbortController();
@@ -770,6 +772,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
           return;
         }
         const file = await prepareImportFile(
+          ticket,
           new File([blob], filename, { type: "model/gltf-binary" }),
         );
         // Superseded by a later import or New while the passes ran.
@@ -803,6 +806,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       loadFromFile,
       markImportFlowError,
       markImportFileSelected,
+      beginImportPasses,
       prepareImportFile,
     ],
   );
@@ -4234,18 +4238,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextDiscrepancyCheck = useRef(false);
 
-  const cancelImportPasses = importPasses.cancel;
   const handleNewClick = useCallback(() => {
     cancelPendingMainAssetFetch();
-    cancelImportPasses();
     resetAuthoringSessionState();
     loader.reset();
-  }, [
-    cancelImportPasses,
-    cancelPendingMainAssetFetch,
-    loader,
-    resetAuthoringSessionState,
-  ]);
+  }, [cancelPendingMainAssetFetch, loader, resetAuthoringSessionState]);
 
   /**
    * The import every picked or re-imported file goes through: a new import
@@ -4255,10 +4252,11 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
    */
   const importFaceFile = useCallback(
     async (picked: File, label: string, cleanup?: MorphTriangleCleanup) => {
+      const ticket = beginImportPasses();
       const sessionToken = beginImportFlow(label);
       cancelPendingMainAssetFetch();
       markImportFileSelected({ sessionToken });
-      const file = await prepareImportFile(picked, cleanup);
+      const file = await prepareImportFile(ticket, picked, cleanup);
       if (!file) {
         return;
       }
@@ -4269,6 +4267,7 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
     },
     [
       beginImportFlow,
+      beginImportPasses,
       cancelPendingMainAssetFetch,
       capturePendingAnimationImport,
       loadFromFile,

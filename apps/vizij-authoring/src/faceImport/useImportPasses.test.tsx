@@ -74,7 +74,7 @@ describe("useImportPasses", () => {
     const file = face("face.glb");
     let prepared: File | null = null;
     await act(async () => {
-      prepared = await result.current.prepare(file);
+      prepared = await result.current.prepare(result.current.begin(), file);
     });
     expect(prepared).toBe(file);
     expect(pass.init).not.toHaveBeenCalled();
@@ -85,7 +85,10 @@ describe("useImportPasses", () => {
     const { result } = renderPasses("off");
     act(() => result.current.ui.setMorphTriangleCleanup("safe"));
     await act(async () => {
-      await result.current.passes.prepare(face("face.glb"));
+      await result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("face.glb"),
+      );
     });
     expect(pass.optimizeMorphTriangles).toHaveBeenCalledTimes(1);
     expect(result.current.passes.notice?.outcome?.status).toBe("applied");
@@ -96,12 +99,18 @@ describe("useImportPasses", () => {
     const release = gateInit();
     let first: Promise<File | null> = Promise.resolve(null);
     act(() => {
-      first = result.current.passes.prepare(face("a.glb"));
+      first = result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("a.glb"),
+      );
     });
     act(() => result.current.ui.setMorphTriangleCleanup("off"));
     let second: File | null = null;
     await act(async () => {
-      second = await result.current.passes.prepare(face("b.glb"));
+      second = await result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("b.glb"),
+      );
     });
     await act(async () => {
       release();
@@ -111,35 +120,39 @@ describe("useImportPasses", () => {
     expect(result.current.passes.notice).toBeNull();
   });
 
-  it("abandons an import still in its passes when New cancels it", async () => {
+  it("drops an import superseded by one that started but never reached its passes", async () => {
+    // A preset import takes its ticket before fetching; if the fetch fails,
+    // it never prepares, but the import it superseded must still be dropped.
     const { result } = renderPasses("safe");
     const release = gateInit();
     let pending: Promise<File | null> = Promise.resolve(null);
     act(() => {
-      pending = result.current.passes.prepare(face("a.glb"));
+      pending = result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("a.glb"),
+      );
     });
-    act(() => result.current.passes.cancel());
+    act(() => {
+      result.current.passes.begin();
+    });
     await act(async () => {
       release();
       expect(await pending).toBeNull();
     });
     expect(result.current.passes.notice).toBeNull();
+    expect(result.current.passes.original).toBeNull();
   });
 
-  it("dismissing hides the notice, and New clears it", async () => {
+  it("dismissing hides the notice", async () => {
     const { result } = renderPasses("safe");
     await act(async () => {
-      await result.current.passes.prepare(face("a.glb"));
+      await result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("a.glb"),
+      );
     });
     expect(result.current.passes.notice).not.toBeNull();
     act(() => result.current.passes.dismissMorphTriangles());
-    expect(result.current.passes.notice).toBeNull();
-
-    await act(async () => {
-      await result.current.passes.prepare(face("b.glb"));
-    });
-    expect(result.current.passes.notice).not.toBeNull();
-    act(() => result.current.passes.cancel());
     expect(result.current.passes.notice).toBeNull();
   });
 
@@ -148,7 +161,10 @@ describe("useImportPasses", () => {
     const release = gateInit();
     let pending: Promise<File | null> = Promise.resolve(null);
     act(() => {
-      pending = result.current.passes.prepare(face("a.glb"));
+      pending = result.current.passes.prepare(
+        result.current.passes.begin(),
+        face("a.glb"),
+      );
     });
     act(() => result.current.passes.dismissMorphTriangles());
     await act(async () => {
@@ -167,7 +183,10 @@ describe("useImportPasses", () => {
     const picked = face("a.glb");
     let loaded: File | null = null;
     await act(async () => {
-      loaded = await result.current.passes.prepare(picked);
+      loaded = await result.current.passes.prepare(
+        result.current.passes.begin(),
+        picked,
+      );
     });
     expect(loaded).not.toBe(picked);
     expect(result.current.passes.original).toBe(picked);
@@ -178,7 +197,11 @@ describe("useImportPasses", () => {
     const picked = face("a.glb");
     let loaded: File | null = null;
     await act(async () => {
-      loaded = await result.current.passes.prepare(picked, "off");
+      loaded = await result.current.passes.prepare(
+        result.current.passes.begin(),
+        picked,
+        "off",
+      );
     });
     expect(loaded).toBe(picked);
     expect(pass.optimizeMorphTriangles).not.toHaveBeenCalled();
@@ -188,7 +211,11 @@ describe("useImportPasses", () => {
     });
 
     await act(async () => {
-      await result.current.passes.prepare(picked, "overall");
+      await result.current.passes.prepare(
+        result.current.passes.begin(),
+        picked,
+        "overall",
+      );
     });
     expect(pass.optimizeMorphTriangles.mock.calls[0][1]).toBe("overall");
     expect(result.current.passes.notice?.cleanup).toBe("overall");

@@ -32,11 +32,13 @@ what you author is what ships. Why that holds, and what it takes, is in
   - **Best overall** rewrites whenever the shapes improve overall, so it
     fixes more, and lists any blends of two poses that got worse.
 
-  A notice names the parts improved, the poses that still look partly filled
-  in and need reshaping in the source model, any blends made worse, and the
-  parts the cleanup could not check. It can import the picked file again with
-  another choice, which starts a new session. The cleanup is the
-  `@vizij/import` package from
+  A notice names the parts improved, anything made visibly worse, the parts
+  Safe left as exported because improving them would worsen other shapes
+  (Best overall improves those), the poses that still look partly filled in
+  and need reshaping in the source model, and the parts the cleanup could not
+  check. It can import the picked file again with another choice, which
+  starts a new session and becomes the choice for later imports. The cleanup
+  is the `@vizij/import` package from
   [vizij-rs](https://github.com/vizij-ai/vizij-rs)
 
 - live IR stats and report export hooks

@@ -23,24 +23,28 @@ export function useImportPasses() {
   const { morphTriangleCleanup } = useAuthoringUiState();
   const [notice, setNotice] = useState<ImportNotice | null>(null);
   const [original, setOriginal] = useState<File | null>(null);
-  // Each import takes a ticket; only the latest one's result counts. The
-  // passes run asynchronously (the first run fetches a wasm module), so an
-  // earlier import can finish after a later one or after New.
+  // Each import takes a ticket when it starts, before fetching or reading
+  // anything; only the latest ticket's passes count. The passes run
+  // asynchronously (the first run fetches a wasm module), so an earlier
+  // import can finish after a later one has started.
   const latest = useRef(0);
+
+  /** Starts an import: its ticket, which supersedes every earlier one. */
+  const begin = useCallback(() => ++latest.current, []);
 
   /**
    * The file to load in place of `file`, once the passes have run with
-   * `cleanup` (the UI's choice when omitted); `null` when a later import or
-   * New superseded this one while the passes ran, in which case the caller
-   * abandons the import. A notice is shown when the cleanup ran, or when
-   * the cleanup was chosen for this import (a re-import) even if off.
+   * `cleanup` (the UI's choice when omitted); `null` when a later import
+   * started while the passes ran, in which case the caller abandons this
+   * one. A notice is shown when the cleanup ran, or when the cleanup was
+   * chosen for this import (a re-import) even if off.
    */
   const prepare = useCallback(
     async (
+      ticket: number,
       file: File,
       cleanup?: MorphTriangleCleanup,
     ): Promise<File | null> => {
-      const ticket = ++latest.current;
       const chosen = cleanup ?? morphTriangleCleanup;
       const prepared = await prepareImport(file, { cleanup: chosen });
       if (ticket !== latest.current) {
@@ -57,18 +61,11 @@ export function useImportPasses() {
     [morphTriangleCleanup],
   );
 
-  /** Hides the notice; an import in progress is unaffected. */
+  /**
+   * Hides the notice; an import in progress is unaffected. New needs no
+   * call of its own: it remounts the session, this hook's state included.
+   */
   const dismissMorphTriangles = useCallback(() => setNotice(null), []);
 
-  /**
-   * Abandons any import still in its passes (New). New also remounts the
-   * session, which clears the notice; what only this does is stop an import
-   * whose passes finish afterwards from loading into the new session.
-   */
-  const cancel = useCallback(() => {
-    latest.current += 1;
-    setNotice(null);
-  }, []);
-
-  return { prepare, notice, original, dismissMorphTriangles, cancel };
+  return { begin, prepare, notice, original, dismissMorphTriangles };
 }

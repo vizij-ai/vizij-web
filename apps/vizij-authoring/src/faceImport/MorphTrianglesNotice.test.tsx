@@ -32,6 +32,7 @@ function renderSummary(summary: Partial<MorphTrianglesSummary>) {
         improved: [],
         remaining: [],
         worsened: [],
+        declined: [],
         unchecked: [],
         ...summary,
       },
@@ -55,6 +56,37 @@ describe("MorphTrianglesNotice", () => {
       ),
     ).toEqual(["mouth: neutral, smile_shape"]);
     expect(text).not.toMatch(/%|fold/i);
+  });
+
+  it("names parts safe mode declined instead of telling the author to remodel them", () => {
+    const text = renderSummary({ declined: ["mouth"] });
+    expect(screen.getByTestId("morph-triangles-declined").textContent).toMatch(
+      /best-overall cleanup improves them: mouth\./,
+    );
+    expect(text).not.toMatch(/Nothing/);
+    expect(screen.queryByTestId("morph-triangles-remaining")).toBeNull();
+  });
+
+  it("does not call a change unnoticeable while something got worse", () => {
+    renderSummary({
+      changed: true,
+      worsened: [{ part: "lid", shapes: ["blink + smile"] }],
+    });
+    expect(screen.queryByTestId("morph-triangles-headline")).toBeNull();
+    expect(screen.getByTestId("morph-triangles-worsened").textContent).toBe(
+      "lid: blink + smile",
+    );
+  });
+
+  it("tells a cleanup that could not start from one that failed on the file", () => {
+    expect(
+      renderNotice({
+        cleanup: "safe",
+        outcome: { status: "failed", stage: "load", message: "offline" },
+      }),
+    ).toMatch(
+      /The cleanup could not start, so the triangles are as they were exported: offline/,
+    );
   });
 
   it("lists the blends the cleanup made worse", () => {
@@ -99,15 +131,15 @@ describe("MorphTrianglesNotice", () => {
   it("explains a failed cleanup without claiming anything about the import", () => {
     const text = renderNotice({
       cleanup: "safe",
-      outcome: { status: "failed", message: "not a GLB file" },
+      outcome: { status: "failed", stage: "file", message: "not a GLB file" },
     });
     expect(text).toMatch(/as they were exported: not a GLB file/);
     expect(text).not.toMatch(/loaded|imported/i);
   });
 
-  it("says a re-import without cleanup took the file as picked", () => {
+  it("says a re-import ran with the cleanup off", () => {
     expect(renderNotice({ cleanup: "off", outcome: null })).toMatch(
-      /Imported as picked, without the morph target cleanup\./,
+      /The morph target cleanup was off for this import, so the triangles are as they were exported\./,
     );
     expect(screen.queryByTestId("morph-triangles-reimport-off")).toBeNull();
     expect(screen.getByTestId("morph-triangles-reimport-safe")).toBeTruthy();
@@ -117,7 +149,10 @@ describe("MorphTrianglesNotice", () => {
   it("re-imports with another cleanup only after confirming", () => {
     const onReimport = vi.fn();
     renderNotice(
-      { cleanup: "safe", outcome: { status: "failed", message: "x" } },
+      {
+        cleanup: "safe",
+        outcome: { status: "failed", stage: "file", message: "x" },
+      },
       onReimport,
     );
     expect(screen.queryByTestId("morph-triangles-reimport-safe")).toBeNull();
@@ -130,9 +165,12 @@ describe("MorphTrianglesNotice", () => {
     expect(screen.queryByTestId("morph-triangles-reimport-confirm")).toBeNull();
     expect(onReimport).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByTestId("morph-triangles-reimport-off"));
+    fireEvent.click(screen.getByTestId("morph-triangles-reimport-overall"));
+    expect(
+      screen.getByTestId("morph-triangles-reimport-confirm").textContent,
+    ).toMatch(/Later imports use this choice too\./);
     fireEvent.click(screen.getByTestId("morph-triangles-reimport-go"));
-    expect(onReimport).toHaveBeenCalledWith("off");
+    expect(onReimport).toHaveBeenCalledWith("overall");
   });
 
   it("dismisses", () => {

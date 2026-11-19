@@ -17,20 +17,32 @@ export const NOTICEABLE = 0.05;
 export interface MorphTrianglesSummary {
   /** Whether the cleanup rewrote any triangles at all. */
   changed: boolean;
-  /** Parts, each once, whose poses the cleanup visibly improved. */
+  /** Parts, each once, with a pose or blend the cleanup visibly improved. */
   improved: string[];
-  /** Poses still visibly drawn wrong, grouped by part. */
+  /**
+   * Poses still visibly drawn wrong, grouped by part: in parts the cleanup
+   * could do no better for, which need reshaping in the source model.
+   */
   remaining: Array<{ part: string; shapes: string[] }>;
-  /** Blends of two poses the cleanup made visibly worse, grouped by part. */
+  /** Poses and blends the cleanup made visibly worse, grouped by part. */
   worsened: Array<{ part: string; shapes: string[] }>;
+  /**
+   * Parts safe mode left as exported because the rewrite that improves
+   * them overall would make some shape visibly worse.
+   */
+  declined: string[];
   /** Parts the cleanup could not check, with the reason. */
   unchecked: Array<{ part: string; reason: string }>;
 }
 
-/** What the import passes did to a file, for the import notice. */
+/**
+ * What the import passes did to a file, for the import notice. A failure
+ * is either the cleanup itself not starting (`load`: its module could not
+ * be fetched or initialised) or the cleanup failing on this file (`file`).
+ */
 export type MorphTrianglesOutcome =
   | { status: "applied"; summary: MorphTrianglesSummary }
-  | { status: "failed"; message: string };
+  | { status: "failed"; stage: "load" | "file"; message: string };
 
 export interface PreparedImport {
   /** The file to load: the input, or a rewritten copy when a pass changed it. */
@@ -45,7 +57,7 @@ type StillFolding = (
   threshold: number,
 ) => Array<{ part: Part; folds: ShapeFold[] }>;
 
-/** Blends of two poses number in the hundreds; they are reported only when made worse. */
+/** Blends of two poses number in the hundreds; they are never listed as still wrong. */
 function isBlend(kind: ShapeKind): boolean {
   return kind === "blend" || kind === "blendHalfway";
 }
@@ -93,14 +105,14 @@ function grouped(
 }
 
 /**
- * Condenses the pass's report for a face author. Poses (the rest shape,
- * each target, each target halfway, the default pose) decide what counts as
- * improved and what still looks wrong; blends of two poses are reported
- * only when the cleanup made them noticeably worse. A part counts as
- * improved only when some pose lost a noticeable amount of wrongly drawn
- * area, so a part whose triangles changed only marginally is not named;
- * `changed` still records that they changed. A mesh exported as several
- * pieces appears once in each list.
+ * Condenses the pass's report for a face author. A part counts as improved
+ * when any pose or blend lost a noticeable amount of wrongly drawn area, so
+ * a part whose triangles changed only marginally is not named; `changed`
+ * still records that they changed. Any shape that gained a noticeable amount
+ * is listed as worsened. Poses still drawn wrong are listed for remodelling
+ * only in parts the cleanup could do no better for: a part safe mode
+ * declined is listed as such instead, since best overall improves it. A
+ * mesh exported as several pieces appears once in each list.
  */
 export function summarizeMorphTriangles(
   report: MorphTrianglesReport,
@@ -108,39 +120,53 @@ export function summarizeMorphTriangles(
 ): MorphTrianglesSummary {
   const partName = partLabels(report);
   const improved = new Set<string>();
+  const declined = new Set<string>();
   const worsened: Array<{ part: string; shape: string }> = [];
+  const worsenedShapes = new Map<string, Set<string>>();
   const unchecked = new Map<string, Set<string>>();
   for (const part of report.parts) {
+    const name = partName(part);
     for (const fold of part.folds) {
       const gain = (fold.before ?? 0) - (fold.after ?? 0);
-      if (isBlend(fold.kind)) {
-        if (-gain >= NOTICEABLE) {
-          worsened.push({ part: partName(part), shape: fold.shape });
-        }
-      } else if (gain >= NOTICEABLE) {
-        improved.add(partName(part));
+      if (gain >= NOTICEABLE) {
+        improved.add(name);
+      } else if (-gain >= NOTICEABLE) {
+        worsened.push({ part: name, shape: shapeName(fold.shape) });
+        const shapes = worsenedShapes.get(name) ?? new Set<string>();
+        shapes.add(fold.shape);
+        worsenedShapes.set(name, shapes);
       }
     }
+    if (part.outcome === "declined") {
+      declined.add(name);
+    }
     if (part.outcome === "skipped") {
-      const reasons = unchecked.get(partName(part)) ?? new Set<string>();
+      const reasons = unchecked.get(name) ?? new Set<string>();
       reasons.add(part.skipReason ?? "could not be read");
-      unchecked.set(partName(part), reasons);
+      unchecked.set(name, reasons);
     }
   }
   const remaining = stillFolding(report, NOTICEABLE).flatMap(
     ({ part, folds }) =>
-      folds
-        .filter((fold) => !isBlend(fold.kind))
-        .map((fold) => ({
-          part: partName(part),
-          shape: shapeName(fold.shape),
-        })),
+      part.outcome === "declined"
+        ? []
+        : folds
+            .filter(
+              (fold) =>
+                !isBlend(fold.kind) &&
+                !worsenedShapes.get(partName(part))?.has(fold.shape),
+            )
+            .map((fold) => ({
+              part: partName(part),
+              shape: shapeName(fold.shape),
+            })),
   );
   return {
     changed: report.parts.some((part) => part.outcome === "retriangulated"),
     improved: [...improved],
     remaining: grouped(remaining),
     worsened: grouped(worsened),
+    declined: [...declined],
     unchecked: [...unchecked].map(([part, reasons]) => ({
       part,
       reason: [...reasons].join("; "),
@@ -160,13 +186,25 @@ export async function prepareImport(
   if (options.cleanup === "off") {
     return { file, morphTriangles: null };
   }
+  const failed = (stage: "load" | "file", err: unknown): PreparedImport => ({
+    file,
+    morphTriangles: {
+      status: "failed",
+      stage,
+      message: err instanceof Error ? err.message : String(err),
+    },
+  });
+  let pass: typeof import("@vizij/import");
   try {
     // Loaded on first use, so a session that never turns the cleanup on
     // never fetches the package or its wasm module.
-    const { init, optimizeMorphTriangles, stillFolding } =
-      await import("@vizij/import");
-    await init();
-    const result = optimizeMorphTriangles(
+    pass = await import("@vizij/import");
+    await pass.init();
+  } catch (err) {
+    return failed("load", err);
+  }
+  try {
+    const result = pass.optimizeMorphTriangles(
       new Uint8Array(await file.arrayBuffer()),
       options.cleanup,
     );
@@ -180,16 +218,10 @@ export async function prepareImport(
       file: prepared,
       morphTriangles: {
         status: "applied",
-        summary: summarizeMorphTriangles(result.report, stillFolding),
+        summary: summarizeMorphTriangles(result.report, pass.stillFolding),
       },
     };
   } catch (err) {
-    return {
-      file,
-      morphTriangles: {
-        status: "failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
-    };
+    return failed("file", err);
   }
 }

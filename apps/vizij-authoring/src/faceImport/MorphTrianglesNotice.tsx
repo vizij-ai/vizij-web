@@ -37,14 +37,15 @@ function PartList({
 }
 
 function SummaryBody({ summary }: { summary: MorphTrianglesSummary }) {
-  const { changed, improved, remaining, worsened, unchecked } = summary;
+  const { changed, improved, remaining, worsened, declined, unchecked } =
+    summary;
   let headline: string | null = null;
   if (improved.length > 0) {
     headline = `Improved how these keep their outline across their morph targets: ${improved.join(", ")}.`;
-  } else if (changed) {
+  } else if (changed && worsened.length === 0) {
     headline =
       "Rearranged some triangles, with no difference large enough to notice.";
-  } else if (remaining.length === 0) {
+  } else if (!changed && remaining.length === 0 && declined.length === 0) {
     headline =
       unchecked.length === 0
         ? "Nothing needed adjusting."
@@ -56,10 +57,17 @@ function SummaryBody({ summary }: { summary: MorphTrianglesSummary }) {
       {worsened.length > 0 && (
         <>
           <p className="text-text-secondary">
-            Some blends of two poses now look more filled in than before:
+            These now look more filled in than before:
           </p>
           <PartList testId="morph-triangles-worsened" entries={worsened} />
         </>
+      )}
+      {declined.length > 0 && (
+        <p data-testid="morph-triangles-declined">
+          Left as exported, because improving them would make some of their
+          shapes visibly worse; best-overall cleanup improves them:{" "}
+          {declined.join(", ")}.
+        </p>
       )}
       {remaining.length > 0 && (
         <>
@@ -105,12 +113,19 @@ export function MorphTrianglesNotice({
   const { cleanup, outcome } = notice;
   let body: React.ReactNode;
   if (outcome === null) {
-    body = <p>Imported as picked, without the morph target cleanup.</p>;
+    body = (
+      <p>
+        The morph target cleanup was off for this import, so the triangles are
+        as they were exported.
+      </p>
+    );
   } else if (outcome.status === "failed") {
     body = (
       <p>
-        The cleanup could not run on this file, so its triangles are as they
-        were exported: {outcome.message}
+        {outcome.stage === "load"
+          ? "The cleanup could not start"
+          : "The cleanup could not run on this file"}
+        , so the triangles are as they were exported: {outcome.message}
       </p>
     );
   } else {
@@ -159,7 +174,7 @@ export function MorphTrianglesNotice({
         >
           <p className="text-text-secondary">
             Re-importing starts a new session from the file you picked; changes
-            made since this import are lost.
+            made since this import are lost. Later imports use this choice too.
           </p>
           <div className="flex gap-1">
             <Button
