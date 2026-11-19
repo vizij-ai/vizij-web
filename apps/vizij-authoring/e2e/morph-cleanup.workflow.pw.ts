@@ -23,20 +23,35 @@ async function openFileMenu(page: Page): Promise<void> {
     .dispatchEvent("pointerdown", { button: 0 });
 }
 
+/**
+ * Opens File → Morph Target Cleanup on Import. The menu can close itself
+ * while the app is still settling after load, so a click that finds it gone
+ * reopens it and tries again.
+ */
+async function openCleanupSubmenu(page: Page): Promise<void> {
+  const submenu = page.getByTestId("app-menu-file-morph-cleanup");
+  await expect(async () => {
+    if (!(await submenu.isVisible())) {
+      await openFileMenu(page);
+    }
+    await submenu.click({ timeout: 2_000 });
+    await expect(
+      page.getByTestId("app-menu-file-morph-cleanup-off"),
+    ).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
 async function chooseCleanup(
   page: Page,
   cleanup: "off" | "safe" | "overall",
 ): Promise<void> {
-  const submenu = page.getByTestId("app-menu-file-morph-cleanup");
   const choice = page.getByTestId(`app-menu-file-morph-cleanup-${cleanup}`);
-  await openFileMenu(page);
-  await submenu.click();
+  await openCleanupSubmenu(page);
   await choice.click();
   // A checkbox item may leave the menu open; reopen it only if it closed,
   // since a pointerdown on an open menu's trigger closes it.
   if (!(await choice.isVisible())) {
-    await openFileMenu(page);
-    await submenu.click();
+    await openCleanupSubmenu(page);
   }
   await expect(choice).toHaveAttribute("aria-checked", "true");
   await closeMenus(page);
@@ -118,8 +133,7 @@ test("the notice re-imports the picked file with another cleanup @workflow", asy
 
   // The re-import's choice becomes the choice for later imports.
   await closeMenus(page);
-  await openFileMenu(page);
-  await page.getByTestId("app-menu-file-morph-cleanup").click();
+  await openCleanupSubmenu(page);
   await expect(
     page.getByTestId("app-menu-file-morph-cleanup-off"),
   ).toHaveAttribute("aria-checked", "true");
