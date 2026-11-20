@@ -177,19 +177,23 @@ describe("AppMenuBar", () => {
       onMorphTriangleCleanupChange,
     });
 
-    openMenu("app-menu-file");
-    fireEvent.click(await screen.findByTestId("app-menu-file-morph-cleanup"));
+    openMenu("app-menu-settings");
+    fireEvent.click(
+      await screen.findByTestId("app-menu-settings-morph-cleanup"),
+    );
     const checked = (value: string) =>
       screen
-        .getByTestId(`app-menu-file-morph-cleanup-${value}`)
+        .getByTestId(`app-menu-settings-morph-cleanup-${value}`)
         .getAttribute("aria-checked");
-    await screen.findByTestId("app-menu-file-morph-cleanup-off");
+    await screen.findByTestId("app-menu-settings-morph-cleanup-off");
     expect(["off", "safe", "overall"].map(checked)).toEqual([
       "false",
       "true",
       "false",
     ]);
-    fireEvent.click(screen.getByTestId("app-menu-file-morph-cleanup-overall"));
+    fireEvent.click(
+      screen.getByTestId("app-menu-settings-morph-cleanup-overall"),
+    );
     expect(onMorphTriangleCleanupChange).toHaveBeenCalledWith("overall");
   });
 

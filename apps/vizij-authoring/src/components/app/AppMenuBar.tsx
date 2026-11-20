@@ -254,21 +254,6 @@ export function AppMenuBar({
         >
           Import (Skip Checks)...
         </MenuItem>
-        <MenuSubmenu
-          label="Morph Target Cleanup on Import"
-          testId="app-menu-file-morph-cleanup"
-        >
-          {MORPH_CLEANUP_CHOICES.map(({ value, label }) => (
-            <MenuCheckboxItem
-              key={value}
-              checked={morphTriangleCleanup === value}
-              onCheckedChange={() => onMorphTriangleCleanupChange(value)}
-              testId={`app-menu-file-morph-cleanup-${value}`}
-            >
-              {label}
-            </MenuCheckboxItem>
-          ))}
-        </MenuSubmenu>
         <MenuItem
           onSelect={onImportReferenceFace}
           testId="app-menu-file-import-reference-face"
@@ -714,6 +699,23 @@ export function AppMenuBar({
               }}
             >
               {TONE_MAPPING_LABELS[mode]}
+            </MenuCheckboxItem>
+          ))}
+        </MenuSubmenu>
+        <MenuSeparator />
+        <MenuLabel>Import</MenuLabel>
+        <MenuSubmenu
+          label="Morph Target Cleanup"
+          testId="app-menu-settings-morph-cleanup"
+        >
+          {MORPH_CLEANUP_CHOICES.map(({ value, label }) => (
+            <MenuCheckboxItem
+              key={value}
+              checked={morphTriangleCleanup === value}
+              onCheckedChange={() => onMorphTriangleCleanupChange(value)}
+              testId={`app-menu-settings-morph-cleanup-${value}`}
+            >
+              {label}
             </MenuCheckboxItem>
           ))}
         </MenuSubmenu>

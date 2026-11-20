@@ -21,8 +21,8 @@ what you author is what ships. Why that holds, and what it takes, is in
 - auto-generated standard-input drivers with enable/disable and round-trip metadata
 - grouped pose workflow with canonical pose-weight paths: `rig/{face}/poses/{poseId}.weight`
 - graph import face-id safety and remapping
-- optional morph target cleanup on import (File → Morph Target Cleanup on
-  Import; `.glb` files only). Parts modelled as one large polygon, such as a
+- optional morph target cleanup on import (Settings → Morph Target Cleanup;
+  `.glb` files only). Parts modelled as one large polygon, such as a
   mouth or a pupil, get triangles that keep their outline across their morph
   targets instead of filling in. Every choice changes triangle data only:
   - **Off** (the default) imports the file as picked;

@@ -11,8 +11,8 @@ import {
 import { FAN, morphedMouthGlb, morphedTriangles } from "./morphFixture";
 
 /**
- * The morph target cleanup runs on import only when File → Morph Target
- * Cleanup on Import is set to safe or best overall, for presets and picked
+ * The morph target cleanup runs on import only when Settings → Morph Target
+ * Cleanup is set to safe or best overall, for presets and picked
  * files alike. Its notice belongs to the session of the import that
  * produced it: New, which starts a new session, clears it; and the notice
  * can import the picked file again with another cleanup.
@@ -24,21 +24,19 @@ const PICKED_FACE = fileURLToPath(
   new URL("../public/assets/Quori_Latest_Blender_Export.glb", import.meta.url),
 );
 
-async function openFileMenu(page: Page): Promise<void> {
+async function openMenu(page: Page, menu: string): Promise<void> {
   // The menubar's trigger opens on pointerdown, not on a bare click.
-  await page
-    .getByTestId("app-menu-file")
-    .dispatchEvent("pointerdown", { button: 0 });
+  await page.getByTestId(menu).dispatchEvent("pointerdown", { button: 0 });
 }
 
 /**
- * Opens File → Morph Target Cleanup on Import. The menu can close itself
+ * Opens Settings → Morph Target Cleanup. The menu can close itself
  * while the app is still settling after load, so a click that finds it gone
  * reopens it and tries again.
  */
 async function openCleanupSubmenu(page: Page): Promise<void> {
-  const submenu = page.getByTestId("app-menu-file-morph-cleanup");
-  const firstChoice = page.getByTestId("app-menu-file-morph-cleanup-off");
+  const submenu = page.getByTestId("app-menu-settings-morph-cleanup");
+  const firstChoice = page.getByTestId("app-menu-settings-morph-cleanup-off");
   await expect(async () => {
     // Done once the choices show; clicking an open submenu's trigger again
     // never settles.
@@ -46,7 +44,7 @@ async function openCleanupSubmenu(page: Page): Promise<void> {
       return;
     }
     if (!(await submenu.isVisible())) {
-      await openFileMenu(page);
+      await openMenu(page, "app-menu-settings");
     }
     await submenu.click({ timeout: 5_000 });
     await expect(firstChoice).toBeVisible({ timeout: 2_000 });
@@ -57,7 +55,7 @@ async function chooseCleanup(
   page: Page,
   cleanup: "off" | "safe" | "overall",
 ): Promise<void> {
-  const choice = page.getByTestId(`app-menu-file-morph-cleanup-${cleanup}`);
+  const choice = page.getByTestId(`app-menu-settings-morph-cleanup-${cleanup}`);
   await openCleanupSubmenu(page);
   await choice.click();
   // A checkbox item may leave the menu open; reopen it only if it closed,
@@ -69,9 +67,9 @@ async function chooseCleanup(
   await closeMenus(page);
 }
 
-/** Closes any open menu and waits until the File menu's items are gone. */
+/** Closes any open menu and waits until the Settings menu's items are gone. */
 async function closeMenus(page: Page): Promise<void> {
-  const submenu = page.getByTestId("app-menu-file-morph-cleanup");
+  const submenu = page.getByTestId("app-menu-settings-morph-cleanup");
   for (let i = 0; i < 3 && (await submenu.isVisible()); i += 1) {
     await page.keyboard.press("Escape");
   }
@@ -107,7 +105,7 @@ test("the cleanup reports on a preset import, and New clears it @workflow", asyn
   await loadMainPreset(page);
   await expect(page.getByTestId("morph-triangles-notice")).toBeVisible();
 
-  await openFileMenu(page);
+  await openMenu(page, "app-menu-file");
   await page.getByTestId("app-menu-file-new").click();
   await expect(page.getByTestId("morph-triangles-notice")).toHaveCount(0);
 });
@@ -147,7 +145,7 @@ test("the notice re-imports the picked file with another cleanup @workflow", asy
   await closeMenus(page);
   await openCleanupSubmenu(page);
   await expect(
-    page.getByTestId("app-menu-file-morph-cleanup-off"),
+    page.getByTestId("app-menu-settings-morph-cleanup-off"),
   ).toHaveAttribute("aria-checked", "true");
 });
 
