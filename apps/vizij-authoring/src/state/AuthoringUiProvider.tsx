@@ -8,6 +8,13 @@ export interface AuthoringUiState {
   includeImportedAnimations: boolean;
   activeRiggingTab: RiggingTab;
   skipDiscrepancyCheck: boolean;
+  /**
+   * The morph target cleanup an import applies before the face loads:
+   * `off` imports the file as picked; `safe` re-triangulates single-polygon
+   * parts only where no checked shape gets visibly worse; `overall` does so
+   * wherever the shapes improve overall, even if some blends get worse.
+   */
+  morphTriangleCleanup: MorphTriangleCleanup;
   activeRuntimeSource: RuntimeAuthoringSource;
   activeEditFocus: EditFocus;
   rotationDisplayMode: RotationDisplayMode;
@@ -19,11 +26,13 @@ export type AuthoringUiAction =
   | { type: "set-include-animations"; payload: boolean }
   | { type: "set-rigging-tab"; payload: RiggingTab }
   | { type: "set-skip-discrepancy-check"; payload: boolean }
+  | { type: "set-morph-triangle-cleanup"; payload: MorphTriangleCleanup }
   | { type: "set-active-runtime-source"; payload: RuntimeAuthoringSource }
   | { type: "set-edit-focus"; payload: EditFocus }
   | { type: "set-rotation-display-mode"; payload: RotationDisplayMode };
 
 export type RiggingTab = "rigging" | "face";
+export type MorphTriangleCleanup = "off" | "safe" | "overall";
 export type RuntimeAuthoringSource =
   "animation" | "procedural-animation-programming" | "none";
 export type RotationDisplayMode = "radians" | "degrees";
@@ -41,6 +50,7 @@ const INITIAL_UI_STATE: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  morphTriangleCleanup: "off",
   activeRuntimeSource: "none",
   activeEditFocus: "default",
   rotationDisplayMode: "degrees",
@@ -87,6 +97,11 @@ export function authoringUiReducer(
         return state;
       }
       return { ...state, skipDiscrepancyCheck: action.payload };
+    case "set-morph-triangle-cleanup":
+      if (state.morphTriangleCleanup === action.payload) {
+        return state;
+      }
+      return { ...state, morphTriangleCleanup: action.payload };
     case "set-active-runtime-source":
       if (state.activeRuntimeSource === action.payload) {
         return state;
@@ -123,6 +138,7 @@ export interface AuthoringUiActions {
   setIncludeImportedAnimations: (value: boolean) => void;
   setRiggingTab: (value: RiggingTab) => void;
   setSkipDiscrepancyCheck: (value: boolean) => void;
+  setMorphTriangleCleanup: (value: MorphTriangleCleanup) => void;
   setActiveRuntimeSource: (value: RuntimeAuthoringSource) => void;
   setEditFocus: (value: EditFocus) => void;
   setRotationDisplayMode: (value: RotationDisplayMode) => void;
@@ -147,6 +163,8 @@ export function AuthoringUiProvider({
         dispatch({ type: "set-rigging-tab", payload: value }),
       setSkipDiscrepancyCheck: (value) =>
         dispatch({ type: "set-skip-discrepancy-check", payload: value }),
+      setMorphTriangleCleanup: (value) =>
+        dispatch({ type: "set-morph-triangle-cleanup", payload: value }),
       setActiveRuntimeSource: (value) =>
         dispatch({ type: "set-active-runtime-source", payload: value }),
       setEditFocus: (value) =>

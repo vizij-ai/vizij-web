@@ -1,3 +1,4 @@
+import type React from "react";
 import {
   cleanup,
   fireEvent,
@@ -35,12 +36,15 @@ function renderMenuBar(
   save: { canSave: boolean; saveDisabledReason?: string | null } = {
     canSave: true,
   },
+  overrides: Partial<React.ComponentProps<typeof AppMenuBar>> = {},
 ) {
   return render(
     <AppMenuBar
       onNew={vi.fn()}
       onImport={vi.fn()}
       onImportSkipChecks={vi.fn()}
+      morphTriangleCleanup="off"
+      onMorphTriangleCleanupChange={vi.fn()}
       onImportReferenceFace={vi.fn()}
       onImportGlbAnimations={vi.fn()}
       onSave={vi.fn()}
@@ -79,6 +83,7 @@ function renderMenuBar(
       onSelectRotationDisplayMode={vi.fn()}
       activeAuthoringSurface="variables"
       onSelectAuthoringSurface={vi.fn()}
+      {...overrides}
     />,
   );
 }
@@ -163,6 +168,33 @@ describe("AppMenuBar", () => {
     expect(panels.motiongraphPalette.isVisible).toBe(true);
     expect(panels.animation.isVisible).toBe(false);
     expect(panels.referenceFace.isVisible).toBe(false);
+  });
+
+  it("offers the morph target cleanup choices and marks the current one", async () => {
+    const onMorphTriangleCleanupChange = vi.fn();
+    renderMenuBar(undefined, {
+      morphTriangleCleanup: "safe",
+      onMorphTriangleCleanupChange,
+    });
+
+    openMenu("app-menu-settings");
+    fireEvent.click(
+      await screen.findByTestId("app-menu-settings-morph-cleanup"),
+    );
+    const checked = (value: string) =>
+      screen
+        .getByTestId(`app-menu-settings-morph-cleanup-${value}`)
+        .getAttribute("aria-checked");
+    await screen.findByTestId("app-menu-settings-morph-cleanup-off");
+    expect(["off", "safe", "overall"].map(checked)).toEqual([
+      "false",
+      "true",
+      "false",
+    ]);
+    fireEvent.click(
+      screen.getByTestId("app-menu-settings-morph-cleanup-overall"),
+    );
+    expect(onMorphTriangleCleanupChange).toHaveBeenCalledWith("overall");
   });
 
   it("says why Save is disabled, on the toolbar and in the File menu", async () => {

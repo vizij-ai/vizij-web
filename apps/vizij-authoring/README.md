@@ -21,6 +21,26 @@ what you author is what ships. Why that holds, and what it takes, is in
 - auto-generated standard-input drivers with enable/disable and round-trip metadata
 - grouped pose workflow with canonical pose-weight paths: `rig/{face}/poses/{poseId}.weight`
 - graph import face-id safety and remapping
+- optional morph target cleanup on import (Settings → Morph Target Cleanup;
+  `.glb` files only). Parts modelled as one large polygon, such as a
+  mouth or a pupil, get triangles that keep their outline across their morph
+  targets instead of filling in. Every choice changes triangle data only:
+  - **Off** (the default) imports the file as picked;
+  - **Safe** rewrites a part only when no checked shape — each pose, each
+    pose halfway, every pair of poses — comes out visibly worse, so it fixes
+    less;
+  - **Best overall** rewrites whenever the shapes improve overall, so it
+    fixes more, and lists any blends of two poses that got worse.
+
+  A notice names the parts improved, anything made visibly worse, the parts
+  Safe left as exported because improving them would worsen other shapes or
+  also change their depth (Best overall improves those) with their poses that look filled in now, the
+  poses that still look partly filled in and need reshaping in the source
+  model, and the parts the cleanup could not check. It can import the picked file again with another choice, which
+  starts a new session and becomes the choice for later imports. The cleanup
+  is the `@semio/import` package from
+  [arora-visuals](https://github.com/semio-ai/arora-visuals).
+
 - live IR stats and report export hooks
 
 ## Standard Feature Spaces Editor

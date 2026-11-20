@@ -17,6 +17,7 @@ import { useThemeStore } from "../../state/themeStore";
 import { useWorkspaceStore } from "../../state/workspaceStore";
 import type {
   EditFocus,
+  MorphTriangleCleanup,
   RotationDisplayMode,
 } from "../../state/AuthoringUiProvider";
 import { cn } from "../../utils/cn";
@@ -24,10 +25,27 @@ import { cn } from "../../utils/cn";
 type AuthoringSurfaceMenuTarget =
   "starred" | "variables" | "poses" | "pose-groups" | "animations" | "programs";
 
+/** The cleanup choices, with what each may change, in the File menu. */
+const MORPH_CLEANUP_CHOICES: { value: MorphTriangleCleanup; label: string }[] =
+  [
+    { value: "off", label: "Off: import the file as picked" },
+    {
+      value: "safe",
+      label: "Safe: fix only what makes no shape visibly worse",
+    },
+    {
+      value: "overall",
+      label: "Best overall: fix more; some blends may get worse",
+    },
+  ];
+
 interface AppMenuBarProps {
   onNew: () => void;
   onImport: () => void;
   onImportSkipChecks: () => void;
+  /** The morph target cleanup imports apply. */
+  morphTriangleCleanup: MorphTriangleCleanup;
+  onMorphTriangleCleanupChange: (cleanup: MorphTriangleCleanup) => void;
   onImportReferenceFace: () => void;
   onImportGlbAnimations: () => void;
   onSave: () => void;
@@ -94,6 +112,8 @@ export function AppMenuBar({
   onNew,
   onImport,
   onImportSkipChecks,
+  morphTriangleCleanup,
+  onMorphTriangleCleanupChange,
   onImportReferenceFace,
   onImportGlbAnimations,
   onSave,
@@ -221,7 +241,9 @@ export function AppMenuBar({
   return (
     <MenuBar>
       <Menu label="File" testId="app-menu-file">
-        <MenuItem onSelect={onNew}>New</MenuItem>
+        <MenuItem onSelect={onNew} testId="app-menu-file-new">
+          New
+        </MenuItem>
         <MenuSeparator />
         <MenuItem onSelect={onImport} testId="app-menu-file-import">
           Import...
@@ -677,6 +699,23 @@ export function AppMenuBar({
               }}
             >
               {TONE_MAPPING_LABELS[mode]}
+            </MenuCheckboxItem>
+          ))}
+        </MenuSubmenu>
+        <MenuSeparator />
+        <MenuLabel>Import</MenuLabel>
+        <MenuSubmenu
+          label="Morph Target Cleanup"
+          testId="app-menu-settings-morph-cleanup"
+        >
+          {MORPH_CLEANUP_CHOICES.map(({ value, label }) => (
+            <MenuCheckboxItem
+              key={value}
+              checked={morphTriangleCleanup === value}
+              onCheckedChange={() => onMorphTriangleCleanupChange(value)}
+              testId={`app-menu-settings-morph-cleanup-${value}`}
+            >
+              {label}
             </MenuCheckboxItem>
           ))}
         </MenuSubmenu>

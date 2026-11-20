@@ -10,12 +10,38 @@ const baseState: AuthoringUiState = {
   includeImportedAnimations: false,
   activeRiggingTab: "rigging",
   skipDiscrepancyCheck: true,
+  morphTriangleCleanup: "off",
   activeRuntimeSource: "none",
   activeEditFocus: "default",
   rotationDisplayMode: "degrees",
 };
 
 describe("authoringUiReducer", () => {
+  it("chooses the morph target cleanup", () => {
+    const safe = authoringUiReducer(baseState, {
+      type: "set-morph-triangle-cleanup",
+      payload: "safe",
+    });
+    expect(safe.morphTriangleCleanup).toBe("safe");
+    const overall = authoringUiReducer(safe, {
+      type: "set-morph-triangle-cleanup",
+      payload: "overall",
+    });
+    expect(overall.morphTriangleCleanup).toBe("overall");
+    expect(
+      authoringUiReducer(overall, {
+        type: "set-morph-triangle-cleanup",
+        payload: "off",
+      }).morphTriangleCleanup,
+    ).toBe("off");
+    expect(
+      authoringUiReducer(safe, {
+        type: "set-morph-triangle-cleanup",
+        payload: "safe",
+      }),
+    ).toBe(safe);
+  });
+
   it("updates the active workbench", () => {
     const result = authoringUiReducer(baseState, {
       type: "set-workbench",
