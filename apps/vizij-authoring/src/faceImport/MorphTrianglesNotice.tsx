@@ -149,9 +149,9 @@ export function MorphTrianglesNotice({
     <div
       data-testid="morph-triangles-notice"
       role="status"
-      className="flex flex-col gap-1 max-w-sm p-3 rounded-lg border border-border bg-bg-panel text-xs text-text-primary shadow-lg"
+      className="pointer-events-auto flex min-h-0 max-w-sm flex-col gap-1 p-3 rounded-lg border border-border bg-bg-panel text-xs text-text-primary shadow-lg"
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex shrink-0 items-start justify-between gap-2">
         <span className="font-semibold">Morph target cleanup</span>
         <Button
           variant="ghost"
@@ -162,9 +162,16 @@ export function MorphTrianglesNotice({
           Dismiss
         </Button>
       </div>
-      {body}
+      {/* The report alone scrolls: a large face can list hundreds of
+          blends, and the headline and buttons must stay reachable. */}
+      <div
+        className="min-h-0 overflow-y-auto"
+        data-testid="morph-triangles-report"
+      >
+        {body}
+      </div>
       {confirming === null ? (
-        <div className="flex flex-wrap gap-1 pt-1">
+        <div className="flex shrink-0 flex-wrap gap-1 pt-1">
           {others.map((choice) => (
             <Button
               key={choice}
@@ -180,7 +187,7 @@ export function MorphTrianglesNotice({
         </div>
       ) : (
         <div
-          className="flex flex-col gap-1 pt-1"
+          className="flex shrink-0 flex-col gap-1 pt-1"
           data-testid="morph-triangles-reimport-confirm"
         >
           <p className="text-text-secondary">

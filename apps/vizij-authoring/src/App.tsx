@@ -5024,9 +5024,10 @@ function AppContent({ loader, onFaceLoadPhaseChange }: AppContentProps) {
       />
       {importPasses.notice && (
         // This pane is drawn in the viewer's overlay layer, which lets the
-        // pointer through to the canvas; the notice takes it back so its
-        // buttons can be clicked.
-        <div className="pointer-events-auto absolute bottom-2 left-2 z-20">
+        // pointer through to the canvas. The column spans the viewer's height
+        // so the notice can be capped to it, and stays pointer-transparent
+        // above the notice, which takes the pointer back for its buttons.
+        <div className="pointer-events-none absolute inset-y-2 left-2 z-20 flex flex-col justify-end">
           <MorphTrianglesNotice
             notice={importPasses.notice}
             onReimport={handleReimport}

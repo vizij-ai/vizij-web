@@ -184,3 +184,39 @@ test("the face loads and saves with the triangles the cleanup chose @workflow", 
   expect(triangles).toHaveLength(fan.length);
   expect(triangles).not.toEqual(fan);
 });
+
+test("the notice stays within a short viewer, its report scrolling @workflow", async ({
+  page,
+}) => {
+  await bootAuthoring(page);
+  await chooseCleanup(page, "overall");
+  await page.getByTestId("app-import-file-input").setInputFiles(PICKED_FACE);
+  await waitForMainFaceReady(page);
+  await confirmOrientation(page);
+  const notice = page.getByTestId("morph-triangles-notice");
+  await expect(notice).toBeVisible();
+
+  // Too short for the whole report: the notice is capped to the viewer and
+  // its headline's Dismiss stays the element under the pointer, not clipped
+  // away above the viewer.
+  await page.setViewportSize({ width: 1280, height: 240 });
+  const dismiss = notice.getByRole("button", { name: "Dismiss" });
+  await expect
+    .poll(() =>
+      dismiss.evaluate((button) => {
+        const box = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          box.left + box.width / 2,
+          box.top + box.height / 2,
+        );
+        return hit !== null && button.contains(hit);
+      }),
+    )
+    .toBe(true);
+  const report = page.getByTestId("morph-triangles-report");
+  expect(await report.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(
+    true,
+  );
+  await dismiss.click();
+  await expect(notice).toHaveCount(0);
+});
