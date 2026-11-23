@@ -72,21 +72,27 @@ interface Shown {
   app: VizijHandle;
 }
 
-/** Take the face shown down: stop its device, unload it, dispose it. */
+/** Take the face shown down: stop its device, unload it, dispose it, and
+ * dispose the devices of loads answered after they were abandoned. */
 function takeDown(
   current: { current: Shown | null },
+  orphans: { current: Shown[] },
   vizijId: string,
   tweens: Tweens,
   setLoaded: (update: (previous: Loaded) => Loaded) => void,
 ): void {
   const shown = current.current;
-  if (!shown) return;
+  const left = orphans.current;
+  orphans.current = [];
+  const app = shown?.app ?? left[0]?.app;
+  if (!app) return;
   current.current = null;
   tweens.cancelAll();
-  shown.runtime.stop();
-  shown.app.unload(vizijId);
-  shown.runtime.dispose();
-  setLoaded((previous) => ({ ...previous, runtime: null }));
+  shown?.runtime.stop();
+  app.unload(vizijId);
+  shown?.runtime.dispose();
+  for (const orphan of left) orphan.runtime.dispose();
+  if (shown) setLoaded((previous) => ({ ...previous, runtime: null }));
 }
 
 /** `promise`'s outcome, or `undefined` as soon as `signal` aborts first. */
@@ -193,6 +199,10 @@ export function VizijRuntimeProvider({
   /** The load the App has not answered yet: what a teardown unloads to
    * cancel it, since the queue no longer waits for it once abandoned. */
   const inFlight = useRef<{ app: VizijHandle; vizijId: string } | null>(null);
+  /** Devices of loads answered after they were abandoned, whose faces the
+   * App may still show: freed once a later load replaces them, or at
+   * teardown, since a device is disposed only once its face is gone. */
+  const orphans = useRef<Shown[]>([]);
   const listeners = useRef(new Set<(changes: VizijChanges) => void>());
   const source = useMemo<VizijChangeSource>(
     () => ({
@@ -224,7 +234,7 @@ export function VizijRuntimeProvider({
       // than leaving the teardown to wait for an answer that may be slow.
       inFlight.current?.app.unload(inFlight.current.vizijId);
       queue.current = queue.current
-        .then(() => takeDown(current, vizijId, tweens, setLoaded))
+        .then(() => takeDown(current, orphans, vizijId, tweens, setLoaded))
         .finally(() => setVizijProgress(vizijId, null));
     },
     [vizijId, tweens],
@@ -241,7 +251,7 @@ export function VizijRuntimeProvider({
         // No face: cancel a load still under way, and take down the one
         // shown, if any.
         inFlight.current?.app.unload(inFlight.current.vizijId);
-        takeDown(current, vizijId, tweens, setLoaded);
+        takeDown(current, orphans, vizijId, tweens, setLoaded);
         setLoaded(NO_FACE);
         setVizijProgress(vizijId, null);
         return;
@@ -289,6 +299,13 @@ export function VizijRuntimeProvider({
           previous.runtime.stop();
           previous.runtime.dispose();
         }
+        // This load replaced the faces of loads answered after they were
+        // abandoned.
+        const replaced = orphans.current;
+        orphans.current = [];
+        for (const orphan of replaced) {
+          if (orphan.runtime !== next) orphan.runtime.dispose();
+        }
         setLoaded((state) => ({ ...state, runtime: next }));
         if (!(await drawn(vizijId, load.signal))) return;
         setLoaded((state) => ({ ...state, status: "ready" }));
@@ -301,9 +318,12 @@ export function VizijRuntimeProvider({
       }
     });
     /** A load abandoned unanswered that the App answers after all: its
-     * device is this provider's to free. Its face is taken down when the
-     * provider shows none any more; otherwise the load queued after it
-     * replaces it, and unloading it first would blank the instance. */
+     * device is this provider's to free. When the provider shows no face
+     * any more, its face is taken down and its device freed at once.
+     * Otherwise the App shows its face until the load queued after it
+     * replaces it, so its device is kept until then: unloading first would
+     * blank the instance, and a device is disposed only once its face is
+     * gone. */
     function abandon(
       loading: Promise<Runtime>,
       mine: number,
@@ -314,7 +334,11 @@ export function VizijRuntimeProvider({
           if (current.current?.runtime === stale) return;
           stale.stop();
           const wanted = mounted.current && latest.current.glb !== null;
-          if (started.current === mine && !wanted) app.unload(vizijId);
+          if (wanted) {
+            orphans.current.push({ runtime: stale, app });
+            return;
+          }
+          if (started.current === mine) app.unload(vizijId);
           stale.dispose();
         },
         () => undefined,

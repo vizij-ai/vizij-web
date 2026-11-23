@@ -412,6 +412,51 @@ describe("a load the App has not answered", () => {
     expect(app.unload).not.toHaveBeenCalled();
   });
 
+  it("answered after a new glb replaced it, keeps its device until the new face replaces it", async () => {
+    const answerFirst = pendingLoad();
+    const answerSecond = pendingLoad();
+    const page = (glb: Uint8Array) => (
+      <VizijRuntimeProvider glb={glb} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>
+    );
+    const { rerender } = render(page(bytes(1)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(1));
+    rerender(page(bytes(2)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(2));
+    const stale = new FakeRuntime();
+    await act(async () => answerFirst(stale));
+    // Its face may still show: the device stays, the instance stays loaded.
+    expect(stale.stop).toHaveBeenCalled();
+    expect(stale.dispose).not.toHaveBeenCalled();
+    expect(app.unload).not.toHaveBeenCalled();
+    const next = new FakeRuntime();
+    loaded.push(next);
+    await act(async () => answerSecond(next));
+    await waitFor(() => expect(stale.dispose).toHaveBeenCalled());
+    expect(next.dispose).not.toHaveBeenCalled();
+  });
+
+  it("kept for a face it may show, has its device freed at teardown", async () => {
+    const answerFirst = pendingLoad();
+    pendingLoad();
+    const page = (glb: Uint8Array) => (
+      <VizijRuntimeProvider glb={glb} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>
+    );
+    const { rerender, unmount } = render(page(bytes(1)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(1));
+    rerender(page(bytes(2)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(2));
+    const stale = new FakeRuntime();
+    await act(async () => answerFirst(stale));
+    expect(stale.dispose).not.toHaveBeenCalled();
+    unmount();
+    await waitFor(() => expect(stale.dispose).toHaveBeenCalled());
+    expect(app.unload).toHaveBeenCalledWith("hero");
+  });
+
   it("answered after it was cancelled, has its device freed", async () => {
     const answer = pendingLoad();
     const { unmount } = render(
