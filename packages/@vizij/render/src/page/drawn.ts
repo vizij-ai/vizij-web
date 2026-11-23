@@ -1,7 +1,14 @@
 import type { VizijEvent, VizijHandle } from "@vizij/runtime";
+import type { FrameView } from "./frame";
 
 /** What {@link trackDrawn} reads of the App's handle. */
 export type FaceState = Pick<VizijHandle, "faces" | "loading">;
+
+/** What {@link frameView} uses of the App's handle. */
+export type FrameApp = Pick<
+  VizijHandle,
+  "faces" | "loading" | "place" | "safeAreas"
+>;
 
 /**
  * Which faces show their device's pose, kept from the App's events: a face
@@ -27,5 +34,22 @@ export function trackDrawn(): {
         drawn.has(vizijId)
       );
     },
+  };
+}
+
+/**
+ * What one frame asks of the App about its slots. The handle's `loading`
+ * builds a new set of every instance on each read, so the frame reads it once
+ * for all its slots rather than once per slot.
+ */
+export function frameView(
+  app: FrameApp,
+  drawn: ReturnType<typeof trackDrawn>,
+): FrameView {
+  const state: FaceState = { faces: app.faces, loading: app.loading };
+  return {
+    place: (vizijId, rect) => app.place(vizijId, rect),
+    ready: (vizijId) => drawn.ready(state, vizijId),
+    safeArea: (vizijId) => app.safeAreas.get(vizijId) ?? null,
   };
 }

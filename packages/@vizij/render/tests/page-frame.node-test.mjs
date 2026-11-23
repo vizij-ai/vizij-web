@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { deliverPick, frame } from "../src/page/frame.ts";
-import { trackDrawn } from "../src/page/drawn.ts";
+import { frameView, trackDrawn } from "../src/page/drawn.ts";
 
 function element(rect) {
   const attributes = {};
@@ -153,4 +153,33 @@ test("a face is drawn from its ready until its next load, and only while shown",
   // Unloaded, it is not drawn.
   state.faces.delete("hero");
   assert.equal(drawn.ready(state, "hero"), false, "unloaded");
+});
+
+test("a frame reads the App's loading set once, however many slots it has", () => {
+  const drawn = trackDrawn();
+  let reads = 0;
+  const loading = new Set(["s1"]);
+  const app = {
+    faces: new Map(),
+    get loading() {
+      reads += 1;
+      return loading;
+    },
+    place: () => undefined,
+    safeAreas: new Map(),
+  };
+  const slots = [];
+  for (let i = 0; i < 5; i += 1) {
+    const id = `s${i}`;
+    app.faces.set(id, { instance: id, elements: [] });
+    drawn.hear({ type: "ready", instance: id, drawn: true });
+    slots.push(slot(id, { x: 0, y: 10, width: 10, height: 10 }));
+  }
+  frame(slots, CANVAS, frameView(app, drawn));
+  assert.equal(reads, 1);
+  assert.deepEqual(
+    slots.map((s) => s.element.getAttribute("data-vizij-ready")),
+    ["true", "false", "true", "true", "true"],
+    "the one read still says which face is loading",
+  );
 });

@@ -358,6 +358,102 @@ describe("VizijRuntimeProvider", () => {
   });
 });
 
+describe("a load the App has not answered", () => {
+  /** A load whose answer the test gives. */
+  function pendingLoad() {
+    let answer!: (runtime: FakeRuntime) => void;
+    app.load.mockImplementationOnce(
+      () =>
+        new Promise<FakeRuntime>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    return (runtime: FakeRuntime) => answer(runtime);
+  }
+
+  it("is cancelled at once when the provider unmounts", async () => {
+    pendingLoad();
+    const { unmount } = render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() => expect(app.load).toHaveBeenCalled());
+    unmount();
+    expect(app.unload).toHaveBeenCalledWith("hero");
+  });
+
+  it("is cancelled by a null glb", async () => {
+    pendingLoad();
+    const page = (glb: Uint8Array | null) => (
+      <VizijRuntimeProvider glb={glb} vizijId="hero" />
+    );
+    const { rerender } = render(page(bytes(1)));
+    await waitFor(() => expect(app.load).toHaveBeenCalled());
+    rerender(page(null));
+    await waitFor(() => expect(app.unload).toHaveBeenCalledWith("hero"));
+  });
+
+  it("does not hold up the load of a new glb", async () => {
+    pendingLoad();
+    const page = (glb: Uint8Array) => (
+      <VizijRuntimeProvider glb={glb} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>
+    );
+    const { rerender } = render(page(bytes(1)));
+    await waitFor(() => expect(app.load).toHaveBeenCalled());
+    rerender(page(bytes(2)));
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready\|0/),
+    );
+    expect(app.load).toHaveBeenLastCalledWith("hero", bytes(2), undefined);
+    // A replacement unloads nothing: the App replaces the face in place.
+    expect(app.unload).not.toHaveBeenCalled();
+  });
+
+  it("answered after it was cancelled, has its device freed", async () => {
+    const answer = pendingLoad();
+    const { unmount } = render(
+      <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>,
+    );
+    await waitFor(() => expect(app.load).toHaveBeenCalled());
+    unmount();
+    const stale = new FakeRuntime();
+    await act(async () => answer(stale));
+    expect(stale.stop).toHaveBeenCalled();
+    expect(stale.dispose).toHaveBeenCalled();
+  });
+});
+
+describe("a load of the content already shown", () => {
+  it("keeps live the device it hands back", async () => {
+    const shown = new FakeRuntime();
+    loaded.push(shown);
+    app.load.mockResolvedValue(shown);
+    const page = (glb: Uint8Array) => (
+      <VizijRuntimeProvider
+        glb={glb}
+        vizijId="hero"
+        options={{ key: "quori" } as never}
+      >
+        <Status />
+      </VizijRuntimeProvider>
+    );
+    const { rerender } = render(page(bytes(1)));
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^ready\|0/),
+    );
+    rerender(page(bytes(2)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(2));
+    await act(() => sleep(20));
+    expect(screen.getByTestId("status").textContent).toMatch(/^ready\|0/);
+    expect(shown.dispose).not.toHaveBeenCalled();
+  });
+});
+
 describe("the face's stages, for its slot's loading view", () => {
   /** The stages reported for `vizijId`, in order. */
   const reported = (vizijId: string) =>

@@ -5,11 +5,10 @@ import {
   mount,
   onInitProgress,
   type MountOptions,
-  type Rect,
   type VizijEvent,
   type VizijHandle,
 } from "@vizij/runtime";
-import { trackDrawn } from "./drawn";
+import { frameView, trackDrawn } from "./drawn";
 import { deliverPick, frame, type Slot } from "./frame";
 import { setRuntimeStage } from "./progress";
 
@@ -227,16 +226,10 @@ function pageCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
-const view = {
-  place: (vizijId: string, rect: Rect) => app!.place(vizijId, rect),
-  ready: isVizijDrawn,
-  safeArea: (vizijId: string) => app!.safeAreas.get(vizijId) ?? null,
-};
-
 function start(): void {
   if (loop !== null || hosts === 0) return;
   const tick = () => {
-    frame(slots, canvas!, view);
+    frame(slots, canvas!, frameView(app!, drawn));
     loop = requestAnimationFrame(tick);
   };
   loop = requestAnimationFrame(tick);
