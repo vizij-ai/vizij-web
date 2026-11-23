@@ -14,8 +14,8 @@ binary ships installers.
   open or drop, else the repository's
   `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` (Quori with
   its standard adaptation, so its expressions and lips follow the face
-  standard) — and shows it: `mount`, `loadVizij`, `placeVizijIn`,
-  `whenReady`, `run`.
+  standard) — and shows it through the App handle `mount` resolves to:
+  `placeIn`, `load`, its `ready` event, then `run`.
 - Speaks: a `say` run on the runtime (`runtime.invoke("say", { text })`,
   which resolves to the run's `RunHandle`), its audio played by the
   runtime's Web Audio player, its lips driven by the runtime's viseme

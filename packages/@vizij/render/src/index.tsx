@@ -1,7 +1,14 @@
-export { VizijCanvas, canvasMounted } from "./page/canvas";
+export {
+  VizijCanvas,
+  canvasMounted,
+  isVizijDrawn,
+  onVizijEvent,
+  vizijHandle,
+} from "./page/canvas";
 export type { VizijCanvasProps } from "./page/canvas";
 export { Vizij } from "./page/vizij";
 export type { VizijProps } from "./page/vizij";
+export type { VizijPick } from "./page/frame";
 export { setVizijProgress } from "./page/progress";
 export type { LoadingStage, VizijProgress } from "./page/progress";
 export type { VizijLoading } from "./page/loading";

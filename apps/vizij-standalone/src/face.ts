@@ -6,15 +6,12 @@
  */
 import {
   init,
-  loadVizij,
   mount,
-  placeVizijIn,
   runStatus,
-  unloadVizij,
   unlockAudio,
-  whenReady,
   type RunHandle,
   type Runtime,
+  type VizijHandle,
 } from "@vizij/runtime";
 
 /** The one slot this page shows. */
@@ -55,8 +52,11 @@ export interface FaceHandle {
   unload(): void;
 }
 
-let mounted: HTMLCanvasElement | null = null;
+let mounted: VizijHandle | null = null;
 let mounting: Promise<void> | null = null;
+/** Faces drawn since their last load, and who waits for one to be. */
+const drawn = new Set<string>();
+const waiting = new Map<string, Array<() => void>>();
 
 /** Mount the page's canvas once; later calls (React's strict-mode second
  * effect among them) join the first. */
@@ -64,11 +64,27 @@ export function mountCanvas(canvas: HTMLCanvasElement): Promise<void> {
   if (!mounting) {
     mounting = (async () => {
       await init();
-      await mount(canvas);
-      mounted = canvas;
+      const app = await mount(canvas);
+      app.onEvent((event) => {
+        if (event.type === "loaded") drawn.delete(event.instance);
+        if (event.type !== "ready") return;
+        drawn.add(event.instance);
+        for (const wake of waiting.get(event.instance) ?? []) wake();
+        waiting.delete(event.instance);
+      });
+      mounted = app;
     })();
   }
   return mounting;
+}
+
+/** Resolves once the face in `instance` has drawn since its last load: its
+ * device's time starts from that frame. */
+function whenDrawn(instance: string): Promise<void> {
+  if (drawn.has(instance)) return Promise.resolve();
+  return new Promise((resolve) => {
+    waiting.set(instance, [...(waiting.get(instance) ?? []), resolve]);
+  });
 }
 
 /** Show `glb` in the page's slot and start its runtime, self-paced. */
@@ -78,12 +94,12 @@ export async function showFace(
   options: { speechApiUrl?: string | null } = {},
 ): Promise<FaceHandle> {
   if (!mounted) throw new Error("mount the canvas first");
-  const canvas = mounted;
-  const runtime = await loadVizij(FACE, glb, {
+  const app = mounted;
+  app.placeIn(FACE, slot);
+  const runtime = await app.load(FACE, glb, {
     speechApiUrl: options.speechApiUrl ?? undefined,
   });
-  placeVizijIn(FACE, slot, canvas);
-  await whenReady(FACE);
+  await whenDrawn(FACE);
   void runtime.run();
   let shown: string | null = null;
   return {
@@ -108,14 +124,14 @@ export async function showFace(
       runtime.writeValues(values);
       shown = name;
     },
-    place: (element) => placeVizijIn(FACE, element, canvas),
+    place: (element) => app.placeIn(FACE, element),
     converse: (state, holds) =>
       runtime.writeValues({
         [runtime.path(conversationKey(state))]: { f32: holds ? 1 : 0 },
       }),
     unload: () => {
       runtime.stop();
-      unloadVizij(FACE);
+      app.unload(FACE);
       runtime.dispose();
     },
   };

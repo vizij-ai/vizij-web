@@ -29,7 +29,7 @@ there is no second evaluator to drift from the device. What that takes:
    `src/hooks/useMainFaceBytes.ts`), the exporter the Export dialog writes with
    (`src/hooks/useVizijExport.ts`). The bytes are re-made only when the world's
    structure changes; a value edit applies to the loaded face in place
-   (`setStaticFeature`).
+   (the App handle's `setValue`).
 2. **No separate preview path.** The authored rig and pose graphs replace the
    bundle's own in its composition (`composeVizij`, which keeps the bundle's
    animation source) and swap into the running device whole

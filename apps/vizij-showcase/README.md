@@ -8,7 +8,7 @@ The page renders `@vizij/render`'s `<VizijCanvas>` once, fixed over the page wit
 
 - mounts a `VizijRuntimeProvider` (one Arora device per face) once the section has entered the viewport, under the id `showcase-<section>`;
 - runs the face's device while the section is visible (`run={visible}`), so an offscreen face stops;
-- passes the section's `loadVizij` options: no program by default, Quori's program where the section relies on it.
+- passes the section's load options: no program by default, Quori's program where the section relies on it.
 
 Every section's face is Quori, loaded from `apps/vizij-authoring/public/assets/Quori_Current_Extended.glb` through [`src/lib/faceAssets.ts`](./src/lib/faceAssets.ts).
 

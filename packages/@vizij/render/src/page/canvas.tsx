@@ -1,31 +1,39 @@
 import { useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
-  drainPicks,
   init,
   mount,
   onInitProgress,
-  placeVizij,
-  ready,
-  safeArea,
   type MountOptions,
+  type Rect,
+  type VizijEvent,
+  type VizijHandle,
 } from "@vizij/runtime";
-import { frame, type Slot } from "./frame";
+import { trackDrawn } from "./drawn";
+import { deliverPick, frame, type Slot } from "./frame";
 import { setRuntimeStage } from "./progress";
 
 /** The page's canvas: created once, mounted once, kept for the page's
  * lifetime — `@vizij/runtime` runs one App per page. */
 let canvas: HTMLCanvasElement | null = null;
-let mounting: Promise<HTMLCanvasElement> | null = null;
-/** Whether `mount` has completed: the view's functions work from then on. */
-let live = false;
+let mounting: Promise<VizijHandle> | null = null;
+/** The App's handle, once `mount` has completed. */
+let app: VizijHandle | null = null;
 let settle: {
-  resolve: (canvas: HTMLCanvasElement) => void;
+  resolve: (handle: VizijHandle) => void;
   reject: (error: unknown) => void;
 };
-const mounted = new Promise<HTMLCanvasElement>((resolve, reject) => {
+const mounted = new Promise<VizijHandle>((resolve, reject) => {
   settle = { resolve, reject };
 });
+// Whoever asks for the handle hears a failed mount; a page that never asks
+// leaves nothing unhandled.
+mounted.catch(() => undefined);
+
+/** Which faces have drawn since their last load. */
+const drawn = trackDrawn();
+/** Whoever listens to the App's events through {@link onVizijEvent}. */
+const listeners = new Set<(event: VizijEvent) => void>();
 
 /** How long the canvas waits for a frame to paint the loading views' stage
  * before a call that holds the main thread. */
@@ -39,11 +47,50 @@ let hosts = 0;
 let loop: number | null = null;
 
 /**
- * Resolves with the page's canvas once `<VizijCanvas>` has mounted it, which
- * `loadVizij` requires; rejects if mounting failed.
+ * Resolves with the page's canvas once `<VizijCanvas>` has mounted it;
+ * rejects if mounting failed.
  */
 export function canvasMounted(): Promise<HTMLCanvasElement> {
+  return mounted.then((handle) => handle.canvas);
+}
+
+/**
+ * Resolves with the App's handle once `<VizijCanvas>` has mounted the page's
+ * canvas: what faces are loaded into, unloaded from, framed and written
+ * through; rejects if mounting failed. The canvas owns the handle's event
+ * handler, so listen through {@link onVizijEvent} rather than `onEvent`.
+ */
+export function vizijHandle(): Promise<VizijHandle> {
   return mounted;
+}
+
+/**
+ * Hear every event the App sends, after the canvas has acted on it: a click
+ * handed to its slot, a face's readiness kept. Returns the function that
+ * stops listening.
+ */
+export function onVizijEvent(
+  listener: (event: VizijEvent) => void,
+): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
+ * Whether face `vizijId` shows its device's pose: it is loaded, no load into
+ * it is under way, and it has drawn since its last load. Its slot's
+ * `data-vizij-ready` says the same.
+ */
+export function isVizijDrawn(vizijId: string): boolean {
+  return app !== null && drawn.ready(app, vizijId);
+}
+
+function hear(event: VizijEvent): void {
+  drawn.hear(event);
+  if (event.type === "pick") deliverPick(slots, event.instance, event.element);
+  for (const listener of [...listeners]) listener(event);
 }
 
 const DEFAULT_STYLE: CSSProperties = {
@@ -69,8 +116,8 @@ export interface VizijCanvasProps {
  * Its first mount runs `@vizij/runtime`'s `mount`; a second `<VizijCanvas>`,
  * a remount or React StrictMode's second effect shows the same canvas and
  * App. While it is shown, one animation frame loop places each slot's face
- * over the slot and hands each pick to the slot it names: `placeVizij` and
- * `drainPicks` are page-wide, so they have one caller.
+ * over the slot, since only the page's layout says where a slot has moved.
+ * A click on a face reaches the slot showing it as the App reports it.
  *
  * By default the canvas is fixed over the page with pointer events off, so
  * faces draw wherever their slots lie and the page's own UI keeps the
@@ -121,7 +168,7 @@ export function VizijCanvas({
  * runtime's stages: `init()`'s, then `mount`, which builds the App once
  * `init()` has resolved.
  *
- * `mount` and the faces' `loadVizij` hold the main thread while they run, so
+ * `mount` and the faces' loads hold the main thread while they run, so
  * a stage set just before one of them would never be painted: the browser
  * gets a frame to paint "Starting the view" before `mount`, and the faces'
  * own stages before `canvasMounted()` resolves and their loads start.
@@ -129,24 +176,26 @@ export function VizijCanvas({
 async function mountOnce(
   shown: HTMLCanvasElement,
   options: MountOptions | undefined,
-): Promise<HTMLCanvasElement> {
+): Promise<VizijHandle> {
   const unfollow = onInitProgress((progress) => {
     setRuntimeStage(progress.stage === "ready" ? { stage: "mount" } : progress);
   });
+  let handle: VizijHandle;
   try {
     await init();
     await afterPaint();
-    await mount(shown, options);
+    handle = await mount(shown, options);
   } catch (error) {
     setRuntimeStage({ stage: "failed", error: asError(error) });
     throw error;
   } finally {
     unfollow();
   }
-  live = true;
+  handle.onEvent(hear);
+  app = handle;
   setRuntimeStage(null);
   await afterPaint();
-  return shown;
+  return handle;
 }
 
 /** Resolves once the browser has had a frame to paint what was rendered
@@ -178,7 +227,11 @@ function pageCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
-const view = { placeVizij, ready, safeArea, drainPicks };
+const view = {
+  place: (vizijId: string, rect: Rect) => app!.place(vizijId, rect),
+  ready: isVizijDrawn,
+  safeArea: (vizijId: string) => app!.safeAreas.get(vizijId) ?? null,
+};
 
 function start(): void {
   if (loop !== null || hosts === 0) return;
@@ -203,8 +256,6 @@ export function addSlot(slot: Slot): () => void {
   slots.add(slot);
   return () => {
     slots.delete(slot);
-    if (live) {
-      placeVizij(slot.vizijId, { x: 0, y: 0, width: 0, height: 0 });
-    }
+    app?.place(slot.vizijId, { x: 0, y: 0, width: 0, height: 0 });
   };
 }

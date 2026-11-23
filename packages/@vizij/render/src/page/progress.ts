@@ -3,7 +3,8 @@ import type { InitProgress } from "@vizij/runtime";
 /**
  * A face's own stages on its way to being drawn, as whoever loads it reports
  * them (`setVizijProgress`): its GLB's bytes arriving (`total` is `null`
- * when the length is unknown), `loadVizij`, then its first frame. `failed`
+ * when the length is unknown), its load into the App, then its first frame.
+ * `failed`
  * ends the load.
  */
 export type VizijProgress =
@@ -52,12 +53,13 @@ const watchers = new Set<{
 /**
  * Report face `vizijId`'s own stage, for the loading view of its slot
  * (`<Vizij>`). `@vizij/runtime-react`'s provider reports its faces; a page
- * that loads a face with `loadVizij` itself reports it the same way. `null`
+ * that loads a face through the App's handle itself reports it the same way.
+ * `null`
  * says no face is loaded under the id any more: its slot shows the loading
  * view again until a face under the id is drawn.
  *
  * Whatever is reported, a slot hides its loading view once its face has been
- * drawn (`ready(vizijId)`), and keeps it hidden through reloads, whose
+ * drawn (`isVizijDrawn(vizijId)`), and keeps it hidden through reloads, whose
  * previous scene draws until the new one is ready.
  */
 export function setVizijProgress(

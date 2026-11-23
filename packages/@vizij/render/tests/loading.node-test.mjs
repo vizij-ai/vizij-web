@@ -96,10 +96,9 @@ test("the frame marks a slot's face drawn when the view reports it ready", () =>
     placed: null,
   };
   const view = (ready) => ({
-    placeVizij: () => undefined,
+    place: () => undefined,
     ready: () => ready,
     safeArea: () => null,
-    drainPicks: () => [],
   });
   frame([slot], element, view(false));
   assert.deepEqual(loadingStage("e"), { stage: "load" });

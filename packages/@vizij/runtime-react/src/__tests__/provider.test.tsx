@@ -62,21 +62,38 @@ class FakeRuntime {
   }
 }
 
-const runtime = vi.hoisted(() => ({
-  describe: vi.fn(),
-  loadVizij: vi.fn(),
-  unloadVizij: vi.fn(),
-  ready: vi.fn(),
-}));
+const runtime = vi.hoisted(() => ({ describe: vi.fn() }));
 vi.mock("@vizij/runtime", () => runtime);
+/** The App's handle, as `@vizij/render` hands it out once mounted. */
+const app = vi.hoisted(() => ({ load: vi.fn(), unload: vi.fn() }));
+/** The page's canvas: whether each face is drawn, and who listens to the
+ * App's events. */
+const page = vi.hoisted(() => ({
+  drawn: vi.fn(),
+  listeners: new Set<(event: { type: string; instance?: string }) => void>(),
+}));
 const progress = vi.hoisted(() => vi.fn());
 vi.mock("@vizij/render", () => ({
-  canvasMounted: () => Promise.resolve({}),
+  vizijHandle: () => Promise.resolve(app),
+  isVizijDrawn: page.drawn,
+  onVizijEvent: (listener: (event: { type: string }) => void) => {
+    page.listeners.add(listener);
+    return () => page.listeners.delete(listener);
+  },
   setVizijProgress: progress,
   Vizij: ({ vizijId }: { vizijId: string }) => (
     <div data-testid="slot" data-vizij-id={vizijId} />
   ),
 }));
+
+/** The App reports face `instance` drawn. */
+function ready(instance: string) {
+  act(() => {
+    for (const listener of [...page.listeners]) {
+      listener({ type: "ready", instance });
+    }
+  });
+}
 
 const DESCRIPTION = { faceId: "quori", rigPrefix: "rig/quori/" };
 const HAPPY = "rig/quori/standard/vizij/expression/happy";
@@ -85,8 +102,8 @@ let loaded: FakeRuntime[];
 beforeEach(() => {
   loaded = [];
   runtime.describe.mockResolvedValue(DESCRIPTION);
-  runtime.ready.mockReturnValue(true);
-  runtime.loadVizij.mockImplementation(async () => {
+  page.drawn.mockReturnValue(true);
+  app.load.mockImplementation(async () => {
     const face = new FakeRuntime({ [HAPPY]: { f32: 0 } });
     loaded.push(face);
     return face;
@@ -162,7 +179,7 @@ describe("VizijRuntimeProvider", () => {
         "ready|0|described|hero",
       ),
     );
-    expect(runtime.loadVizij).toHaveBeenCalledWith("hero", bytes(1), {
+    expect(app.load).toHaveBeenCalledWith("hero", bytes(1), {
       program: "none",
     });
     expect(loaded[0].run).not.toHaveBeenCalled();
@@ -182,8 +199,8 @@ describe("VizijRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.getByTestId("status").textContent).toMatch(/^ready/),
     );
-    expect(runtime.loadVizij).toHaveBeenCalledTimes(1);
-    expect(runtime.unloadVizij).not.toHaveBeenCalled();
+    expect(app.load).toHaveBeenCalledTimes(1);
+    expect(app.unload).not.toHaveBeenCalled();
   });
 
   it("leaves a stopped device to the page when run is false", async () => {
@@ -220,14 +237,10 @@ describe("VizijRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.getByTestId("status").textContent).toMatch(/^ready\|1/),
     );
-    expect(runtime.loadVizij).toHaveBeenLastCalledWith(
-      "hero",
-      bytes(2),
-      undefined,
-    );
+    expect(app.load).toHaveBeenLastCalledWith("hero", bytes(2), undefined);
     expect(loaded[0].stop).toHaveBeenCalled();
     expect(loaded[0].dispose).toHaveBeenCalled();
-    expect(runtime.unloadVizij).not.toHaveBeenCalled();
+    expect(app.unload).not.toHaveBeenCalled();
   });
 
   it("shows no face for a null glb, its children mounted and seeing none", async () => {
@@ -253,7 +266,7 @@ describe("VizijRuntimeProvider", () => {
     const { rerender } = render(page(null));
     await act(async () => undefined);
     expect(screen.getByTestId("face").textContent).toBe("none");
-    expect(runtime.loadVizij).not.toHaveBeenCalled();
+    expect(app.load).not.toHaveBeenCalled();
 
     rerender(page(bytes(1)));
     await waitFor(() =>
@@ -264,9 +277,7 @@ describe("VizijRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.getByTestId("face").textContent).toBe("none"),
     );
-    await waitFor(() =>
-      expect(runtime.unloadVizij).toHaveBeenCalledWith("main"),
-    );
+    await waitFor(() => expect(app.unload).toHaveBeenCalledWith("main"));
     expect(loaded[0].stop).toHaveBeenCalled();
     expect(loaded[0].dispose).toHaveBeenCalled();
 
@@ -289,46 +300,49 @@ describe("VizijRuntimeProvider", () => {
     unmount();
     await waitFor(() => expect(loaded[0].dispose).toHaveBeenCalled());
     expect(loaded[0].stop).toHaveBeenCalled();
-    expect(runtime.unloadVizij).toHaveBeenCalledWith("hero");
+    expect(app.unload).toHaveBeenCalledWith("hero");
   });
 
   it("stays loading until the face is drawn, however long that takes", async () => {
-    let drawn = false;
-    runtime.ready.mockImplementation(() => drawn);
+    page.drawn.mockReturnValue(false);
     render(
       <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
         <Status />
       </VizijRuntimeProvider>,
     );
-    await waitFor(() =>
-      expect(runtime.ready.mock.calls.length).toBeGreaterThan(3),
-    );
+    await waitFor(() => expect(page.listeners.size).toBe(1));
+    expect(page.drawn).toHaveBeenCalledWith("hero");
+    await sleep(50);
     expect(screen.getByTestId("status").textContent).toMatch(/^loading\|0/);
-    drawn = true;
+    // Another face's readiness is not this one's.
+    ready("other");
+    await act(() => sleep(50));
+    expect(screen.getByTestId("status").textContent).toMatch(/^loading\|0/);
+    expect(page.listeners.size).toBe(1);
+    ready("hero");
     await waitFor(() =>
       expect(screen.getByTestId("status").textContent).toMatch(/^ready\|0/),
     );
-    expect(runtime.ready).toHaveBeenCalledWith("hero");
+    expect(page.listeners.size).toBe(0);
   });
 
   it("takes down a face unmounted before it is drawn", async () => {
-    runtime.ready.mockReturnValue(false);
+    page.drawn.mockReturnValue(false);
     const { unmount } = render(
       <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
         <Status />
       </VizijRuntimeProvider>,
     );
-    await waitFor(() => expect(runtime.ready).toHaveBeenCalled());
+    await waitFor(() => expect(page.listeners.size).toBe(1));
     unmount();
     await waitFor(() => expect(loaded[0].dispose).toHaveBeenCalled());
-    expect(runtime.unloadVizij).toHaveBeenCalledWith("hero");
-    const polls = runtime.ready.mock.calls.length;
-    await sleep(200);
-    expect(runtime.ready.mock.calls.length).toBe(polls);
+    expect(app.unload).toHaveBeenCalledWith("hero");
+    // It stopped waiting for the face to be drawn.
+    expect(page.listeners.size).toBe(0);
   });
 
   it("reports a failed load", async () => {
-    runtime.loadVizij.mockRejectedValueOnce(new Error("no rig"));
+    app.load.mockRejectedValueOnce(new Error("no rig"));
     function Failure() {
       const { status, error } = useVizijRuntime();
       return <span data-testid="failure">{`${status}:${error?.message}`}</span>;
@@ -351,7 +365,7 @@ describe("the face's stages, for its slot's loading view", () => {
       .filter(([id]) => id === vizijId)
       .map(([, stage]) => stage);
 
-  it("reports a fetched GLB's bytes, then loadVizij, then its first frame", async () => {
+  it("reports a fetched GLB's bytes, then its load, then its first frame", async () => {
     const chunks = [new Uint8Array([1, 2]), new Uint8Array([3, 4, 5])];
     vi.stubGlobal("fetch", async () => {
       const body = new ReadableStream<Uint8Array>({
@@ -377,7 +391,7 @@ describe("the face's stages, for its slot's loading view", () => {
       { stage: "load" },
       { stage: "draw" },
     ]);
-    expect(runtime.loadVizij).toHaveBeenCalledWith(
+    expect(app.load).toHaveBeenCalledWith(
       "hero",
       new Uint8Array([1, 2, 3, 4, 5]),
       undefined,
@@ -407,8 +421,8 @@ describe("the face's stages, for its slot's loading view", () => {
     });
   });
 
-  it("goes straight to loadVizij for bytes, reports a failure, and clears on unmount", async () => {
-    runtime.loadVizij.mockRejectedValueOnce(new Error("no rig"));
+  it("goes straight to the load for bytes, reports a failure, and clears on unmount", async () => {
+    app.load.mockRejectedValueOnce(new Error("no rig"));
     const { unmount } = render(
       <VizijRuntimeProvider glb={bytes(1)} vizijId="hero">
         <Status />

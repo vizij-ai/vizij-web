@@ -12,8 +12,8 @@ calls the face's `Runtime` from `@vizij/runtime` directly.
 - **One canvas per page.** `<VizijCanvas>` renders the page's canvas, on which
   `@vizij/runtime`'s Bevy view draws every face. The slot
   `<VizijRuntimeFace>` marks where this face draws.
-- **One face, one device.** `VizijRuntimeProvider` loads the GLB with
-  `loadVizij`: the face is an Arora device composing its bundle's graphs,
+- **One face, one device.** `VizijRuntimeProvider` loads the GLB through
+  the page's App handle: the face is an Arora device composing its bundle's graphs,
   with the animation, rest and viseme modules linked in. The provider hands
   out the device's `Runtime` and `describe(glb)`.
 - **Everything else is a call on the `Runtime`.** Rig inputs and pose weights

@@ -27,7 +27,7 @@ export function FaceApp() {
   `@vizij/runtime` draws every face on it. Here it is fixed over the page's
   backdrop, its pointer events off, and the hints stack above it.
 - `<VizijRuntimeProvider>` (`@vizij/runtime-react`) fetches the GLB, loads the
-  face with `loadVizij` and runs its device. `options` are `loadVizij`'s: the
+  face into the page's App and runs its device. `options` are the load's: the
   face's active program runs from load only with `?autoplay`.
 - `<VizijRuntimeFace>` is the slot where the face draws: a `<div>` the canvas
   places the face over. Until the face shows, it shows `@vizij/render`'s

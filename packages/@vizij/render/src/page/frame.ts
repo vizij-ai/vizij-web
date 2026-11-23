@@ -1,5 +1,13 @@
-import type { Pick, Rect } from "@vizij/runtime";
+import type { Rect } from "@vizij/runtime";
 import { markDrawn } from "./progress";
+
+/** A click on a slot's face: the face's id, and the element under the
+ * pointer by the id its RobotData declares — `null` for a click that hit no
+ * element (a miss). */
+export interface VizijPick {
+  vizijId: string;
+  elementId: string | null;
+}
 
 /** A mounted `<Vizij>`: where face `vizijId` draws on the page. */
 export interface Slot {
@@ -9,27 +17,26 @@ export interface Slot {
   /** The face's safe-area outline and the element it is positioned in, when
    * the slot shows it. */
   safeArea: { outline: HTMLElement; frame: Element } | null;
-  onPick: ((pick: Pick) => void) | undefined;
-  /** The rectangle last given to `placeVizij`. */
+  onPick: ((pick: VizijPick) => void) | undefined;
+  /** The rectangle last given to `place`. */
   placed: Rect | null;
 }
 
-/** The `@vizij/runtime` functions a frame calls. */
+/** What a frame asks of the page's App about each face. */
 export interface FrameView {
-  placeVizij(vizijId: string, rect: Rect): void;
+  place(vizijId: string, rect: Rect): void;
+  /** Whether the face shows its device's pose: drawn since its last load. */
   ready(vizijId: string): boolean;
   safeArea(vizijId: string): Rect | null;
-  drainPicks(): Pick[];
 }
 
 /**
  * One animation frame of the page's canvas: each slot's face placed over the
  * slot's rectangle when it moved, its `data-vizij-ready`, loading view and
- * safe-area outline brought up to date, then the page's picks handed to the
- * slots they name.
+ * safe-area outline brought up to date.
  *
  * Reading every rectangle each frame follows scrolling, resizes and layout
- * shifts alike.
+ * shifts alike, which no event from the App reports.
  */
 export function frame(
   slots: Iterable<Slot>,
@@ -37,12 +44,10 @@ export function frame(
   view: FrameView,
 ): void {
   const origin = canvas.getBoundingClientRect();
-  const byId = new Map<string, Slot>();
   for (const slot of slots) {
-    byId.set(slot.vizijId, slot);
     const rect = relative(slot.element.getBoundingClientRect(), origin);
     if (!sameRect(rect, slot.placed)) {
-      view.placeVizij(slot.vizijId, rect);
+      view.place(slot.vizijId, rect);
       slot.placed = rect;
     }
     const ready = view.ready(slot.vizijId);
@@ -54,8 +59,19 @@ export function frame(
       outline(slot.safeArea, view.safeArea(slot.vizijId), origin);
     }
   }
-  for (const pick of view.drainPicks()) {
-    byId.get(pick.vizijId)?.onPick?.(pick);
+}
+
+/** Hand a click on face `instance` to the slot showing it; a click on a face
+ * no slot shows is dropped. */
+export function deliverPick(
+  slots: Iterable<Slot>,
+  instance: string,
+  element: string | null,
+): void {
+  for (const slot of slots) {
+    if (slot.vizijId === instance) {
+      slot.onPick?.({ vizijId: instance, elementId: element });
+    }
   }
 }
 

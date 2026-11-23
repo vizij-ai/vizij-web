@@ -6,7 +6,22 @@ import {
   type Shape,
   type World,
 } from "@vizij/render";
-import { changedValues, splitWorld } from "./worldStructure";
+import { changedValues, featureValue, splitWorld } from "./worldStructure";
+
+describe("featureValue", () => {
+  it("passes a number and gives a triple or a colour as three numbers", () => {
+    expect(featureValue(0.25)).toBe(0.25);
+    expect(featureValue({ x: 1, y: 2, z: 3 })).toEqual([1, 2, 3]);
+    expect(featureValue({ r: 0.1, g: 0.2, b: 0.3 })).toEqual([0.1, 0.2, 0.3]);
+  });
+
+  it("takes no value the App cannot write in place", () => {
+    expect(featureValue({ h: 0.1, s: 0.2, l: 0.3 })).toBeNull();
+    expect(featureValue({ x: 1, y: 2 })).toBeNull();
+    expect(featureValue("1")).toBeNull();
+    expect(featureValue(Number.NaN)).toBeNull();
+  });
+});
 
 /** A geometry stands in the structure by its `uuid`. */
 function fakeGeometry(uuid: string): Shape["geometry"] {

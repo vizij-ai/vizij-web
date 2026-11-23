@@ -3,17 +3,13 @@ import {
   useOptionalVizijRuntime,
   useVizijRuntime,
 } from "@vizij/runtime-react";
-import {
-  composeVizij,
-  outputKeys,
-  type Pick,
-  type Runtime,
-} from "@vizij/runtime";
+import { composeVizij, outputKeys, type Runtime } from "@vizij/runtime";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type {
   ToneMappingMode,
   VizijBundleExtension,
   VizijBundleGraphEntry,
+  VizijPick,
 } from "@vizij/render";
 import type { GraphSpec } from "@vizij/node-graph";
 import type { StandardRigInput } from "@vizij/utils";
@@ -545,7 +541,7 @@ export function Viewer({
   }, [applyStandardInputBatch, resetInputEntries, stopAnimationTimeline]);
 
   const handlePick = useCallback(
-    ({ elementId }: Pick) => {
+    ({ elementId }: VizijPick) => {
       if (elementId) {
         onSelectScene?.(elementId);
       } else {
