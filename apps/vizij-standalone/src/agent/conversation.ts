@@ -133,7 +133,7 @@ export class Conversation {
    * halted first. */
   async say(reply: Reply): Promise<void> {
     await this.interrupt();
-    this.face.express(reply.expression);
+    await this.face.express(reply.expression);
     const run = await this.face.say(reply.text);
     this.speaking = run;
     this.hold("speaking", true);

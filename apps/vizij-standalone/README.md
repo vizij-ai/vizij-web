@@ -25,11 +25,14 @@ binary ships installers.
   each utterance answered by OpenAI (`src/agent/think.ts`) with the text to
   say and an expression name of the face standard, said with that expression. The user
   speaking over the face interrupts it (`src/agent/conversation.ts`).
-- Expresses: twelve of the face standard's expression names, each its
-  weight `runtime.path("standard/vizij/expression/<name>")` (an `f32` in
-  `[0, 1]`, the type the profile declares, as the device requires). One
-  store change sets the new expression's weight to 1 and the previous one's
-  to 0; the face's standard adaptation maps the weights onto its own poses.
+- Expresses: twelve of the face standard's expression names, each a
+  `set_expression` run on the runtime
+  (`runtime.invoke("set_expression", { expression, valence, arousal })`,
+  the arousal as the intensity). The run holds the expression until the next
+  one takes the face over, crossfading from where the face is — the
+  [skill](https://github.com/vizij-ai/vizij-rs/blob/main/docs/skills.md#the-expression-setters)
+  a ROS 2 client commands on the native device; the face's standard
+  adaptation maps its weights onto the face's own poses.
 
 Without a Deepgram key the microphone is off; without an OpenAI key the text
 box says what you type. Keys come from the shell's flags (`--deepgram-key`,
