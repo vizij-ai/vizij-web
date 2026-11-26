@@ -16,7 +16,13 @@ import {
   Thinker,
   type Reply,
 } from "./agent/think";
-import { mountCanvas, showFace, unlockAudio, type FaceHandle } from "./face";
+import {
+  FaceReplaced,
+  mountCanvas,
+  showFace,
+  unlockAudio,
+  type FaceHandle,
+} from "./face";
 import { fileGlb, initialGlb, type GlbSource } from "./glb";
 
 const AGENT_NAME = "Vizij";
@@ -87,6 +93,8 @@ export default function App() {
         await conversation.listen();
       }
     } catch (err) {
+      // The later face's own `show` reports how it went.
+      if (err instanceof FaceReplaced) return;
       setStatus("failed");
       setError(err instanceof Error ? err.message : String(err));
     }

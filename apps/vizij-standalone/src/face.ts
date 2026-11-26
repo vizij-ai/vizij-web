@@ -54,9 +54,19 @@ export interface FaceHandle {
 
 let mounted: VizijHandle | null = null;
 let mounting: Promise<void> | null = null;
-/** Faces drawn since their last load, and who waits for one to be. */
-const drawn = new Set<string>();
+/** Who waits for the face in an instance to be drawn. */
 const waiting = new Map<string, Array<() => void>>();
+/** How many faces `showFace` has asked for, so one replaced while it waited
+ * can tell that a later one followed it. */
+let shows = 0;
+
+/** A face replaced by a later `showFace` before it was shown: not a failure,
+ * since the later face is the one the page asked for. */
+export class FaceReplaced extends Error {
+  constructor() {
+    super("replaced by a later face before it was shown");
+  }
+}
 
 /** Mount the page's canvas once; later calls (React's strict-mode second
  * effect among them) join the first. */
@@ -66,9 +76,12 @@ export function mountCanvas(canvas: HTMLCanvasElement): Promise<void> {
       await init();
       const app = await mount(canvas);
       app.onEvent((event) => {
-        if (event.type === "loaded") drawn.delete(event.instance);
-        if (event.type !== "ready") return;
-        drawn.add(event.instance);
+        if (event.type !== "ready" && event.type !== "loadFailed") return;
+        // The handle's readiness, not the event's: a `ready` for a face
+        // being replaced is withheld until the replacement settles, and a
+        // failed load puts the replaced face's readiness back with no
+        // `ready` of its own.
+        if (!app.ready.has(event.instance)) return;
         for (const wake of waiting.get(event.instance) ?? []) wake();
         waiting.delete(event.instance);
       });
@@ -81,7 +94,7 @@ export function mountCanvas(canvas: HTMLCanvasElement): Promise<void> {
 /** Resolves once the face in `instance` has drawn since its last load: its
  * device's time starts from that frame. */
 function whenDrawn(instance: string): Promise<void> {
-  if (drawn.has(instance)) return Promise.resolve();
+  if (mounted?.ready.has(instance)) return Promise.resolve();
   return new Promise((resolve) => {
     waiting.set(instance, [...(waiting.get(instance) ?? []), resolve]);
   });
@@ -95,11 +108,23 @@ export async function showFace(
 ): Promise<FaceHandle> {
   if (!mounted) throw new Error("mount the canvas first");
   const app = mounted;
+  const mine = ++shows;
   app.placeIn(FACE, slot);
-  const runtime = await app.load(FACE, glb, {
-    speechApiUrl: options.speechApiUrl ?? undefined,
-  });
+  let runtime: Runtime;
+  try {
+    runtime = await app.load(FACE, glb, {
+      speechApiUrl: options.speechApiUrl ?? undefined,
+    });
+  } catch (error) {
+    throw mine === shows ? error : new FaceReplaced();
+  }
   await whenDrawn(FACE);
+  // A later face drawn wakes this wait too. This face's device is the
+  // page's, its load having resolved, and nothing else will free it.
+  if (mine !== shows) {
+    runtime.dispose();
+    throw new FaceReplaced();
+  }
   void runtime.run();
   let shown: string | null = null;
   return {
