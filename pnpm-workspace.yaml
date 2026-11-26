@@ -43,5 +43,5 @@ overrides:
   "@babel/core@<=7.29.0": "^7.29.6"
 
 minimumReleaseAgeExclude:
-  - "@semio/import@0.1.0"
+  - "@semio/import@0.1.1"
   - "@vizij/runtime@11.0.0"
