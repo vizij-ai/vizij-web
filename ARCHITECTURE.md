@@ -23,8 +23,11 @@ these apps as it does deployed.
   `writeValues`, `readValues`, `drainChanges`), `loadGraph` and
   `applyGraphEdits`, and two kinds of hold: `holdKeys` keeps store keys from
   the face's own writers, `hold` keeps a rig output at the value the face
-  shows while the device writes on. The view's own calls take the face's id:
-  `placeVizij`, `setView`, `setStaticFeature`.
+  shows while the device writes on. The page's App takes the rest through the
+  handle `mount` resolves to, by the face's instance: `load`, `unload`,
+  `place`, `setView`, `setSelection`, `setValue`, and one event stream
+  (`loaded`, `ready`, `pick`, `safeArea`, …). `<VizijCanvas>` keeps that
+  handle and its event handler for the page (`vizijHandle`, `onVizijEvent`).
 - **The page steps the device.** `VizijRuntimeProvider` steps it every
   animation frame while the page is visible and on a timer while it is hidden,
   where browsers throttle timers and draw nothing. `run={false}` stops it,

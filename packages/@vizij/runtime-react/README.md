@@ -74,14 +74,15 @@ method, and for the keys a composed mapping or a running program writes over.
 
 - **`<VizijRuntimeProvider glb vizijId? options? run?>`** — fetches the GLB
   (a URL, a `Blob` or bytes), reads it with `describe`, waits for the page's
-  `<VizijCanvas>`, loads the face with `loadVizij(vizijId, bytes, options)` and
-  steps its device (`run`, default `true`): once per animation frame while the
+  `<VizijCanvas>`, loads the face through the canvas's App handle
+  (`load(vizijId, bytes, options)`, which resolves once the face's scene is
+  indexed and its device built) and steps its device (`run`, default `true`): once per animation frame while the
   page is visible, on a timer while it is hidden; `false` leaves the page to
   call `runtime.step(dtMs)`. A new `glb` reloads the face in place; unmounting
-  unloads it. `options` are `loadVizij`'s, read at each load. It reports the
+  unloads it. `options` are the load's, read at each load. It reports the
   face's stages to `@vizij/render`'s `setVizijProgress` — the GLB's bytes as
-  they arrive, `loadVizij`, the first frame — which the face's slot shows in
-  its loading view.
+  they arrive, the load, the first frame (the face's `ready` event) — which
+  the face's slot shows in its loading view.
 - **`useVizijRuntime()`** — the face: `vizijId`, `status` (`loading`,
   `ready`, `error`), `error`, `behaviorError` (the device's standing behavior
   error), `runtime` (the `Runtime`) and `description` (`describe(glb)`: poses,

@@ -1,8 +1,10 @@
 // The page canvas's frame: each slot's face placed over the slot, its ready
-// flag and safe-area outline kept current, and picks handed to their slot.
+// flag and safe-area outline kept current; picks handed to their slot; and a
+// face's readiness kept from the App's events.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { frame } from "../src/page/frame.ts";
+import { deliverPick, frame } from "../src/page/frame.ts";
+import { frameView, trackDrawn } from "../src/page/drawn.ts";
 
 function element(rect) {
   const attributes = {};
@@ -17,14 +19,13 @@ function element(rect) {
   };
 }
 
-function recordingView({ ready = {}, areas = {}, picks = [] } = {}) {
+function recordingView({ ready = {}, areas = {} } = {}) {
   const calls = [];
   return {
     calls,
-    placeVizij: (vizijId, rect) => calls.push(["place", vizijId, rect]),
+    place: (vizijId, rect) => calls.push(["place", vizijId, rect]),
     ready: (vizijId) => ready[vizijId] ?? false,
     safeArea: (vizijId) => areas[vizijId] ?? null,
-    drainPicks: () => picks.splice(0),
   };
 }
 
@@ -104,13 +105,6 @@ test("the safe-area outline lies over the face's safe area, hidden without one",
 
 test("each pick reaches the slot it names; picks for no slot are dropped", () => {
   const received = [];
-  const view = recordingView({
-    picks: [
-      { vizijId: "hero", elementId: "eye" },
-      { vizijId: "gone", elementId: null },
-      { vizijId: "hero", elementId: null },
-    ],
-  });
   const hero = slot(
     "hero",
     { x: 0, y: 10, width: 10, height: 10 },
@@ -118,11 +112,74 @@ test("each pick reaches the slot it names; picks for no slot are dropped", () =>
   );
   const other = slot("other", { x: 20, y: 10, width: 10, height: 10 });
 
-  frame([hero, other], CANVAS, view);
+  deliverPick([hero, other], "hero", "eye");
+  deliverPick([hero, other], "gone", null);
+  deliverPick([hero, other], "hero", null);
   assert.deepEqual(received, [
     { vizijId: "hero", elementId: "eye" },
     { vizijId: "hero", elementId: null },
   ]);
-  frame([hero, other], CANVAS, view);
-  assert.equal(received.length, 2);
+});
+
+test("a face is drawn from its ready until its next load, and only while shown", () => {
+  const drawn = trackDrawn();
+  const state = { faces: new Map(), loading: new Set() };
+
+  state.loading.add("hero");
+  assert.equal(drawn.ready(state, "hero"), false, "loading");
+  state.loading.delete("hero");
+  state.faces.set("hero", { instance: "hero", elements: [] });
+  drawn.hear({ type: "loaded", instance: "hero", elements: [] });
+  assert.equal(drawn.ready(state, "hero"), false, "loaded, not yet drawn");
+  drawn.hear({ type: "ready", instance: "hero", drawn: true });
+  assert.equal(drawn.ready(state, "hero"), true);
+
+  // A reload: the face shown draws on, but the slot is not ready until the
+  // new one has drawn.
+  state.loading.add("hero");
+  assert.equal(drawn.ready(state, "hero"), false, "reloading");
+  state.loading.delete("hero");
+  drawn.hear({ type: "loaded", instance: "hero", elements: [] });
+  assert.equal(drawn.ready(state, "hero"), false, "reloaded, not yet drawn");
+  drawn.hear({ type: "ready", instance: "hero", drawn: false });
+  assert.equal(drawn.ready(state, "hero"), true, "readiness that gave up");
+
+  // A failed reload keeps the face drawn.
+  state.loading.add("hero");
+  state.loading.delete("hero");
+  drawn.hear({ type: "loadFailed", instance: "hero", error: "no" });
+  assert.equal(drawn.ready(state, "hero"), true, "a failed reload");
+
+  // Unloaded, it is not drawn.
+  state.faces.delete("hero");
+  assert.equal(drawn.ready(state, "hero"), false, "unloaded");
+});
+
+test("a frame reads the App's loading set once, however many slots it has", () => {
+  const drawn = trackDrawn();
+  let reads = 0;
+  const loading = new Set(["s1"]);
+  const app = {
+    faces: new Map(),
+    get loading() {
+      reads += 1;
+      return loading;
+    },
+    place: () => undefined,
+    safeAreas: new Map(),
+  };
+  const slots = [];
+  for (let i = 0; i < 5; i += 1) {
+    const id = `s${i}`;
+    app.faces.set(id, { instance: id, elements: [] });
+    drawn.hear({ type: "ready", instance: id, drawn: true });
+    slots.push(slot(id, { x: 0, y: 10, width: 10, height: 10 }));
+  }
+  frame(slots, CANVAS, frameView(app, drawn));
+  assert.equal(reads, 1);
+  assert.deepEqual(
+    slots.map((s) => s.element.getAttribute("data-vizij-ready")),
+    ["true", "false", "true", "true", "true"],
+    "the one read still says which face is loading",
+  );
 });

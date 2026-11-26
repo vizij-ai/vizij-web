@@ -1,20 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import {
-  setSelection,
-  setView,
-  type Bounds,
-  type Fit,
-  type Pick,
-  type ToneMapping,
-} from "@vizij/runtime";
-import { addSlot, canvasMounted } from "./canvas";
-import type { Slot } from "./frame";
+import type { Bounds, Fit, ToneMapping, VizijHandle } from "@vizij/runtime";
+import { addSlot, vizijHandle } from "./canvas";
+import type { Slot, VizijPick } from "./frame";
 import { DefaultLoading, describeLoading, type VizijLoading } from "./loading";
 import { watchLoading, loadingStage, type LoadingStage } from "./progress";
 
 export interface VizijProps {
-  /** The face this slot shows: the id it is loaded under (`loadVizij`). */
+  /** The face this slot shows: the instance it is loaded into (the App
+   * handle's `load`). */
   vizijId: string;
   /** Size and place the slot; the face draws over its border box. */
   className?: string;
@@ -34,9 +28,11 @@ export interface VizijProps {
   /** The elements whose outlines glow, by the ids their RobotData declares.
    * Absent, the slot leaves the face's selection as it is. */
   selection?: string[];
-  /** A press on the face: the element under the pointer, or `null` for a
-   * press that hit none. Picks need pointer events on the canvas. */
-  onPick?: (pick: Pick) => void;
+  /** A click on the face: the element under the pointer, or `null` for a
+   * click that hit none. A click is decided on release: press and release on
+   * the same element pick it, and a drag that ends over nothing is no click.
+   * Picks need pointer events on the canvas. */
+  onPick?: (pick: VizijPick) => void;
   /** The image of the default loading view, in place of Vizij's logo,
    * which `@vizij/render` ships; `null` for none. */
   loadingImage?: ReactNode;
@@ -53,7 +49,7 @@ export interface VizijProps {
  * a face at a time.
  *
  * The element carries `data-vizij-id`, and `data-vizij-ready` — `"true"`
- * once the face's scene shows its device's pose (`ready(vizijId)`).
+ * once the face's scene shows its device's pose (`isVizijDrawn(vizijId)`).
  *
  * Until its face is first drawn, the slot shows a loading view over its
  * border box: the runtime's stages, then the face's (`setVizijProgress`).
@@ -108,11 +104,12 @@ export function Vizij({
         : null;
   }, [showSafeArea, vizijId]);
 
-  // The view's functions work once the canvas is mounted. Props compare by
-  // value, so a page may pass fresh objects on every render.
+  // The App takes a face's view and selection once the canvas is mounted,
+  // before or after the face loads. Props compare by value, so a page may
+  // pass fresh objects on every render.
   const view = JSON.stringify({ toneMapping, fit, zoom, bounds });
   useEffect(
-    () => onceMounted(() => setView(vizijId, JSON.parse(view))),
+    () => onceMounted((app) => app.setView(vizijId, JSON.parse(view))),
     [vizijId, view],
   );
 
@@ -121,7 +118,7 @@ export function Vizij({
     () =>
       selected === null
         ? undefined
-        : onceMounted(() => setSelection(vizijId, JSON.parse(selected))),
+        : onceMounted((app) => app.setSelection(vizijId, JSON.parse(selected))),
     [vizijId, selected],
   );
 
@@ -182,13 +179,13 @@ function useLoadingStage(vizijId: string): LoadingStage | null {
   return stage;
 }
 
-/** Run `apply` once the page's canvas is mounted, unless the returned
- * cleanup ran first. */
-function onceMounted(apply: () => void): () => void {
+/** Run `apply` on the App's handle once the page's canvas is mounted, unless
+ * the returned cleanup ran first. */
+function onceMounted(apply: (app: VizijHandle) => void): () => void {
   let current = true;
-  canvasMounted().then(
-    () => {
-      if (current) apply();
+  vizijHandle().then(
+    (app) => {
+      if (current) apply(app);
     },
     () => undefined,
   );

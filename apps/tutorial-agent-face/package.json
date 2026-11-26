@@ -15,7 +15,7 @@
   "dependencies": {
     "@google/genai": "^2.32.0",
     "@vizij/render": "workspace:*",
-    "@vizij/runtime": "^9.2.0",
+    "@vizij/runtime": "^11.0.0",
     "@vizij/runtime-react": "workspace:*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

@@ -1,5 +1,6 @@
 import type { AnimatableValue } from "@vizij/utils";
 import type { Feature, World } from "@vizij/render";
+import type { FeatureValue } from "@vizij/runtime";
 
 /**
  * A face's world split into what its GLB has to be re-made for and what the
@@ -9,7 +10,7 @@ import type { Feature, World } from "@vizij/render";
  * types, names, geometry and materials, which features are animated by which
  * animatable, the animatables' types and ranges, and every static value the
  * loaded face cannot take in place. `values` holds the rest: per element, per
- * feature, the value `setStaticFeature` sets — a static feature's value, or
+ * feature, the value the App's `setValue` writes — a static feature's value, or
  * the default of the animatable an animated feature reads. A feature an
  * output of the face's device drives shows the device's value again at the
  * device's next write to it, as it would after a reload.
@@ -22,11 +23,31 @@ export interface WorldSplit {
 /** Per element id, per RobotData feature name, the value the face shows. */
 export type InPlaceValues = ReadonlyMap<string, ReadonlyMap<string, unknown>>;
 
-/** One feature to set in place: `setStaticFeature`'s arguments past the id. */
+/** One feature of one element to set in place, in the world's form. */
 export interface InPlaceEdit {
   elementId: string;
   feature: string;
   value: unknown;
+}
+
+/**
+ * An in-place value as the App's `setValue` takes it: a number as it is, and
+ * a vector or an euler (`{ x, y, z }`) or an RGB colour (`{ r, g, b }`) as its
+ * three numbers. `null` for any other value, which the face cannot take in
+ * place.
+ */
+export function featureValue(value: unknown): FeatureValue | null {
+  if (isNumber(value)) return value;
+  for (const keys of [
+    ["x", "y", "z"],
+    ["r", "g", "b"],
+  ] as const) {
+    if (hasNumbers(value, keys)) {
+      const record = value as Record<string, number>;
+      return [record[keys[0]], record[keys[1]], record[keys[2]]];
+    }
+  }
+  return null;
 }
 
 type Element = World[string];

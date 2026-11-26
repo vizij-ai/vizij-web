@@ -2,14 +2,17 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   describe,
-  loadVizij,
-  ready,
-  unloadVizij,
   type Runtime,
   type VizijDescription,
+  type VizijHandle,
   type VizijOptions,
 } from "@vizij/runtime";
-import { canvasMounted, setVizijProgress } from "@vizij/render";
+import {
+  isVizijDrawn,
+  onVizijEvent,
+  setVizijProgress,
+  vizijHandle,
+} from "@vizij/render";
 import {
   VizijChangeContext,
   VizijRuntimeContext,
@@ -25,10 +28,6 @@ import { TweenContext, createTweens, type Tweens } from "./tweens";
  * a second, and less as the page stays hidden) unless it plays audio. */
 const HIDDEN_STEP_MS = 10;
 
-/** How often the provider checks whether its face is drawn, in
- * milliseconds. */
-const DRAWN_POLL_MS = 50;
-
 /** A face's GLB: a URL to fetch, or its bytes. */
 export type VizijSource = string | URL | Blob | ArrayBuffer | Uint8Array;
 
@@ -41,8 +40,8 @@ export interface VizijRuntimeProviderProps {
   /** The id the face is loaded and shown under; one is derived from
    * React's `useId()` when absent. */
   vizijId?: string;
-  /** `loadVizij`'s options, passed through unchanged. Read at each load: a
-   * change shows from the next `glb`. */
+  /** The load's options (the App handle's `load`), passed through
+   * unchanged. Read at each load: a change shows from the next `glb`. */
   options?: VizijOptions;
   /** `true` (default): the provider steps the device, once per animation
    * frame while the page is visible and on a timer while it is hidden.
@@ -67,40 +66,77 @@ const NO_FACE: Loaded = {
   description: null,
 };
 
-/** Take the face shown down: stop its device, unload it, dispose it. */
+/** The face shown, and the App it was loaded into. */
+interface Shown {
+  runtime: Runtime;
+  app: VizijHandle;
+}
+
+/** Take the face shown down: stop its device, unload it, dispose it, and
+ * dispose the devices of loads answered after they were abandoned. */
 function takeDown(
-  current: { current: Runtime | null },
+  current: { current: Shown | null },
+  orphans: { current: Shown[] },
   vizijId: string,
   tweens: Tweens,
   setLoaded: (update: (previous: Loaded) => Loaded) => void,
 ): void {
-  const runtime = current.current;
-  if (!runtime) return;
+  const shown = current.current;
+  const left = orphans.current;
+  orphans.current = [];
+  const app = shown?.app ?? left[0]?.app;
+  if (!app) return;
   current.current = null;
   tweens.cancelAll();
-  runtime.stop();
-  unloadVizij(vizijId);
-  runtime.dispose();
-  setLoaded((previous) => ({ ...previous, runtime: null }));
+  shown?.runtime.stop();
+  app.unload(vizijId);
+  shown?.runtime.dispose();
+  for (const orphan of left) orphan.runtime.dispose();
+  if (shown) setLoaded((previous) => ({ ...previous, runtime: null }));
 }
 
-/** Resolves `true` once the Vizij is drawn (`ready`), or `false` once
- * `load` is cancelled first. It sets no deadline: the runtime reports a
- * Vizij drawn after at most 600 drawn frames, whatever holds it back, so
- * only the GPU's pace bounds the wait — and a software GPU compiles a
- * face's pipelines for a minute or more. A hidden page draws nothing, so
- * its face stays loading until the page shows again. */
-function drawn(
-  vizijId: string,
-  load: { cancelled: boolean },
-): Promise<boolean> {
+/** `promise`'s outcome, or `undefined` as soon as `signal` aborts first. */
+function unlessAborted<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<T | undefined> {
+  if (signal.aborted) return Promise.resolve(undefined);
+  return new Promise((resolve, reject) => {
+    const aborted = () => resolve(undefined);
+    signal.addEventListener("abort", aborted, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", aborted);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", aborted);
+        reject(error);
+      },
+    );
+  });
+}
+
+/** Resolves `true` once the face is drawn (its `ready` event), or `false`
+ * once `signal` aborts first. It sets no deadline: the App reports a face
+ * ready after at most ten seconds of drawn frames, whatever holds it back,
+ * so only the GPU's pace bounds the wait — and a software GPU compiles a
+ * face's pipelines for a minute or more. A hidden page draws nothing, so its
+ * face stays loading until the page shows again. */
+function drawn(vizijId: string, signal: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {
-    const poll = () => {
-      if (load.cancelled) resolve(false);
-      else if (ready(vizijId)) resolve(true);
-      else setTimeout(poll, DRAWN_POLL_MS);
+    if (signal.aborted) return resolve(false);
+    if (isVizijDrawn(vizijId)) return resolve(true);
+    const settle = (result: boolean) => {
+      stop();
+      signal.removeEventListener("abort", aborted);
+      resolve(result);
     };
-    poll();
+    const aborted = () => settle(false);
+    const stop = onVizijEvent((event) => {
+      if (event.type === "ready" && event.instance === vizijId) settle(true);
+    });
+    signal.addEventListener("abort", aborted);
   });
 }
 
@@ -108,7 +144,8 @@ function drawn(
  * One face's lifecycle in React, over `@vizij/runtime`.
  *
  * It fetches the GLB, reads it with `describe`, waits for the page's canvas
- * (`<VizijCanvas>`), loads the face with `loadVizij`, and hands its children
+ * (`<VizijCanvas>`), loads the face into the App under `vizijId` once its
+ * scene is indexed and its device built, and hands its children
  * the face's `Runtime` unwrapped (`useVizijRuntime`). A new `glb` reloads
  * the face under the same id: the previous scene draws until the new one is
  * ready, and the previous `Runtime` is stopped and disposed once the new one
@@ -133,7 +170,7 @@ function drawn(
  *
  * It reports the face's stages to `@vizij/render` (`setVizijProgress`), for
  * the loading view of the face's slot: the GLB's bytes as they arrive, then
- * `loadVizij`, then the face's first frame. Unloading the face clears them.
+ * its load, then the face's first frame. Unloading the face clears them.
  *
  * Showing the face is the page's `<Vizij>` slot, bound to this provider by
  * `<VizijRuntimeFace>`.
@@ -152,10 +189,20 @@ export function VizijRuntimeProvider({
 
   const latest = useRef({ glb, options });
   latest.current = { glb, options };
-  /** The face's live `Runtime`: set as soon as `loadVizij` resolves. */
-  const current = useRef<Runtime | null>(null);
+  /** The face's live `Runtime`: set as soon as its load resolves. */
+  const current = useRef<Shown | null>(null);
   /** Loads and teardowns, one at a time and in order. */
   const queue = useRef<Promise<void>>(Promise.resolve());
+  /** How many loads this provider has asked of the App, so a load that
+   * finishes after being abandoned can tell whether a later one followed. */
+  const started = useRef(0);
+  /** The load the App has not answered yet: what a teardown unloads to
+   * cancel it, since the queue no longer waits for it once abandoned. */
+  const inFlight = useRef<{ app: VizijHandle; vizijId: string } | null>(null);
+  /** Devices of loads answered after they were abandoned, whose faces the
+   * App may still show: freed once a later load replaces them, or at
+   * teardown, since a device is disposed only once its face is gone. */
+  const orphans = useRef<Shown[]>([]);
   const listeners = useRef(new Set<(changes: VizijChanges) => void>());
   const source = useMemo<VizijChangeSource>(
     () => ({
@@ -170,11 +217,24 @@ export function VizijRuntimeProvider({
   );
   const tweens = useMemo(createTweens, []);
 
+  /** Whether the provider is mounted, for a load answered after it was
+   * abandoned. */
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   // Unmounting, or moving to another id, takes the face down.
   useEffect(
     () => () => {
+      // A load still under way is cancelled now: the App rejects it, rather
+      // than leaving the teardown to wait for an answer that may be slow.
+      inFlight.current?.app.unload(inFlight.current.vizijId);
       queue.current = queue.current
-        .then(() => takeDown(current, vizijId, tweens, setLoaded))
+        .then(() => takeDown(current, orphans, vizijId, tweens, setLoaded))
         .finally(() => setVizijProgress(vizijId, null));
     },
     [vizijId, tweens],
@@ -182,13 +242,16 @@ export function VizijRuntimeProvider({
 
   const glbKey = glb instanceof URL ? glb.href : glb;
   useEffect(() => {
-    const load = { cancelled: false };
+    const load = new AbortController();
+    const cancelled = () => load.signal.aborted;
     queue.current = queue.current.then(async () => {
-      if (load.cancelled) return;
+      if (cancelled()) return;
       const face = latest.current.glb;
       if (face === null) {
-        // No face: take down the one shown, if any.
-        takeDown(current, vizijId, tweens, setLoaded);
+        // No face: cancel a load still under way, and take down the one
+        // shown, if any.
+        inFlight.current?.app.unload(inFlight.current.vizijId);
+        takeDown(current, orphans, vizijId, tweens, setLoaded);
         setLoaded(NO_FACE);
         setVizijProgress(vizijId, null);
         return;
@@ -200,39 +263,107 @@ export function VizijRuntimeProvider({
       }));
       try {
         const bytes = await bytesOf(face, (loaded, total) => {
-          if (!load.cancelled) {
+          if (!cancelled()) {
             setVizijProgress(vizijId, { stage: "fetch", loaded, total });
           }
         });
-        if (load.cancelled) return;
+        if (cancelled()) return;
         setVizijProgress(vizijId, { stage: "load" });
         const description = await describe(bytes);
-        if (load.cancelled) return;
+        if (cancelled()) return;
         setLoaded((previous) => ({ ...previous, description }));
-        await canvasMounted();
-        if (load.cancelled) return;
-        const next = await loadVizij(vizijId, bytes, latest.current.options);
+        const app = await vizijHandle();
+        if (cancelled()) return;
+        const mine = ++started.current;
+        const loading = app.load(vizijId, bytes, latest.current.options);
+        inFlight.current = { app, vizijId };
+        const answered = () => {
+          if (started.current === mine) inFlight.current = null;
+        };
+        loading.then(answered, answered);
+        // The queue waits for the load only until it is cancelled, so a slow
+        // load holds up neither the next load, which replaces it in the App,
+        // nor a teardown, which unloads it.
+        const next = await unlessAborted(loading, load.signal);
+        if (next === undefined) {
+          abandon(loading, mine, app);
+          return;
+        }
         setVizijProgress(vizijId, { stage: "draw" });
         const previous = current.current;
-        current.current = next;
-        if (previous) {
+        current.current = { runtime: next, app };
+        // A load of the content already shown hands back the device showing
+        // it, which stays live.
+        if (previous && previous.runtime !== next) {
           tweens.cancelAll();
-          previous.stop();
-          previous.dispose();
+          previous.runtime.stop();
+          previous.runtime.dispose();
+        }
+        // This load replaced the faces of loads answered after they were
+        // abandoned.
+        const replaced = orphans.current;
+        orphans.current = [];
+        for (const orphan of replaced) {
+          if (orphan.runtime !== next) orphan.runtime.dispose();
         }
         setLoaded((state) => ({ ...state, runtime: next }));
-        if (!(await drawn(vizijId, load))) return;
+        if (!(await drawn(vizijId, load.signal))) return;
         setLoaded((state) => ({ ...state, status: "ready" }));
       } catch (error) {
-        if (load.cancelled) return;
+        if (cancelled()) return;
+        // A failed load leaves the instance showing the face it was to
+        // replace. When loads abandoned before it were answered, that is the
+        // face of the last of them, not the one this provider last adopted:
+        // adopt it, so the context names the device whose face shows and the
+        // pacing runs it again.
+        const showing = orphans.current.pop();
+        if (showing) {
+          for (const orphan of orphans.current) orphan.runtime.dispose();
+          orphans.current = [];
+          const previous = current.current;
+          current.current = showing;
+          if (previous) {
+            tweens.cancelAll();
+            previous.runtime.stop();
+            previous.runtime.dispose();
+          }
+          setLoaded((state) => ({ ...state, runtime: showing.runtime }));
+        }
         const failure =
           error instanceof Error ? error : new Error(String(error));
         setVizijProgress(vizijId, { stage: "failed", error: failure });
         setLoaded((state) => ({ ...state, status: "error", error: failure }));
       }
     });
+    /** A load abandoned unanswered that the App answers after all: its
+     * device is this provider's to free. When the provider shows no face
+     * any more, its face is taken down and its device freed at once.
+     * Otherwise the App shows its face until the load queued after it
+     * replaces it, so its device is kept until then: unloading first would
+     * blank the instance, and a device is disposed only once its face is
+     * gone. */
+    function abandon(
+      loading: Promise<Runtime>,
+      mine: number,
+      app: VizijHandle,
+    ) {
+      loading.then(
+        (stale) => {
+          if (current.current?.runtime === stale) return;
+          stale.stop();
+          const wanted = mounted.current && latest.current.glb !== null;
+          if (wanted) {
+            orphans.current.push({ runtime: stale, app });
+            return;
+          }
+          if (started.current === mine) app.unload(vizijId);
+          stale.dispose();
+        },
+        () => undefined,
+      );
+    }
     return () => {
-      load.cancelled = true;
+      load.abort();
     };
   }, [vizijId, glbKey, tweens]);
 
@@ -249,7 +380,7 @@ export function VizijRuntimeProvider({
     let timer: ReturnType<typeof setInterval> | undefined;
     const fail = (error: unknown) => {
       stopPacing();
-      if (current.current !== runtime) return;
+      if (current.current?.runtime !== runtime) return;
       setLoaded((state) => ({
         ...state,
         status: "error",
@@ -321,7 +452,7 @@ export function VizijRuntimeProvider({
   // listens. What nobody reads stays in the runtime as one value per key.
   useEffect(() => {
     const drain = () => {
-      const live = current.current;
+      const live = current.current?.runtime;
       if (!live) return;
       const changes = live.drainChanges();
       if (Object.keys(changes).length > 0) {

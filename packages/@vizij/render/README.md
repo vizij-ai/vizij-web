@@ -63,11 +63,10 @@ export function Page() {
 The face itself is loaded under the same id, once the canvas is mounted:
 
 ```ts
-import { canvasMounted } from "@vizij/render";
-import { loadVizij } from "@vizij/runtime";
+import { vizijHandle } from "@vizij/render";
 
-await canvasMounted();
-const quori = await loadVizij("quori", glbBytes);
+const app = await vizijHandle();
+const quori = await app.load("quori", glbBytes);
 void quori.run();
 ```
 
@@ -80,8 +79,13 @@ void quori.run();
   `<VizijCanvas>`, a remount or React StrictMode's second effect shows the same
   canvas and App; the options of the first mount stand for the page's
   lifetime.
-- `canvasMounted()` resolves with the canvas once it is mounted, which
-  `loadVizij` requires, and rejects if mounting failed.
+- `vizijHandle()` resolves with the App's handle once the canvas is mounted
+  (`canvasMounted()` with the canvas), and rejects if mounting failed. Faces
+  are loaded, unloaded, framed and written through the handle.
+- The canvas owns the handle's event handler. `onVizijEvent(listener)` hears
+  every event after the canvas has acted on it, and returns the function that
+  stops listening; `isVizijDrawn(vizijId)` says whether a face has drawn since
+  its last load.
 - Default style: `position: fixed; inset: 0; pointer-events: none`, over the
   page content. Faces then draw wherever their slots lie, whatever the
   backgrounds of the sections between, and the page's own UI keeps the
@@ -89,10 +93,10 @@ void quori.run();
 - `className` or `style` replace the default. A page that takes picks (an
   authoring viewport) places the canvas itself and gives it pointer events.
 
-The canvas's loop reads every slot's rectangle each frame and calls
-`placeVizij` when it moved, which follows scrolling, resizes and layout shifts
-alike. `placeVizij` and `drainPicks` act on the whole page, which is why they
-have one caller.
+The canvas's loop reads every slot's rectangle each frame and places the
+slot's face when it moved, which follows scrolling, resizes and layout shifts
+alike: no event from the App says where a slot has moved. A face's readiness,
+safe area and picks come from the App's events.
 
 ### `<Vizij vizijId className? style? toneMapping? fit? zoom? bounds? showSafeArea? selection? onPick? loadingImage? loading? />`
 
@@ -103,9 +107,9 @@ have one caller.
 | `toneMapping`        | The face's tone-mapping curve (`none`, `agx`, `aces`, `neutral`): `setView`.                                 |
 | `fit`, `zoom`        | How the framed bounds fit the slot, and the magnification after the fit; the canvas's options when absent.   |
 | `bounds`             | The world rectangle the face's camera frames, in place of the GLB's authored `rootBounds`.                   |
-| `showSafeArea`       | Outlines the framed bounds (`safeArea(vizijId)`) over the face, as a DOM overlay.                            |
+| `showSafeArea`       | Outlines the framed bounds (the App's `safeArea` event) over the face, as a DOM overlay.                     |
 | `selection`          | The element ids whose outlines glow (`setSelection`). Absent, the slot leaves the face's selection as it is. |
-| `onPick`             | A press on the face: `{ vizijId, elementId }`, `elementId` `null` for a press that hit no element.           |
+| `onPick`             | A click on the face: a `VizijPick`, `{ vizijId, elementId }`, `elementId` `null` for a miss.                 |
 | `loadingImage`       | The default loading view's image, in place of Vizij's logo, which it ships; `null` for none.                 |
 | `loading`            | The slot's own loading view, `(loading: VizijLoading) => ReactNode`; `null` for none.                        |
 
@@ -143,7 +147,7 @@ one is ready.
   `VizijProgress` — `{ stage: "fetch", loaded, total }` (`total` `null` when
   unknown), `{ stage: "load" }`, `{ stage: "draw" }` or
   `{ stage: "failed", error }`. `@vizij/runtime-react`'s provider reports its
-  face. A page that calls `loadVizij` itself reports the same way, or leaves
+  face. A page that loads a face through the handle itself reports the same way, or leaves
   its slot at "Loading the face" until the face is drawn. `null` says no face
   is loaded under the id any more, and its slot shows the loading view again.
 - **Its image:** `loadingImage` replaces Vizij's logo, which the view ships (a

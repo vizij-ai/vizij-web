@@ -29,8 +29,31 @@ async function selectedElements(page: Page): Promise<string[]> {
     );
 }
 
+/** Resolves after the page has drawn `count` frames. */
+function frames(page: Page, count: number): Promise<void> {
+  return page.evaluate(
+    (count) =>
+      new Promise<void>((resolve) => {
+        const next = (left: number) =>
+          left === 0 ? resolve() : requestAnimationFrame(() => next(left - 1));
+        next(count);
+      }),
+    count,
+  );
+}
+
+/**
+ * A click held over frames. The App decides a click on release, from the
+ * press and release it sees, and a software GPU's frame can outlast a
+ * scripted click: down and up inside one frame reach the App as no press.
+ */
 async function press(page: Page, point: { x: number; y: number }) {
-  await page.mouse.click(point.x, point.y);
+  await page.mouse.move(point.x, point.y);
+  await frames(page, 3);
+  await page.mouse.down();
+  await frames(page, 3);
+  await page.mouse.up();
+  await frames(page, 3);
 }
 
 test("a press on a face element selects it, and a press where no element draws clears the selection @smoke", async ({

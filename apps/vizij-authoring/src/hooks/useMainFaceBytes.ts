@@ -3,16 +3,15 @@ import {
   buildSceneGraph,
   exportScene,
   useVizijStore,
+  vizijHandle,
   type VizijBundleExtension,
 } from "@vizij/render";
-import {
-  setStaticFeature,
-  type Runtime,
-  type ValueInput,
-} from "@vizij/runtime";
+import type { Runtime } from "@vizij/runtime";
 import {
   changedValues,
+  featureValue,
   splitWorld,
+  type InPlaceEdit,
   type InPlaceValues,
 } from "../scene/worldStructure";
 
@@ -111,9 +110,9 @@ export function useMainFaceBytes(
 
 /**
  * Show the world's in-place values on the face `runtime` runs: each value
- * that differs from what the face shows is set with `setStaticFeature`. A
- * newly loaded `runtime` shows what its bytes carry, so a value edited while
- * it loaded is set on it once it exists.
+ * that differs from what the face shows is written to the face's element
+ * with the App's `setValue`. A newly loaded `runtime` shows what its bytes
+ * carry, so a value edited while it loaded is set on it once it exists.
  */
 export function useMainFaceValues(
   vizijId: string,
@@ -129,21 +128,28 @@ export function useMainFaceValues(
       shown.current?.runtime === runtime ? shown.current.values : null;
     if (previous === null) performance.mark(MAIN_FACE_LOADED_MARK);
     const from = previous ?? face.carried;
-    for (const edit of changedValues(from, face.values)) {
-      try {
-        setStaticFeature(
-          vizijId,
-          edit.elementId,
-          edit.feature,
-          edit.value as ValueInput,
-        );
-      } catch (error) {
-        console.error(
-          `[vizij-authoring] ${edit.feature} of ${edit.elementId} did not apply in place`,
-          error,
-        );
-      }
-    }
+    const edits = changedValues(from, face.values);
     shown.current = { runtime, values: face.values };
+    if (edits.length === 0) return;
+    // A face's runtime exists only once the page's App has loaded it, so the
+    // handle has resolved; the writes keep their order.
+    void vizijHandle().then((app) => {
+      for (const edit of edits) {
+        const value = featureValue(edit.value);
+        try {
+          if (value === null) throw new Error(notAFeatureValue(edit));
+          app.setValue(vizijId, edit.elementId, value, edit.feature);
+        } catch (error) {
+          console.error(
+            `[vizij-authoring] ${edit.feature} of ${edit.elementId} did not apply in place`,
+            error,
+          );
+        }
+      }
+    });
   }, [face, runtime, vizijId]);
+}
+
+function notAFeatureValue(edit: InPlaceEdit): string {
+  return `${JSON.stringify(edit.value)} is neither a number nor three`;
 }

@@ -6,15 +6,12 @@
  */
 import {
   init,
-  loadVizij,
   mount,
-  placeVizijIn,
   runStatus,
-  unloadVizij,
   unlockAudio,
-  whenReady,
   type RunHandle,
   type Runtime,
+  type VizijHandle,
 } from "@vizij/runtime";
 
 /** The one slot this page shows. */
@@ -55,8 +52,21 @@ export interface FaceHandle {
   unload(): void;
 }
 
-let mounted: HTMLCanvasElement | null = null;
+let mounted: VizijHandle | null = null;
 let mounting: Promise<void> | null = null;
+/** Who waits for the face in an instance to be drawn. */
+const waiting = new Map<string, Array<() => void>>();
+/** How many faces `showFace` has asked for, so one replaced while it waited
+ * can tell that a later one followed it. */
+let shows = 0;
+
+/** A face replaced by a later `showFace` before it was shown: not a failure,
+ * since the later face is the one the page asked for. */
+export class FaceReplaced extends Error {
+  constructor() {
+    super("replaced by a later face before it was shown");
+  }
+}
 
 /** Mount the page's canvas once; later calls (React's strict-mode second
  * effect among them) join the first. */
@@ -64,11 +74,30 @@ export function mountCanvas(canvas: HTMLCanvasElement): Promise<void> {
   if (!mounting) {
     mounting = (async () => {
       await init();
-      await mount(canvas);
-      mounted = canvas;
+      const app = await mount(canvas);
+      app.onEvent((event) => {
+        if (event.type !== "ready" && event.type !== "loadFailed") return;
+        // The handle's readiness, not the event's: a `ready` for a face
+        // being replaced is withheld until the replacement settles, and a
+        // failed load puts the replaced face's readiness back with no
+        // `ready` of its own.
+        if (!app.ready.has(event.instance)) return;
+        for (const wake of waiting.get(event.instance) ?? []) wake();
+        waiting.delete(event.instance);
+      });
+      mounted = app;
     })();
   }
   return mounting;
+}
+
+/** Resolves once the face in `instance` has drawn since its last load: its
+ * device's time starts from that frame. */
+function whenDrawn(instance: string): Promise<void> {
+  if (mounted?.ready.has(instance)) return Promise.resolve();
+  return new Promise((resolve) => {
+    waiting.set(instance, [...(waiting.get(instance) ?? []), resolve]);
+  });
 }
 
 /** Show `glb` in the page's slot and start its runtime, self-paced. */
@@ -78,12 +107,24 @@ export async function showFace(
   options: { speechApiUrl?: string | null } = {},
 ): Promise<FaceHandle> {
   if (!mounted) throw new Error("mount the canvas first");
-  const canvas = mounted;
-  const runtime = await loadVizij(FACE, glb, {
-    speechApiUrl: options.speechApiUrl ?? undefined,
-  });
-  placeVizijIn(FACE, slot, canvas);
-  await whenReady(FACE);
+  const app = mounted;
+  const mine = ++shows;
+  app.placeIn(FACE, slot);
+  let runtime: Runtime;
+  try {
+    runtime = await app.load(FACE, glb, {
+      speechApiUrl: options.speechApiUrl ?? undefined,
+    });
+  } catch (error) {
+    throw mine === shows ? error : new FaceReplaced();
+  }
+  await whenDrawn(FACE);
+  // A later face drawn wakes this wait too. This face's device is the
+  // page's, its load having resolved, and nothing else will free it.
+  if (mine !== shows) {
+    runtime.dispose();
+    throw new FaceReplaced();
+  }
   void runtime.run();
   let shown: string | null = null;
   return {
@@ -108,14 +149,14 @@ export async function showFace(
       runtime.writeValues(values);
       shown = name;
     },
-    place: (element) => placeVizijIn(FACE, element, canvas),
+    place: (element) => app.placeIn(FACE, element),
     converse: (state, holds) =>
       runtime.writeValues({
         [runtime.path(conversationKey(state))]: { f32: holds ? 1 : 0 },
       }),
     unload: () => {
       runtime.stop();
-      unloadVizij(FACE);
+      app.unload(FACE);
       runtime.dispose();
     },
   };

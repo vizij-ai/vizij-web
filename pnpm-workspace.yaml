@@ -44,3 +44,4 @@ overrides:
 
 minimumReleaseAgeExclude:
   - "@semio/import@0.1.1"
+  - "@vizij/runtime@11.0.0"
