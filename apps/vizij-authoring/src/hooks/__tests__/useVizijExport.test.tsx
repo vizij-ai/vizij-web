@@ -1320,6 +1320,40 @@ describe("useVizijExport", () => {
     hook.unmount();
   });
 
+  it("exports a face-default neutral as the face's input defaults, not the recorded snapshot", async () => {
+    const options = createOptions({
+      standardInputsById: new Map([
+        [INPUT.id, { ...INPUT, defaultValue: 0.25 }],
+      ]),
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          title: "Stale neutral",
+          neutralMode: "face-default",
+          // Recorded when the pose rig was made, before the default moved.
+          neutralInputs: { input_a: 0 },
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+      },
+    });
+    const hook = renderHook(options);
+
+    await act(async () => {
+      await hook.result.current?.exportPoseConfigFile();
+    });
+
+    expect(mockedDownloadJsonFile.mock.calls[0]?.[0]).toMatchObject({
+      neutralMode: "face-default",
+      neutralInputs: { input_a: 0.25 },
+    });
+    hook.unmount();
+  });
+
   it("recomputes pose graph for GLB export using the active blend mode", async () => {
     mockedBuildRigGraphSpec.mockReturnValue({
       spec: { nodes: [{ id: "n1", type: "input" }] } as GraphSpec,
