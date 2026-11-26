@@ -1451,9 +1451,15 @@ interface BuildVizijBundleOptions {
   starredItems?: VizijStarredItem[];
 }
 
+/**
+ * The pose IR a face's bundle carries. A `face-default` neutral takes the
+ * face's input defaults, as the exported pose config does
+ * (`resolvePoseConfigFromIr`), so the two records of one neutral agree.
+ */
 function clonePoseIrForBundle(
   value: unknown,
   faceId: string,
+  standardInputs: Iterable<StandardRigInput>,
 ): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -1463,6 +1469,13 @@ function clonePoseIrForBundle(
     unknown
   >;
   cloned.faceId = faceId;
+  const neutral = cloned.neutral as { mode?: unknown } | undefined;
+  if (neutral && neutral.mode === "face-default") {
+    cloned.neutral = {
+      ...neutral,
+      values: createNeutralInputs(Array.from(standardInputs)),
+    };
+  }
   return cloned;
 }
 
@@ -1693,6 +1706,7 @@ function buildVizijBundle(
   const poseIrForBundle = clonePoseIrForBundle(
     poseRig.poseIrDraft,
     exportFaceId,
+    standardInputsById.values(),
   );
   const poseDiagnostics = cloneSerializable(
     poseRig.poseDiagnostics ?? [],
