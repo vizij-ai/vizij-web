@@ -457,6 +457,36 @@ describe("a load the App has not answered", () => {
     expect(app.unload).toHaveBeenCalledWith("hero");
   });
 
+  it("answered after a new glb replaced it, is adopted when the new glb's load fails", async () => {
+    const answerFirst = pendingLoad();
+    let failSecond!: (error: Error) => void;
+    app.load.mockImplementationOnce(
+      () =>
+        new Promise<FakeRuntime>((_, reject) => {
+          failSecond = reject;
+        }),
+    );
+    const page = (glb: Uint8Array) => (
+      <VizijRuntimeProvider glb={glb} vizijId="hero">
+        <Status />
+      </VizijRuntimeProvider>
+    );
+    const { rerender } = render(page(bytes(1)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(1));
+    rerender(page(bytes(2)));
+    await waitFor(() => expect(app.load).toHaveBeenCalledTimes(2));
+    const stale = new FakeRuntime();
+    loaded.push(stale);
+    await act(async () => answerFirst(stale));
+    // The App shows the first face again once the second fails to load:
+    // the context names its device, which is not freed.
+    await act(async () => failSecond(new Error("its scene failed to load")));
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toMatch(/^error\|0/),
+    );
+    expect(stale.dispose).not.toHaveBeenCalled();
+  });
+
   it("answered after it was cancelled, has its device freed", async () => {
     const answer = pendingLoad();
     const { unmount } = render(

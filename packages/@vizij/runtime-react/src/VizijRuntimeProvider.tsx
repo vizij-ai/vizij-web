@@ -311,6 +311,24 @@ export function VizijRuntimeProvider({
         setLoaded((state) => ({ ...state, status: "ready" }));
       } catch (error) {
         if (cancelled()) return;
+        // A failed load leaves the instance showing the face it was to
+        // replace. When loads abandoned before it were answered, that is the
+        // face of the last of them, not the one this provider last adopted:
+        // adopt it, so the context names the device whose face shows and the
+        // pacing runs it again.
+        const showing = orphans.current.pop();
+        if (showing) {
+          for (const orphan of orphans.current) orphan.runtime.dispose();
+          orphans.current = [];
+          const previous = current.current;
+          current.current = showing;
+          if (previous) {
+            tweens.cancelAll();
+            previous.runtime.stop();
+            previous.runtime.dispose();
+          }
+          setLoaded((state) => ({ ...state, runtime: showing.runtime }));
+        }
         const failure =
           error instanceof Error ? error : new Error(String(error));
         setVizijProgress(vizijId, { stage: "failed", error: failure });
