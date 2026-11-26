@@ -211,19 +211,28 @@ function renderHook(options: Parameters<typeof useVizijExport>[0]) {
 
   const result: { current: HookResult | null } = { current: null };
 
-  function HookWrapper() {
-    result.current = useVizijExport(options);
+  function HookWrapper({
+    hookOptions,
+  }: {
+    hookOptions: Parameters<typeof useVizijExport>[0];
+  }) {
+    result.current = useVizijExport(hookOptions);
     return null;
   }
 
   let root: Root;
   flushSync(() => {
     root = createRoot(container);
-    root.render(React.createElement(HookWrapper));
+    root.render(React.createElement(HookWrapper, { hookOptions: options }));
   });
 
   return {
     result,
+    rerender: (next: Parameters<typeof useVizijExport>[0]) => {
+      flushSync(() => {
+        root.render(React.createElement(HookWrapper, { hookOptions: next }));
+      });
+    },
     unmount: () => {
       flushSync(() => {
         root.unmount();
@@ -1350,6 +1359,42 @@ describe("useVizijExport", () => {
     expect(mockedDownloadJsonFile.mock.calls[0]?.[0]).toMatchObject({
       neutralMode: "face-default",
       neutralInputs: { input_a: 0.25 },
+    });
+    hook.unmount();
+  });
+
+  it("exports a face-default neutral from the input defaults it was last given", async () => {
+    const options = createOptions({
+      poseRig: {
+        poseGraphSpec: null,
+        poseGraphFileName: "pose_graph.json",
+        poseConfigDraft: {
+          version: 1,
+          faceId: "face",
+          title: "Defaults moved",
+          neutralMode: "face-default",
+          neutralInputs: { input_a: 0 },
+          poses: [],
+        },
+        poseConfigFileName: "pose_config.json",
+        importPoseConfig: vi.fn(),
+      },
+    });
+    const hook = renderHook(options);
+    // Only the input map changes: a default moved, nothing else did.
+    hook.rerender({
+      ...options,
+      standardInputsById: new Map([
+        [INPUT.id, { ...INPUT, defaultValue: 0.5 }],
+      ]),
+    });
+
+    await act(async () => {
+      await hook.result.current?.exportPoseConfigFile();
+    });
+
+    expect(mockedDownloadJsonFile.mock.calls[0]?.[0]).toMatchObject({
+      neutralInputs: { input_a: 0.5 },
     });
     hook.unmount();
   });

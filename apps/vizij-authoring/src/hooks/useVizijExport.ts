@@ -1316,6 +1316,7 @@ export function useVizijExport(
     poseRig.poseIrDraft,
     poseRig.poseConfigDraft,
     poseRig.poseConfigFileName,
+    standardInputsById,
   ]);
 
   const importPoseConfigFile = useCallback(
