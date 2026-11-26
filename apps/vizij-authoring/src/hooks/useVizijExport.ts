@@ -64,6 +64,7 @@ import { useAnimationStore } from "../state/animationStore";
 import { getStarredForFace, useStarredStore } from "../state/starredStore";
 import { PoseGraphService } from "../poseRig/services/poseGraphService";
 import { PoseIrService } from "../poseRig/services/poseIrService";
+import { createNeutralInputs } from "../poseRig/utils";
 import { auditBundleGraphs } from "../utils/bundleAudit";
 import { faceVersionsMetadata, type FaceVersions } from "../utils/faceVersions";
 import {
@@ -497,13 +498,28 @@ function isPoseRigIrFile(value: unknown): value is PoseRigIrFile {
   );
 }
 
+/**
+ * The pose config a face exports, with a neutral that matches its mode. A
+ * `face-default` neutral is the face's input defaults, which the editor
+ * renders from (`createNeutralInputs`); the recorded `neutralInputs` is a
+ * snapshot from when the pose rig was made and goes stale when a default
+ * changes. A player stages `neutralInputs` at load, so the export writes the
+ * defaults it shows rather than the snapshot.
+ */
 function resolvePoseConfigFromIr(
   poseRig: Pick<PoseRigExportState, "poseIrDraft" | "poseConfigDraft">,
+  standardInputs: Iterable<StandardRigInput>,
 ): PoseRigConfigFile | null {
-  if (isPoseRigIrFile(poseRig.poseIrDraft)) {
-    return PoseIrService.toConfig(poseRig.poseIrDraft);
+  const config = isPoseRigIrFile(poseRig.poseIrDraft)
+    ? PoseIrService.toConfig(poseRig.poseIrDraft)
+    : poseRig.poseConfigDraft;
+  if (!config || config.neutralMode !== "face-default") {
+    return config;
   }
-  return poseRig.poseConfigDraft;
+  return {
+    ...config,
+    neutralInputs: createNeutralInputs(Array.from(standardInputs)),
+  };
 }
 
 function hasAuthoredPoseData(config: PoseRigConfigFile | null): boolean {
@@ -620,7 +636,10 @@ export function useVizijExport(
       pipelineConfigByInputId,
       new Set(standardInputsById.keys()),
     );
-    const poseConfigForCompose = resolvePoseConfigFromIr(poseRig);
+    const poseConfigForCompose = resolvePoseConfigFromIr(
+      poseRig,
+      standardInputsById.values(),
+    );
     const pipelineConfigByInputIdForExport =
       pipelineMetadataForExport &&
       typeof pipelineMetadataForExport.byInputId === "object" &&
@@ -757,7 +776,10 @@ export function useVizijExport(
 
       const standardInputs = Array.from(standardInputsById.values());
       let poseGraphSpecForExport: GraphSpec | null = null;
-      const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+      const poseConfigFromIr = resolvePoseConfigFromIr(
+        poseRig,
+        standardInputsById.values(),
+      );
       const poseConfigCandidate = poseConfigFromIr
         ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
         : null;
@@ -1202,7 +1224,10 @@ export function useVizijExport(
 
   const exportPoseGraphFile = useCallback(async () => {
     try {
-      const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+      const poseConfigFromIr = resolvePoseConfigFromIr(
+        poseRig,
+        standardInputsById.values(),
+      );
       const exportFaceId = resolveExportFaceId(faceId);
       const poseConfigForExport = poseConfigFromIr
         ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
@@ -1257,7 +1282,10 @@ export function useVizijExport(
 
   const exportPoseConfigFile = useCallback(async () => {
     try {
-      const configFromIr = resolvePoseConfigFromIr(poseRig);
+      const configFromIr = resolvePoseConfigFromIr(
+        poseRig,
+        standardInputsById.values(),
+      );
       const exportFaceId = resolveExportFaceId(faceId);
       const config = configFromIr
         ? withPoseConfigFaceId(configFromIr, exportFaceId)
@@ -1288,6 +1316,7 @@ export function useVizijExport(
     poseRig.poseIrDraft,
     poseRig.poseConfigDraft,
     poseRig.poseConfigFileName,
+    standardInputsById,
   ]);
 
   const importPoseConfigFile = useCallback(
@@ -1422,9 +1451,15 @@ interface BuildVizijBundleOptions {
   starredItems?: VizijStarredItem[];
 }
 
+/**
+ * The pose IR a face's bundle carries. A `face-default` neutral takes the
+ * face's input defaults, as the exported pose config does
+ * (`resolvePoseConfigFromIr`), so the two records of one neutral agree.
+ */
 function clonePoseIrForBundle(
   value: unknown,
   faceId: string,
+  standardInputs: Iterable<StandardRigInput>,
 ): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -1434,6 +1469,13 @@ function clonePoseIrForBundle(
     unknown
   >;
   cloned.faceId = faceId;
+  const neutral = cloned.neutral as { mode?: unknown } | undefined;
+  if (neutral && neutral.mode === "face-default") {
+    cloned.neutral = {
+      ...neutral,
+      values: createNeutralInputs(Array.from(standardInputs)),
+    };
+  }
   return cloned;
 }
 
@@ -1556,7 +1598,7 @@ function buildVizijBundle(
   const poseConfigForCompose =
     options.poseConfigForExport !== undefined
       ? options.poseConfigForExport
-      : resolvePoseConfigFromIr(poseRig);
+      : resolvePoseConfigFromIr(poseRig, standardInputsById.values());
   const pipelineMetadataForExport = resolvePipelineMetadataForExport(
     pipelineMetadataV1,
     pipelineConfigByInputId,
@@ -1650,7 +1692,10 @@ function buildVizijBundle(
     options.poseConfigForExport !== undefined
       ? options.poseConfigForExport
       : (() => {
-          const poseConfigFromIr = resolvePoseConfigFromIr(poseRig);
+          const poseConfigFromIr = resolvePoseConfigFromIr(
+            poseRig,
+            standardInputsById.values(),
+          );
           return poseConfigFromIr
             ? withPoseConfigFaceId(poseConfigFromIr, exportFaceId)
             : null;
@@ -1661,6 +1706,7 @@ function buildVizijBundle(
   const poseIrForBundle = clonePoseIrForBundle(
     poseRig.poseIrDraft,
     exportFaceId,
+    standardInputsById.values(),
   );
   const poseDiagnostics = cloneSerializable(
     poseRig.poseDiagnostics ?? [],
